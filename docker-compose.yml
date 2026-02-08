@@ -1,0 +1,12 @@
+services:
+  immich-library-converter:
+    build: .
+    image: immich-library-converter:local
+    container_name: immich-library-converter
+    env_file:
+      - .env
+    # Use host networking to access Immich on localhost.
+    # If Immich is on a remote server, you can remove this and use the default bridge network.
+    network_mode: host
+    restart: "no"
+    shm_size: 1G
