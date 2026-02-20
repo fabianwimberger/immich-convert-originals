@@ -1,5 +1,8 @@
 # Immich Library Converter
 
+[![CI](https://github.com/fabianwimberger/immich-convert-originals/actions/workflows/ci.yml/badge.svg)](https://github.com/fabianwimberger/immich-convert-originals/actions)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 Batch-transcode your Immich library to modern efficient formats:
 - **Images** → JPEG XL (JXL)
 - **Videos** → AV1 (MP4 container)

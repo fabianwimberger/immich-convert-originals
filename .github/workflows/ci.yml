@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [main, master]
+    branches: [main, master, develop]
   pull_request:
-    branches: [main, master]
+    branches: [main, master, develop]
 
 jobs:
   lint:
@@ -23,3 +23,26 @@ jobs:
         run: |
           pip install ruff
           ruff check app/
+
+      - name: Ruff format check
+        run: |
+          pip install ruff
+          ruff format --check app/
+
+      - name: Type check with mypy
+        run: |
+          pip install mypy
+          mypy app/ --ignore-missing-imports || true
+
+  docker:
+    name: Docker Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Build
+        run: docker build -t immich-convert-originals:test .
+
+      - name: Test
+        run: docker run --rm --entrypoint python3 immich-convert-originals:test --version
