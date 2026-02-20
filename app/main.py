@@ -70,8 +70,11 @@ def process_asset(asset: Asset, client: ImmichClient, config: Config) -> dict:
         # Videos must be downloaded so ffprobe can detect the codec (AV1 vs H.264
         # both have MIME type video/mp4).
         if config.dry_run and not is_video:
-            logger.info("%s: [would transcode to %s] [DRY RUN]",
-                        asset.original_file_name, target_format)
+            logger.info(
+                "%s: [would transcode to %s] [DRY RUN]",
+                asset.original_file_name,
+                target_format,
+            )
             result_info["status"] = "dry_run_skip"
             return result_info
 
@@ -87,17 +90,24 @@ def process_asset(asset: Asset, client: ImmichClient, config: Config) -> dict:
         if config.dry_run and is_video:
             codec = detect_video_codec(input_path)
             if codec == "av1":
-                logger.info("%s: Skipped (already AV1) [DRY RUN]", asset.original_file_name)
+                logger.info(
+                    "%s: Skipped (already AV1) [DRY RUN]", asset.original_file_name
+                )
                 result_info["status"] = "skipped"
             else:
-                logger.info("%s: %d kB, codec=%s -> [would transcode to AV1] [DRY RUN]",
-                            asset.original_file_name, input_bytes / 1024, codec or "unknown")
+                logger.info(
+                    "%s: %d kB, codec=%s -> [would transcode to AV1] [DRY RUN]",
+                    asset.original_file_name,
+                    input_bytes / 1024,
+                    codec or "unknown",
+                )
                 result_info["status"] = "dry_run_skip"
             return result_info
 
         if is_video:
             result = transcode_video(
-                input_path, output_path,
+                input_path,
+                output_path,
                 crf=config.video_crf,
                 preset=config.video_preset,
                 max_dimension=config.video_max_dimension,
@@ -133,10 +143,14 @@ def process_asset(asset: Asset, client: ImmichClient, config: Config) -> dict:
             elif config.enable_retry:
                 # Retry with lower quality settings
                 if is_video:
-                    logger.info("%s: Output larger, retrying with CRF %d...",
-                                asset.original_file_name, config.video_crf_retry)
+                    logger.info(
+                        "%s: Output larger, retrying with CRF %d...",
+                        asset.original_file_name,
+                        config.video_crf_retry,
+                    )
                     result = transcode_video(
-                        input_path, output_path,
+                        input_path,
+                        output_path,
                         crf=config.video_crf_retry,
                         preset=config.video_preset,
                         max_dimension=config.video_max_dimension,
@@ -144,14 +158,21 @@ def process_asset(asset: Asset, client: ImmichClient, config: Config) -> dict:
                     )
                     is_valid = validate_video_output(output_path)
                 else:
-                    logger.info("%s: Output larger, retrying with distance %.1f...",
-                                asset.original_file_name, config.image_distance_retry)
-                    result = transcode(input_path, output_path, config.image_distance_retry)
+                    logger.info(
+                        "%s: Output larger, retrying with distance %.1f...",
+                        asset.original_file_name,
+                        config.image_distance_retry,
+                    )
+                    result = transcode(
+                        input_path, output_path, config.image_distance_retry
+                    )
                     is_valid = validate_output(output_path, "jxl")
 
                 if not result.success or not is_valid:
-                    logger.info("%s: Skipped (retry failed or validation failed)",
-                                asset.original_file_name)
+                    logger.info(
+                        "%s: Skipped (retry failed or validation failed)",
+                        asset.original_file_name,
+                    )
                     result_info["status"] = "skipped"
                     return result_info
 
@@ -160,8 +181,10 @@ def process_asset(asset: Asset, client: ImmichClient, config: Config) -> dict:
 
                 # After retry, check if still larger
                 if output_bytes > input_bytes and not config.accept_retry_output:
-                    logger.info("%s: Skipped (retry output still larger)",
-                                asset.original_file_name)
+                    logger.info(
+                        "%s: Skipped (retry output still larger)",
+                        asset.original_file_name,
+                    )
                     result_info["status"] = "skipped"
                     return result_info
             else:
@@ -193,7 +216,9 @@ def process_asset(asset: Asset, client: ImmichClient, config: Config) -> dict:
             result_info["status"] = "failed_upload"
             return result_info
 
-        success, error = client.copy_asset_data(from_asset_id=asset.id, to_asset_id=new_asset_id)
+        success, error = client.copy_asset_data(
+            from_asset_id=asset.id, to_asset_id=new_asset_id
+        )
         if not success:
             client.delete_assets([new_asset_id])
             logger.error("%s: Copy failed: %s", asset.original_file_name, error)
@@ -203,20 +228,30 @@ def process_asset(asset: Asset, client: ImmichClient, config: Config) -> dict:
         verified, verify_error = client.get_asset(new_asset_id)
         if not verified:
             client.delete_assets([new_asset_id])
-            logger.error("%s: Verification failed: %s", asset.original_file_name, verify_error)
+            logger.error(
+                "%s: Verification failed: %s", asset.original_file_name, verify_error
+            )
             result_info["status"] = "failed_verification"
             return result_info
 
         success, error = client.delete_assets([asset.id])
         if not success:
-            logger.warning("%s: Replaced but old asset not deleted: %s",
-                           asset.original_file_name, error)
+            logger.warning(
+                "%s: Replaced but old asset not deleted: %s",
+                asset.original_file_name,
+                error,
+            )
             result_info["status"] = "partial_success"
             return result_info
 
         savings_pct = result_info["savings_pct"]
-        logger.info("%s: %d kB -> %d kB (%.1f%% saved)",
-                    asset.original_file_name, input_bytes / 1024, output_bytes / 1024, savings_pct)
+        logger.info(
+            "%s: %d kB -> %d kB (%.1f%% saved)",
+            asset.original_file_name,
+            input_bytes / 1024,
+            output_bytes / 1024,
+            savings_pct,
+        )
         result_info["status"] = "success"
         return result_info
 
@@ -249,7 +284,9 @@ def main() -> int:
     if "VIDEO" in config.asset_types:
         target_formats.append("AV1")
 
-    logger.info("Immich Library Converter (%s -> %s)", type_labels, ", ".join(target_formats))
+    logger.info(
+        "Immich Library Converter (%s -> %s)", type_labels, ", ".join(target_formats)
+    )
     logger.info("=" * 50)
 
     dry_run_suffix = " [DRY RUN]" if config.dry_run else ""
@@ -260,7 +297,9 @@ def main() -> int:
     if "IMAGE" in config.asset_types:
         logger.info("Image: distance=%.1f", config.image_distance)
         if config.enable_retry:
-            logger.info("  Retry with distance %.1f if larger", config.image_distance_retry)
+            logger.info(
+                "  Retry with distance %.1f if larger", config.image_distance_retry
+            )
     if config.enable_retry and config.accept_retry_output:
         logger.info("Allow larger output after retry: yes")
     logger.info("Workers: %d%s", config.concurrency, dry_run_suffix)
@@ -333,10 +372,19 @@ def main() -> int:
                 results.append(result)
             except Exception as e:
                 logger.error("Unexpected error: %s: %s", asset.original_file_name, e)
-                results.append({"status": "error", "input_bytes": 0, "output_bytes": 0, "savings_pct": 0.0})
+                results.append(
+                    {
+                        "status": "error",
+                        "input_bytes": 0,
+                        "output_bytes": 0,
+                        "savings_pct": 0.0,
+                    }
+                )
 
             if i % 50 == 0 or i == total_count:
-                logger.info("Progress: %d/%d (%.0f%%)", i, total_count, i / total_count * 100)
+                logger.info(
+                    "Progress: %d/%d (%.0f%%)", i, total_count, i / total_count * 100
+                )
 
     total_input = sum(r["input_bytes"] for r in results)
     total_output = sum(r["output_bytes"] for r in results)
@@ -355,8 +403,11 @@ def main() -> int:
     if total_input > 0:
         logger.info("Input: %s bytes", f"{total_input:,}")
         logger.info("Output: %s bytes", f"{total_output:,}")
-        logger.info("Savings: %s bytes (%.1f%%)",
-                     f"{total_savings:+,}", (total_savings / total_input) * 100)
+        logger.info(
+            "Savings: %s bytes (%.1f%%)",
+            f"{total_savings:+,}",
+            (total_savings / total_input) * 100,
+        )
 
     return 0
 

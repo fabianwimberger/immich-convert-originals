@@ -32,8 +32,8 @@ class Config:
     image_distance_retry: float = 2.0
 
     # Video encoding (SVT-AV1)
-    video_crf: int = 36           # 0-63, lower=better quality
-    video_preset: str = "4"       # 0-13, lower=slower/better quality
+    video_crf: int = 36  # 0-63, lower=better quality
+    video_preset: str = "4"  # 0-13, lower=slower/better quality
     video_max_dimension: int = 0  # 0=no scaling, else limits shorter side
     video_audio_bitrate: str = "64k"
     video_crf_retry: int = 40
@@ -68,11 +68,15 @@ class Config:
         # Asset types (default: both)
         asset_types_str = os.environ.get("ASSET_TYPES", "").strip()
         if asset_types_str:
-            asset_types_list = [t.strip().upper() for t in asset_types_str.split(",") if t.strip()]
+            asset_types_list = [
+                t.strip().upper() for t in asset_types_str.split(",") if t.strip()
+            ]
             valid_types = {"IMAGE", "VIDEO"}
             invalid_types = set(asset_types_list) - valid_types
             if invalid_types:
-                raise ValueError(f"Invalid ASSET_TYPES values: {invalid_types}. Valid: IMAGE, VIDEO")
+                raise ValueError(
+                    f"Invalid ASSET_TYPES values: {invalid_types}. Valid: IMAGE, VIDEO"
+                )
             asset_types = tuple(asset_types_list)
         else:
             asset_types = ("IMAGE", "VIDEO")
@@ -85,13 +89,17 @@ class Config:
 
         # Image encoding
         image_distance = _parse_float("IMAGE_DISTANCE", default=1.0, min=0.0, max=25.0)
-        image_distance_retry = _parse_float("IMAGE_DISTANCE_RETRY", default=2.0, min=0.0, max=25.0)
+        image_distance_retry = _parse_float(
+            "IMAGE_DISTANCE_RETRY", default=2.0, min=0.0, max=25.0
+        )
 
         # Video encoding
         video_crf = _parse_int("VIDEO_CRF", default=36, min=0, max=63)
         video_preset = str(_parse_int("VIDEO_PRESET", default=4, min=0, max=13))
         video_max_dimension = _parse_int("VIDEO_MAX_DIMENSION", default=0, min=0)
-        video_audio_bitrate = os.environ.get("VIDEO_AUDIO_BITRATE", "64k").strip() or "64k"
+        video_audio_bitrate = (
+            os.environ.get("VIDEO_AUDIO_BITRATE", "64k").strip() or "64k"
+        )
         video_crf_retry = _parse_int("VIDEO_CRF_RETRY", default=40, min=0, max=63)
 
         # Retry behavior
@@ -144,11 +152,15 @@ def _parse_bool(name: str, default: bool) -> bool:
         return True
     if value in ("false", "0", "no", "off"):
         return False
-    logger.warning("Invalid boolean value for %s: '%s', using default %s", name, raw, default)
+    logger.warning(
+        "Invalid boolean value for %s: '%s', using default %s", name, raw, default
+    )
     return default
 
 
-def _parse_int(name: str, default: int, min: int | None = None, max: int | None = None) -> int:
+def _parse_int(
+    name: str, default: int, min: int | None = None, max: int | None = None
+) -> int:
     value = os.environ.get(name)
     if value is None or value.strip() == "":
         return default
@@ -165,7 +177,9 @@ def _parse_int(name: str, default: int, min: int | None = None, max: int | None 
         raise
 
 
-def _parse_float(name: str, default: float, min: float | None = None, max: float | None = None) -> float:
+def _parse_float(
+    name: str, default: float, min: float | None = None, max: float | None = None
+) -> float:
     value = os.environ.get(name)
     if value is None or value.strip() == "":
         return default
@@ -196,12 +210,16 @@ def _parse_date(name: str) -> str | None:
                 return f"{value}T23:59:59.999Z"
             return f"{value}T00:00:00.000Z"
         except ValueError as e:
-            raise ValueError(f"Invalid date for {name}: {value}. Use YYYY-MM-DD.") from e
+            raise ValueError(
+                f"Invalid date for {name}: {value}. Use YYYY-MM-DD."
+            ) from e
 
     # Accept ISO 8601 strings (must start with a valid date)
     try:
         datetime.fromisoformat(value.replace("Z", "+00:00"))
     except ValueError as e:
-        raise ValueError(f"Invalid date for {name}: {value}. Use YYYY-MM-DD or ISO 8601.") from e
+        raise ValueError(
+            f"Invalid date for {name}: {value}. Use YYYY-MM-DD or ISO 8601."
+        ) from e
 
     return value

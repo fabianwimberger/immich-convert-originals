@@ -41,8 +41,14 @@ class Asset:
 class ImmichClient:
     """Client for Immich HTTP API."""
 
-    def __init__(self, api_base: str, api_key: str, retry_max: int = 3, retry_backoff: int = 2,
-                 timeout: tuple[int, int] = (10, 300)):
+    def __init__(
+        self,
+        api_base: str,
+        api_key: str,
+        retry_max: int = 3,
+        retry_backoff: int = 2,
+        timeout: tuple[int, int] = (10, 300),
+    ):
         self.api_base = api_base
         self.api_key = api_key
         self.retry_max = retry_max
@@ -57,12 +63,18 @@ class ImmichClient:
 
         for attempt in range(self.retry_max + 1):
             try:
-                response = requests.request(method, url, headers=merged_headers, timeout=self._timeout, **kwargs)
+                response = requests.request(
+                    method, url, headers=merged_headers, timeout=self._timeout, **kwargs
+                )
 
                 if response.status_code == 401:
-                    raise RuntimeError("Authentication failed - check IMMICH_API_KEY") from None
+                    raise RuntimeError(
+                        "Authentication failed - check IMMICH_API_KEY"
+                    ) from None
                 if response.status_code == 403:
-                    raise RuntimeError("Forbidden - API key lacks required permissions") from None
+                    raise RuntimeError(
+                        "Forbidden - API key lacks required permissions"
+                    ) from None
                 if response.status_code == 404:
                     return response
 
@@ -125,7 +137,9 @@ class ImmichClient:
         items = data.get("assets", {}).get("items", [])
         return [Asset.from_dict(item) for item in items]
 
-    def download_original(self, asset_id: str, output_path: str) -> tuple[int, str | None]:
+    def download_original(
+        self, asset_id: str, output_path: str
+    ) -> tuple[int, str | None]:
         """Download original asset binary to file."""
         url = urljoin(self.api_base, f"assets/{asset_id}/original")
 
@@ -192,8 +206,12 @@ class ImmichClient:
                 with open(file_path, "rb") as f:
                     files = {"assetData": f}
                     response = requests.request(
-                        "POST", url, headers=self._default_headers,
-                        files=files, data=data, timeout=self._timeout,
+                        "POST",
+                        url,
+                        headers=self._default_headers,
+                        files=files,
+                        data=data,
+                        timeout=self._timeout,
                     )
 
                     if response.status_code == 401:
@@ -203,7 +221,7 @@ class ImmichClient:
 
                     if response.status_code == 429 or response.status_code >= 500:
                         if attempt < self.retry_max:
-                            time.sleep(self.retry_backoff * (2 ** attempt))
+                            time.sleep(self.retry_backoff * (2**attempt))
                             continue
 
                     if response.status_code in (200, 201):
@@ -216,11 +234,14 @@ class ImmichClient:
                             error_msg = error_detail.get("message", str(error_detail))
                         except Exception:
                             error_msg = response.text or "Unknown error"
-                        return None, f"Upload failed: HTTP {response.status_code} - {error_msg}"
+                        return (
+                            None,
+                            f"Upload failed: HTTP {response.status_code} - {error_msg}",
+                        )
             except requests.RequestException as e:
                 last_error = e
                 if attempt < self.retry_max:
-                    time.sleep(self.retry_backoff * (2 ** attempt))
+                    time.sleep(self.retry_backoff * (2**attempt))
                     continue
             except Exception as e:
                 return None, str(e)

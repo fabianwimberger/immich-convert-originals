@@ -8,22 +8,22 @@ from dataclasses import dataclass
 logger = logging.getLogger(__name__)
 
 # Subprocess timeouts (seconds)
-IMAGE_TIMEOUT = 600     # 10 minutes for image transcoding (cjxl, magick)
-VIDEO_TIMEOUT = 43200   # 12 hours for video transcoding (ffmpeg)
-PROBE_TIMEOUT = 60      # 1 minute for ffprobe
+IMAGE_TIMEOUT = 600  # 10 minutes for image transcoding (cjxl, magick)
+VIDEO_TIMEOUT = 43200  # 12 hours for video transcoding (ffmpeg)
+PROBE_TIMEOUT = 60  # 1 minute for ffprobe
 METADATA_TIMEOUT = 120  # 2 minutes for exiftool
 
 # Unambiguous magic byte signatures.
 # Ambiguous formats (RIFF, ftyp-based) are resolved in detect_format().
 MAGIC_BYTES = {
-    b"\x00\x00\x00\x0C\x4A\x58\x4C\x20\x0D\x0A\x87\x0A": "jxl",  # ISOBMFF container
-    b"\x89\x50\x4E\x47\x0D\x0A\x1A\x0A": "png",
-    b"\xFF\xD8\xFF": "jpg",
-    b"\xFF\x0A": "jxl",              # Bare codestream
-    b"\x49\x49\x2A\x00": "tiff",     # Little-endian TIFF
-    b"\x4D\x4D\x00\x2A": "tiff",     # Big-endian TIFF
-    b"\x47\x49\x46\x38": "gif",      # GIF87a or GIF89a
-    b"\x42\x4D": "bmp",
+    b"\x00\x00\x00\x0c\x4a\x58\x4c\x20\x0d\x0a\x87\x0a": "jxl",  # ISOBMFF container
+    b"\x89\x50\x4e\x47\x0d\x0a\x1a\x0a": "png",
+    b"\xff\xd8\xff": "jpg",
+    b"\xff\x0a": "jxl",  # Bare codestream
+    b"\x49\x49\x2a\x00": "tiff",  # Little-endian TIFF
+    b"\x4d\x4d\x00\x2a": "tiff",  # Big-endian TIFF
+    b"\x47\x49\x46\x38": "gif",  # GIF87a or GIF89a
+    b"\x42\x4d": "bmp",
 }
 
 
@@ -56,7 +56,7 @@ def detect_format(path: str) -> str | None:
                 return "avi"
 
         # Matroska / WebM
-        if header.startswith(b"\x1A\x45\xDF\xA3"):
+        if header.startswith(b"\x1a\x45\xdf\xa3"):
             return "mkv"
 
         # ftyp-based containers: HEIC, AVIF, or video (MP4/MOV)
@@ -84,10 +84,15 @@ def detect_video_codec(path: str) -> str | None:
     try:
         result = subprocess.run(
             [
-                "ffprobe", "-v", "error",
-                "-select_streams", "v:0",
-                "-show_entries", "stream=codec_name",
-                "-of", "default=noprint_wrappers=1:nokey=1",
+                "ffprobe",
+                "-v",
+                "error",
+                "-select_streams",
+                "v:0",
+                "-show_entries",
+                "stream=codec_name",
+                "-of",
+                "default=noprint_wrappers=1:nokey=1",
                 path,
             ],
             capture_output=True,
@@ -118,7 +123,13 @@ def copy_metadata(source_path: str, dest_path: str) -> bool:
     """Copy EXIF/XMP metadata from source to dest using exiftool."""
     try:
         subprocess.run(
-            ["exiftool", "-overwrite_original", "-tagsFromFile", source_path, dest_path],
+            [
+                "exiftool",
+                "-overwrite_original",
+                "-tagsFromFile",
+                source_path,
+                dest_path,
+            ],
             capture_output=True,
             check=True,
             timeout=METADATA_TIMEOUT,
@@ -131,47 +142,68 @@ def copy_metadata(source_path: str, dest_path: str) -> bool:
         return False
 
 
-def _transcode_with_magick(input_path: str, output_path: str, distance: float) -> TranscodeResult:
+def _transcode_with_magick(
+    input_path: str, output_path: str, distance: float
+) -> TranscodeResult:
     """Transcode using ImageMagick with specified JXL distance."""
     input_bytes = os.path.getsize(input_path)
     input_format = detect_format(input_path)
 
     cmd = [
-        "magick", input_path,
-        "-define", f"jxl:distance={distance}",
+        "magick",
+        input_path,
+        "-define",
+        f"jxl:distance={distance}",
         output_path,
     ]
 
     try:
         subprocess.run(cmd, check=True, capture_output=True, timeout=IMAGE_TIMEOUT)
         if not copy_metadata(input_path, output_path):
-            logger.warning("Failed to copy metadata for %s, file EXIF may be incomplete", input_path)
+            logger.warning(
+                "Failed to copy metadata for %s, file EXIF may be incomplete",
+                input_path,
+            )
 
-        output_bytes = os.path.getsize(output_path) if os.path.exists(output_path) else 0
+        output_bytes = (
+            os.path.getsize(output_path) if os.path.exists(output_path) else 0
+        )
         return TranscodeResult(
-            success=True, input_path=input_path, output_path=output_path,
-            input_bytes=input_bytes, output_bytes=output_bytes,
+            success=True,
+            input_path=input_path,
+            output_path=output_path,
+            input_bytes=input_bytes,
+            output_bytes=output_bytes,
             input_format=input_format or "unknown",
         )
     except subprocess.TimeoutExpired:
         return TranscodeResult(
-            success=False, input_path=input_path, output_path=output_path,
-            input_bytes=input_bytes, output_bytes=0,
+            success=False,
+            input_path=input_path,
+            output_path=output_path,
+            input_bytes=input_bytes,
+            output_bytes=0,
             input_format=input_format or "unknown",
             error=f"ImageMagick timed out after {IMAGE_TIMEOUT}s",
         )
     except subprocess.CalledProcessError as e:
         stderr = e.stderr.decode(errors="replace") if e.stderr else ""
         return TranscodeResult(
-            success=False, input_path=input_path, output_path=output_path,
-            input_bytes=input_bytes, output_bytes=0,
+            success=False,
+            input_path=input_path,
+            output_path=output_path,
+            input_bytes=input_bytes,
+            output_bytes=0,
             input_format=input_format or "unknown",
             error=f"ImageMagick failed: {stderr}",
         )
     except FileNotFoundError:
         return TranscodeResult(
-            success=False, input_path=input_path, output_path=output_path,
-            input_bytes=input_bytes, output_bytes=0,
+            success=False,
+            input_path=input_path,
+            output_path=output_path,
+            input_bytes=input_bytes,
+            output_bytes=0,
             input_format=input_format or "unknown",
             error="magick not found",
         )
@@ -192,16 +224,24 @@ def transcode(
 
     if not input_format:
         return TranscodeResult(
-            success=False, input_path=input_path, output_path=output_path,
-            input_bytes=input_bytes, output_bytes=0, input_format="unknown",
+            success=False,
+            input_path=input_path,
+            output_path=output_path,
+            input_bytes=input_bytes,
+            output_bytes=0,
+            input_format="unknown",
             error="Could not detect input format",
         )
 
     if input_format == "jxl":
         return TranscodeResult(
-            success=False, input_path=input_path, output_path=output_path,
-            input_bytes=input_bytes, output_bytes=input_bytes,
-            input_format=input_format, error="Already JXL",
+            success=False,
+            input_path=input_path,
+            output_path=output_path,
+            input_bytes=input_bytes,
+            output_bytes=input_bytes,
+            input_format=input_format,
+            error="Already JXL",
         )
 
     is_jpeg = input_format == "jpg"
@@ -216,8 +256,11 @@ def transcode(
             )
         except subprocess.TimeoutExpired:
             return TranscodeResult(
-                success=False, input_path=input_path, output_path=output_path,
-                input_bytes=input_bytes, output_bytes=0,
+                success=False,
+                input_path=input_path,
+                output_path=output_path,
+                input_bytes=input_bytes,
+                output_bytes=0,
                 input_format=input_format,
                 error=f"cjxl timed out after {IMAGE_TIMEOUT}s",
             )
@@ -226,10 +269,15 @@ def transcode(
             return _transcode_with_magick(input_path, output_path, distance)
 
         if result.returncode == 0:
-            output_bytes = os.path.getsize(output_path) if os.path.exists(output_path) else 0
+            output_bytes = (
+                os.path.getsize(output_path) if os.path.exists(output_path) else 0
+            )
             return TranscodeResult(
-                success=True, input_path=input_path, output_path=output_path,
-                input_bytes=input_bytes, output_bytes=output_bytes,
+                success=True,
+                input_path=input_path,
+                output_path=output_path,
+                input_bytes=input_bytes,
+                output_bytes=output_bytes,
                 input_format=input_format,
             )
         else:
@@ -264,21 +312,37 @@ def transcode_video(
     current_codec = detect_video_codec(input_path)
     if current_codec is None:
         return TranscodeResult(
-            success=False, input_path=input_path, output_path=output_path,
-            input_bytes=input_bytes, output_bytes=0, input_format="unknown",
+            success=False,
+            input_path=input_path,
+            output_path=output_path,
+            input_bytes=input_bytes,
+            output_bytes=0,
+            input_format="unknown",
             error="Could not detect video codec",
         )
 
     if current_codec == "av1":
         return TranscodeResult(
-            success=False, input_path=input_path, output_path=output_path,
-            input_bytes=input_bytes, output_bytes=input_bytes,
-            input_format=current_codec, error="Already AV1",
+            success=False,
+            input_path=input_path,
+            output_path=output_path,
+            input_bytes=input_bytes,
+            output_bytes=input_bytes,
+            input_format=current_codec,
+            error="Already AV1",
         )
 
     cmd = [
-        "ffmpeg", "-y", "-i", input_path,
-        "-c:v", "libsvtav1", "-crf", str(crf), "-preset", preset,
+        "ffmpeg",
+        "-y",
+        "-i",
+        input_path,
+        "-c:v",
+        "libsvtav1",
+        "-crf",
+        str(crf),
+        "-preset",
+        preset,
     ]
 
     if max_dimension > 0:
@@ -290,41 +354,65 @@ def transcode_video(
         )
         cmd.extend(["-vf", scale_filter])
 
-    cmd.extend([
-        "-pix_fmt", "yuv420p",
-        "-c:a", "libopus", "-b:a", audio_bitrate,
-        "-map_metadata", "0",
-        "-movflags", "+faststart",
-        output_path,
-    ])
+    cmd.extend(
+        [
+            "-pix_fmt",
+            "yuv420p",
+            "-c:a",
+            "libopus",
+            "-b:a",
+            audio_bitrate,
+            "-map_metadata",
+            "0",
+            "-movflags",
+            "+faststart",
+            output_path,
+        ]
+    )
 
     try:
         subprocess.run(cmd, check=True, capture_output=True, timeout=VIDEO_TIMEOUT)
-        output_bytes = os.path.getsize(output_path) if os.path.exists(output_path) else 0
+        output_bytes = (
+            os.path.getsize(output_path) if os.path.exists(output_path) else 0
+        )
         return TranscodeResult(
-            success=True, input_path=input_path, output_path=output_path,
-            input_bytes=input_bytes, output_bytes=output_bytes,
+            success=True,
+            input_path=input_path,
+            output_path=output_path,
+            input_bytes=input_bytes,
+            output_bytes=output_bytes,
             input_format=current_codec,
         )
     except subprocess.TimeoutExpired:
         return TranscodeResult(
-            success=False, input_path=input_path, output_path=output_path,
-            input_bytes=input_bytes, output_bytes=0,
+            success=False,
+            input_path=input_path,
+            output_path=output_path,
+            input_bytes=input_bytes,
+            output_bytes=0,
             input_format=current_codec,
             error=f"ffmpeg timed out after {VIDEO_TIMEOUT}s",
         )
     except subprocess.CalledProcessError as e:
         stderr = e.stderr.decode(errors="replace") if e.stderr else ""
         return TranscodeResult(
-            success=False, input_path=input_path, output_path=output_path,
-            input_bytes=input_bytes, output_bytes=0,
-            input_format=current_codec, error=f"ffmpeg failed: {stderr}",
+            success=False,
+            input_path=input_path,
+            output_path=output_path,
+            input_bytes=input_bytes,
+            output_bytes=0,
+            input_format=current_codec,
+            error=f"ffmpeg failed: {stderr}",
         )
     except FileNotFoundError:
         return TranscodeResult(
-            success=False, input_path=input_path, output_path=output_path,
-            input_bytes=input_bytes, output_bytes=0,
-            input_format=current_codec, error="ffmpeg not found",
+            success=False,
+            input_path=input_path,
+            output_path=output_path,
+            input_bytes=input_bytes,
+            output_bytes=0,
+            input_format=current_codec,
+            error="ffmpeg not found",
         )
 
 
@@ -334,8 +422,16 @@ def validate_video_output(path: str) -> bool:
         return False
     try:
         result = subprocess.run(
-            ["ffprobe", "-v", "error", "-show_entries", "format=duration",
-             "-of", "default=noprint_wrappers=1:nokey=1", path],
+            [
+                "ffprobe",
+                "-v",
+                "error",
+                "-show_entries",
+                "format=duration",
+                "-of",
+                "default=noprint_wrappers=1:nokey=1",
+                path,
+            ],
             capture_output=True,
             text=True,
             timeout=PROBE_TIMEOUT,
