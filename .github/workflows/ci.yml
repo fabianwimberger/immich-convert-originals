@@ -19,20 +19,37 @@ jobs:
         with:
           python-version: '3.13'
 
-      - name: Ruff
+      - name: Install dependencies
         run: |
-          pip install ruff
-          ruff check app/
+          pip install ruff mypy types-requests pytest
 
-      - name: Ruff format check
-        run: |
-          pip install ruff
-          ruff format --check app/
+      - name: Lint with ruff
+        run: ruff check app/ tests/
+
+      - name: Format check with ruff
+        run: ruff format --check app/ tests/
 
       - name: Type check with mypy
+        run: mypy app/ tests/ --ignore-missing-imports --explicit-package-bases
+
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install dependencies
         run: |
-          pip install mypy
-          mypy app/ --ignore-missing-imports || true
+          pip install -r requirements.txt
+
+      - name: Run tests
+        run: pytest tests/ -v
 
   docker:
     name: Docker Build
@@ -44,5 +61,7 @@ jobs:
       - name: Build
         run: docker build -t immich-convert-originals:test .
 
-      - name: Test
-        run: docker run --rm --entrypoint python3 immich-convert-originals:test --version
+      - name: Test imports
+        run: |
+          docker run --rm --entrypoint python3 immich-convert-originals:test -c \
+            "import main; print('imports OK')"

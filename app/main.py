@@ -244,13 +244,12 @@ def process_asset(asset: Asset, client: ImmichClient, config: Config) -> dict:
             result_info["status"] = "partial_success"
             return result_info
 
-        savings_pct = result_info["savings_pct"]
         logger.info(
             "%s: %d kB -> %d kB (%.1f%% saved)",
             asset.original_file_name,
             input_bytes / 1024,
             output_bytes / 1024,
-            savings_pct,
+            result_info["savings_pct"],
         )
         result_info["status"] = "success"
         return result_info

@@ -9,4 +9,7 @@ services:
     # If Immich is on a remote server, you can remove this and use the default bridge network.
     network_mode: host
     restart: "no"
+    # ffmpeg and ImageMagick use shared memory for large frame buffers
     shm_size: 1G
+    volumes:
+      - ./work:/work

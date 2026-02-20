@@ -57,7 +57,7 @@ This tool downloads your original assets, transcodes them to space-efficient for
 
 ```bash
 # 1. Clone or download this repository
-cd immich-library-convert
+cd immich-convert-originals
 
 # 2. Copy and edit configuration
 cp .env.example .env
