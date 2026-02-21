@@ -2,14 +2,18 @@ name: CI
 
 on:
   push:
-    branches: [main, master, develop]
+    branches: [main]
   pull_request:
-    branches: [main, master, develop]
+    branches: [main]
+
+env:
+  PYTHON_VERSION: "3.13"
 
 jobs:
   lint:
     name: Lint
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -17,11 +21,10 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.13'
+          python-version: ${{ env.PYTHON_VERSION }}
 
-      - name: Install dependencies
-        run: |
-          pip install ruff mypy types-requests pytest
+      - name: Install linting tools
+        run: pip install ruff mypy types-requests
 
       - name: Lint with ruff
         run: ruff check app/ tests/
@@ -35,6 +38,7 @@ jobs:
   test:
     name: Test
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -42,11 +46,10 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.13'
+          python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Install dependencies
-        run: |
-          pip install -r requirements.txt
+        run: pip install -r requirements.txt
 
       - name: Run tests
         run: pytest tests/ -v
@@ -54,14 +57,15 @@ jobs:
   docker:
     name: Docker Build
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Build
+      - name: Build Docker image
         run: docker build -t immich-convert-originals:test .
 
-      - name: Test imports
+      - name: Test container starts
         run: |
           docker run --rm --entrypoint python3 immich-convert-originals:test -c \
             "import main; print('imports OK')"
