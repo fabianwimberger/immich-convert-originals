@@ -1,5 +1,11 @@
 FROM python:3.13-alpine
 
+# OCI labels for image metadata
+LABEL org.opencontainers.image.title="Immich Convert Originals"
+LABEL org.opencontainers.image.description="Batch-transcode Immich library to JPEG XL and AV1"
+LABEL org.opencontainers.image.source="https://github.com/fabianwimberger/immich-convert-originals"
+LABEL org.opencontainers.image.licenses="MIT"
+
 ENV PYTHONUNBUFFERED=1
 
 RUN apk add --no-cache \
@@ -18,6 +24,9 @@ RUN mkdir -p /work/in /work/out && \
 
 COPY app /app
 RUN chown -R appuser:appuser /app
+
+# Copy license files for compliance
+COPY NOTICE DOCKER_LICENSES.md /app/
 
 WORKDIR /app
 USER appuser
