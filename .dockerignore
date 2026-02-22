@@ -8,3 +8,7 @@ docker-compose.yml
 __pycache__/
 *.pyc
 *.pyo
+
+# Include license files in Docker image (required for LGPL compliance)
+!DOCKER_LICENSES.md
+!NOTICE
