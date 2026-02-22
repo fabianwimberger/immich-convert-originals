@@ -1,0 +1,35 @@
+Immich Convert Originals
+Copyright (c) 2026 Fabian Wimberger
+
+This product includes software developed by third parties.
+See DOCKER_LICENSES.md for complete license information.
+
+THIRD-PARTY COMPONENTS
+======================
+
+This Docker image contains the following third-party software:
+
+- libjxl / libjxl-tools (Apache-2.0 / BSD-3-Clause)
+  https://github.com/libjxl/libjxl
+
+- ImageMagick (Apache-2.0)
+  https://imagemagick.org/
+
+- FFmpeg (LGPL-2.1-or-later)
+  https://ffmpeg.org/
+  Source code available at: https://ffmpeg.org/download.html
+
+- ExifTool / perl-image-exiftool (Artistic-1.0-Perl OR GPL-1.0-or-later)
+  https://exiftool.org/
+
+- Python (PSF-2.0)
+  https://www.python.org/
+
+- Alpine Linux (MIT)
+  https://alpinelinux.org/
+
+The source code for LGPL-licensed components (FFmpeg) is available
+from the project websites listed above or the Alpine Linux package
+repositories at https://pkgs.alpinelinux.org/
+
+This software is provided "as is" without warranty of any kind.
