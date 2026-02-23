@@ -1,7 +1,13 @@
 services:
   immich-library-converter:
+    # Option 1: Build locally (default)
     build: .
     image: immich-library-converter:local
+
+    # Option 2: Use prebuilt image from GitHub Container Registry
+    # Uncomment the line below and comment out the 'build' and 'image' lines above
+    # image: ghcr.io/fabianwimberger/immich-convert-originals:main
+
     container_name: immich-library-converter
     env_file:
       - .env

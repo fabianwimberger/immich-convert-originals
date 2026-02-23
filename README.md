@@ -1,6 +1,7 @@
 # Immich Library Converter
 
 [![CI](https://github.com/fabianwimberger/immich-convert-originals/actions/workflows/ci.yml/badge.svg)](https://github.com/fabianwimberger/immich-convert-originals/actions)
+[![Docker](https://github.com/fabianwimberger/immich-convert-originals/actions/workflows/docker-publish.yml/badge.svg)](https://github.com/fabianwimberger/immich-convert-originals/pkgs/container/immich-convert-originals)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 Batch-transcode your Immich library to modern efficient formats:
@@ -29,6 +30,31 @@ Modern image and video formats offer significant space savings without perceptib
 - **Concurrency control** — configurable parallel workers
 
 ## Quick Start
+
+### Option 1: Prebuilt Docker Image (Recommended)
+
+The easiest way to run the tool is using the prebuilt image from GitHub Container Registry:
+
+```bash
+# Create a directory for your configuration
+mkdir immich-converter && cd immich-converter
+
+# Download the example environment file
+curl -O https://raw.githubusercontent.com/fabianwimberger/immich-convert-originals/main/.env.example
+mv .env.example .env
+
+# Edit .env with your Immich URL and API key
+nano .env
+
+# Run with dry run first to preview
+docker run --rm --env-file .env ghcr.io/fabianwimberger/immich-convert-originals:main
+
+# When ready, disable dry run and run for real
+# Edit .env: set DRY_RUN=false
+docker run --rm --env-file .env ghcr.io/fabianwimberger/immich-convert-originals:main
+```
+
+### Option 2: Docker Compose (Build Locally)
 
 ```bash
 # Clone the repository
@@ -114,6 +140,19 @@ If any step fails, the new asset is cleaned up and the original is preserved.
 - `Album` — Read
 - `Library` — Read (if using external libraries)
 
+## Docker Image Tags
+
+The following image tags are available from `ghcr.io/fabianwimberger/immich-convert-originals`:
+
+| Tag | Description |
+|-----|-------------|
+| `main` | Latest development build from main branch |
+| `v1.2.3` | Specific release version |
+| `v1.2` | Latest patch release in the v1.2.x series |
+| `v1` | Latest minor release in the v1.x.x series |
+
 ## License
 
 MIT License — see [LICENSE](LICENSE) file.
+
+This project includes third-party software. See [DOCKER_LICENSES.md](DOCKER_LICENSES.md) for license information about dependencies included in the Docker image.
