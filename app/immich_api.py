@@ -290,3 +290,13 @@ class ImmichClient:
             return False, f"Delete failed: HTTP {response.status_code}"
         except Exception as e:
             return False, str(e)
+
+    def get_album_assets(self, album_id: str) -> list[Asset]:
+        """Get all assets from a specific album."""
+        url = urljoin(self.api_base, f"albums/{album_id}")
+        response = self._request_with_retry("GET", url)
+        if response.status_code != 200:
+            raise RuntimeError(f"Failed to get album: HTTP {response.status_code}")
+        data = response.json()
+        items = data.get("assets", [])
+        return [Asset.from_dict(item) for item in items]
