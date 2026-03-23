@@ -323,28 +323,56 @@ def main() -> int:
     assets: list[Asset] = []
     logger.info("Scanning assets...")
 
-    for atype in config.asset_types:
-        page = 1
-        while True:
-            try:
-                page_assets = client.search_assets(
-                    page=page,
-                    size=500,
-                    asset_type=atype,
-                    with_archived=config.include_archived,
-                    with_deleted=config.include_deleted,
-                    taken_after=config.filter_date_after,
-                    taken_before=config.filter_date_before,
-                )
-            except Exception as e:
-                logger.error("Failed to fetch %s page %d: %s", atype, page, e)
-                break
-            if not page_assets:
-                break
-            assets.extend(page_assets)
-            page += 1
-            if config.max_assets and len(assets) >= config.max_assets:
-                break
+    if config.filter_album_id:
+        # Fetch assets from specific album
+        logger.info("Fetching assets from album %s...", config.filter_album_id)
+        try:
+            album_assets = client.get_album_assets(config.filter_album_id)
+            # Filter by asset type and other criteria
+            for asset in album_assets:
+                if asset.type not in config.asset_types:
+                    continue
+                # Apply date filters if set
+                if (
+                    config.filter_date_after
+                    and asset.file_created_at < config.filter_date_after
+                ):
+                    continue
+                if (
+                    config.filter_date_before
+                    and asset.file_created_at > config.filter_date_before
+                ):
+                    continue
+                assets.append(asset)
+                if config.max_assets and len(assets) >= config.max_assets:
+                    break
+        except Exception as e:
+            logger.error("Failed to get album: %s", e)
+            return 1
+    else:
+        # Original search logic for all assets
+        for atype in config.asset_types:
+            page = 1
+            while True:
+                try:
+                    page_assets = client.search_assets(
+                        page=page,
+                        size=500,
+                        asset_type=atype,
+                        with_archived=config.include_archived,
+                        with_deleted=config.include_deleted,
+                        taken_after=config.filter_date_after,
+                        taken_before=config.filter_date_before,
+                    )
+                except Exception as e:
+                    logger.error("Failed to fetch %s page %d: %s", atype, page, e)
+                    break
+                if not page_assets:
+                    break
+                assets.extend(page_assets)
+                page += 1
+                if config.max_assets and len(assets) >= config.max_assets:
+                    break
 
     if config.max_assets and len(assets) > config.max_assets:
         assets = assets[: config.max_assets]

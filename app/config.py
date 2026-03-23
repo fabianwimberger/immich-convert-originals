@@ -25,6 +25,7 @@ class Config:
     include_deleted: bool = False
     filter_date_after: str | None = None  # YYYY-MM-DD or ISO
     filter_date_before: str | None = None  # YYYY-MM-DD or ISO
+    filter_album_id: str | None = None  # Album UUID to filter by
 
     # Image encoding (JXL distance: 0=lossless, 1=visually lossless, higher=more compression)
     # Used by ImageMagick for non-JPEG images. JPEGs use cjxl lossless.
@@ -86,6 +87,7 @@ class Config:
         include_deleted = _parse_bool("INCLUDE_DELETED", default=False)
         filter_date_after = _parse_date("FILTER_DATE_AFTER")
         filter_date_before = _parse_date("FILTER_DATE_BEFORE")
+        filter_album_id = os.environ.get("FILTER_ALBUM_ID", "").strip() or None
 
         # Image encoding
         image_distance = _parse_float("IMAGE_DISTANCE", default=1.0, min=0.0, max=25.0)
@@ -123,6 +125,7 @@ class Config:
             include_deleted=include_deleted,
             filter_date_after=filter_date_after,
             filter_date_before=filter_date_before,
+            filter_album_id=filter_album_id,
             image_distance=image_distance,
             image_distance_retry=image_distance_retry,
             video_crf=video_crf,
