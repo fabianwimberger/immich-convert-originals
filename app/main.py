@@ -84,6 +84,11 @@ def process_asset(asset: Asset, client: ImmichClient, config: Config) -> dict:
             result_info["status"] = "failed_download"
             return result_info
 
+        if input_bytes == 0:
+            logger.error("%s: Downloaded file is empty", asset.original_file_name)
+            result_info["status"] = "failed_download"
+            return result_info
+
         result_info["input_bytes"] = input_bytes
 
         # Video dry_run: download was needed for codec detection, report and stop
