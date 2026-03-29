@@ -19,6 +19,11 @@ Modern image and video formats offer significant space savings without perceptib
 - Maintain full metadata and quality
 - Provide a safe, reversible conversion process
 
+<p align="center">
+  <img src="assets/demo.gif" width="100%" alt="Conversion Demo">
+  <br><em>Scans Immich library, transcodes to JXL/AV1, preserves metadata, reports savings</em>
+</p>
+
 ## Features
 
 - **Image conversion** — JPEG, PNG, WebP, HEIC → JPEG XL
@@ -100,59 +105,33 @@ If any step fails, the new asset is cleaned up and the original is preserved.
 
 **Always start with `DRY_RUN=true` (the default) to test your settings.**
 
-### Image Encoding (JPEG XL)
+### Encoding Settings
 
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `IMAGE_DISTANCE` | JXL distance (0=lossless, 1=visually lossless) | `1.0` |
-| `IMAGE_DISTANCE_RETRY` | Distance for retry if output is larger | `2.0` |
-
-### Video Encoding (AV1)
-
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `VIDEO_CRF` | Quality (0-63, lower=better) | `36` |
-| `VIDEO_PRESET` | Speed/quality tradeoff (0-13, lower=slower) | `4` |
-| `VIDEO_MAX_DIMENSION` | Max shorter side in pixels (0=original) | `0` |
+| `VIDEO_CRF` | AV1 quality (0-63, lower=better) | `36` |
+| `VIDEO_PRESET` | AV1 speed/quality tradeoff (0-13, lower=slower) | `4` |
 
 ## Security & Safety
 
-**⚠️ USE AT YOUR OWN RISK.** This tool modifies your Immich library:
-- Permanently deletes original assets after successful conversion
-- Replaced assets go to Immich's **trash** (recoverable for 30 days by default)
-
-**Before using:**
-1. **Backup your Immich library**
-2. **Test on a small subset first** — use date filters or `MAX_ASSETS`
-3. **Check your Immich trash settings** at `Administration > Settings > Trash`
-
-## Getting Your Immich API Key
-
-1. Open your Immich web interface
-2. Click your **profile picture** (top right) → **Account Settings**
-3. Go to **API Keys** section
-4. Click **New API Key**
-5. Give it a name (e.g., "Library Converter")
-6. Copy the key immediately (it won't be shown again)
-
-**Required Permissions:**
-- `Asset` — Read, Upload, Delete
-- `Album` — Read
-- `Library` — Read (if using external libraries)
+**⚠️ USE AT YOUR OWN RISK.** This tool deletes originals after conversion (recoverable via Immich trash for 30 days). Always backup first and test on a small subset with `MAX_ASSETS`.
 
 ## Docker Image Tags
 
-The following image tags are available from `ghcr.io/fabianwimberger/immich-convert-originals`:
-
-| Tag | Description |
-|-----|-------------|
-| `main` | Latest development build from main branch |
-| `v1.2.3` | Specific release version |
-| `v1.2` | Latest patch release in the v1.2.x series |
-| `v1` | Latest minor release in the v1.x.x series |
+Images are available from `ghcr.io/fabianwimberger/immich-convert-originals`. Use `main` for latest, or pin to a release tag (`v1`, `v1.2`, `v1.2.3`).
 
 ## License
 
 MIT License — see [LICENSE](LICENSE) file.
 
-This project includes third-party software. See [DOCKER_LICENSES.md](DOCKER_LICENSES.md) for license information about dependencies included in the Docker image.
+### Third-Party Licenses
+
+| Component | License | Source |
+|-----------|---------|--------|
+| libjxl | [BSD-3-Clause](https://github.com/libjxl/libjxl/blob/main/LICENSE) | https://github.com/libjxl/libjxl |
+| FFmpeg | [LGPL v2.1+](https://www.gnu.org/licenses/old-licenses/lgpl-2.1.html) | https://ffmpeg.org/ |
+| ImageMagick | [Apache-2.0](https://imagemagick.org/script/license.php) | https://imagemagick.org/ |
+| ExifTool | [Artistic/GPL](https://exiftool.org/#license) | https://exiftool.org/ |
+
+See [DOCKER_LICENSES.md](DOCKER_LICENSES.md) for full details.
