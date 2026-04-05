@@ -1,6 +1,7 @@
 # Immich Library Converter
 
 [![CI](https://github.com/fabianwimberger/immich-convert-originals/actions/workflows/ci.yml/badge.svg)](https://github.com/fabianwimberger/immich-convert-originals/actions)
+[![codecov](https://codecov.io/gh/fabianwimberger/immich-convert-originals/branch/main/graph/badge.svg)](https://codecov.io/gh/fabianwimberger/immich-convert-originals)
 [![Docker](https://github.com/fabianwimberger/immich-convert-originals/actions/workflows/docker-publish.yml/badge.svg)](https://github.com/fabianwimberger/immich-convert-originals/pkgs/container/immich-convert-originals)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
