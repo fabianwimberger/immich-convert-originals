@@ -30,6 +30,20 @@ JPEG XL shrinks photos by 20-40% and AV1 shrinks videos by 30-50% with no visibl
 - **Date filtering** — process only assets within a date range
 - **Concurrency control** — configurable parallel workers
 
+## Pipeline
+
+```mermaid
+flowchart LR
+    A[Immich API] -->|list + download| B[Original asset]
+    B --> C{Type}
+    C -->|Image| D[JPEG XL encode]
+    C -->|Video| E[AV1 encode]
+    D --> F[Upload new asset]
+    E --> F
+    F --> G[Copy metadata<br/>EXIF, GPS, albums]
+    G --> H[Delete original]
+```
+
 ## Quick Start
 
 ### Option 1: Prebuilt Docker Image (Recommended)
