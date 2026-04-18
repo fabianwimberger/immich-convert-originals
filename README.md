@@ -11,14 +11,9 @@ Batch-transcode your Immich library to modern efficient formats:
 
 This tool downloads your original assets, transcodes them to space-efficient formats, uploads the new versions, copies all metadata (EXIF, location, tags, albums, etc.), and removes the originals.
 
-## Why This Project?
+## Background
 
-Modern image and video formats offer significant space savings without perceptible quality loss. JPEG XL typically reduces image sizes by 20-40% compared to JPEG, while AV1 can reduce video sizes by 30-50% compared to H.264. For large photo libraries, this can mean saving hundreds of gigabytes.
-
-**Goals:**
-- Reduce storage costs for Immich libraries
-- Maintain full metadata and quality
-- Provide a safe, reversible conversion process
+JPEG XL shrinks photos by 20-40% and AV1 shrinks videos by 30-50% with no visible quality loss. On a multi-TB Immich library that adds up fast. This scans the library, transcodes in place, preserves EXIF, GPS, and album membership, and removes originals only after the upload succeeds. Dry-run is always available.
 
 <p align="center">
   <img src="assets/demo.gif" width="100%" alt="Conversion Demo">
