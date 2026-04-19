@@ -554,7 +554,11 @@ def run_converter(config: Config, stats_json_path: str | None = None) -> int:
 
     results: list[dict] = []
 
-    _redirect = logging_redirect_tqdm() if logging_redirect_tqdm is not None and tqdm is not None else None
+    _redirect = (
+        logging_redirect_tqdm()
+        if logging_redirect_tqdm is not None and tqdm is not None
+        else None
+    )
     if _redirect is not None:
         _redirect.__enter__()
 
