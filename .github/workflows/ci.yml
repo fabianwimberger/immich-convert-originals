@@ -10,6 +10,7 @@ on:
 
 env:
   PYTHON_VERSION: "3.13"
+  IMMICH_TEST_TAG_PINNED: "v1.131.3"
 
 jobs:
   lint:
@@ -83,6 +84,87 @@ jobs:
     name: Integration Tests
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    env:
+      IMMICH_TEST_TAG: v1.131.3
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Pick free port
+        id: port
+        run: |
+          python3 -c "import socket; s=socket.socket(); s.bind(('',0)); print(s.getsockname()[1]); s.close()" > port.txt
+          echo "port=$(cat port.txt)" >> "$GITHUB_OUTPUT"
+
+      - name: Restore Immich image cache
+        id: img-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/immich-image-cache
+          key: immich-images-${{ env.IMMICH_TEST_TAG }}-pgvecto-rs-pg14-v0.2.0-redis-6.2-alpine
+
+      - name: Load images from cache
+        if: steps.img-cache.outputs.cache-hit == 'true'
+        run: |
+          for tar in ~/immich-image-cache/*.tar; do
+            docker load -i "$tar"
+          done
+
+      - name: Pull images (cache miss)
+        if: steps.img-cache.outputs.cache-hit != 'true'
+        run: |
+          docker pull ghcr.io/immich-app/immich-server:${IMMICH_TEST_TAG}
+          docker pull docker.io/tensorchord/pgvecto-rs:pg14-v0.2.0
+          docker pull docker.io/redis:6.2-alpine
+          mkdir -p ~/immich-image-cache
+          docker save ghcr.io/immich-app/immich-server:${IMMICH_TEST_TAG} -o ~/immich-image-cache/immich-server.tar
+          docker save docker.io/tensorchord/pgvecto-rs:pg14-v0.2.0 -o ~/immich-image-cache/pgvecto-rs.tar
+          docker save docker.io/redis:6.2-alpine -o ~/immich-image-cache/redis.tar
+
+      - name: Build test runner image
+        run: docker build -t immich-convert-test-runner -f tests/integration/Dockerfile.runner .
+
+      - name: Start Immich test stack
+        env:
+          IMMICH_TEST_PORT: ${{ steps.port.outputs.port }}
+          COMPOSE_PROJECT_NAME: immich-convert-test
+        run: |
+          docker compose -f tests/integration/docker-compose.test.yml -p immich-convert-test up -d
+
+      - name: Wait for Immich healthy
+        env:
+          IMMICH_TEST_PORT: ${{ steps.port.outputs.port }}
+        run: |
+          curl --retry 30 --retry-delay 5 --retry-all-errors \
+            http://127.0.0.1:$IMMICH_TEST_PORT/api/server/ping
+
+      - name: Run integration tests
+        run: |
+          docker run --rm \
+            --network immich-test-net \
+            -v "$PWD:/workspace" \
+            -e IMMICH_TEST_API_BASE=http://immich-test-server:2283/api/ \
+            immich-convert-test-runner \
+            pytest tests/ -m integration -v
+
+      - name: Tear down stack
+        if: always()
+        env:
+          IMMICH_TEST_PORT: ${{ steps.port.outputs.port }}
+          COMPOSE_PROJECT_NAME: immich-convert-test
+        run: |
+          docker compose -f tests/integration/docker-compose.test.yml -p immich-convert-test down -v
+          docker network rm immich-test-net || true
+
+  integration-release:
+    name: Integration Tests (Immich :release)
+    # Surface API drift against the latest Immich release without blocking PRs.
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    continue-on-error: true
+    env:
+      IMMICH_TEST_TAG: release
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
