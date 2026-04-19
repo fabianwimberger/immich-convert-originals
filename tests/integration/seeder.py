@@ -86,7 +86,9 @@ def _generate_media(fixtures_dir: Path, tmp_dir: Path) -> dict[str, Path]:
         capture_output=True,
     )
 
-    # Generate HEIC from sample.jpg (ImageMagick 7 uses 'magick', v6 uses 'convert')
+    # Generate HEIC from sample.jpg (ImageMagick 7 uses 'magick', v6 uses 'convert').
+    # -quality 90 so the HEIC is larger than the JXL re-encode; the default
+    # (~47 KB) is already smaller than any JXL output of the decoded pixels.
     heic_path = tmp_dir / "sample.heic"
     magick_cmd = (
         "magick"
@@ -94,7 +96,7 @@ def _generate_media(fixtures_dir: Path, tmp_dir: Path) -> dict[str, Path]:
         else "convert"
     )
     subprocess.run(
-        [magick_cmd, str(files["sample.jpg"]), str(heic_path)],
+        [magick_cmd, str(files["sample.jpg"]), "-quality", "90", str(heic_path)],
         check=True,
         capture_output=True,
     )
