@@ -165,64 +165,68 @@ def _transcode_with_magick(
     input_bytes = os.path.getsize(input_path)
     input_format = detect_format(input_path)
 
-    cmd = [
-        "magick",
-        input_path,
-        "-define",
-        f"jxl:distance={distance}",
-        output_path,
-    ]
-
-    try:
-        subprocess.run(cmd, check=True, capture_output=True, timeout=timeouts.image)
-        if not copy_metadata(input_path, output_path, timeouts=timeouts):
-            logger.warning(
-                "Failed to copy metadata for %s, file EXIF may be incomplete",
-                input_path,
+    for magick_cmd in ("magick", "convert"):
+        cmd = [
+            magick_cmd,
+            input_path,
+            "-define",
+            f"jxl:distance={distance}",
+            output_path,
+        ]
+        try:
+            subprocess.run(
+                cmd, check=True, capture_output=True, timeout=timeouts.image
             )
+            if not copy_metadata(input_path, output_path, timeouts=timeouts):
+                logger.warning(
+                    "Failed to copy metadata for %s, file EXIF may be incomplete",
+                    input_path,
+                )
 
-        output_bytes = (
-            os.path.getsize(output_path) if os.path.exists(output_path) else 0
-        )
-        return TranscodeResult(
-            success=True,
-            input_path=input_path,
-            output_path=output_path,
-            input_bytes=input_bytes,
-            output_bytes=output_bytes,
-            input_format=input_format or "unknown",
-        )
-    except subprocess.TimeoutExpired:
-        return TranscodeResult(
-            success=False,
-            input_path=input_path,
-            output_path=output_path,
-            input_bytes=input_bytes,
-            output_bytes=0,
-            input_format=input_format or "unknown",
-            error=f"ImageMagick timed out after {timeouts.image}s",
-        )
-    except subprocess.CalledProcessError as e:
-        stderr = e.stderr.decode(errors="replace") if e.stderr else ""
-        return TranscodeResult(
-            success=False,
-            input_path=input_path,
-            output_path=output_path,
-            input_bytes=input_bytes,
-            output_bytes=0,
-            input_format=input_format or "unknown",
-            error=f"ImageMagick failed: {stderr}",
-        )
-    except FileNotFoundError:
-        return TranscodeResult(
-            success=False,
-            input_path=input_path,
-            output_path=output_path,
-            input_bytes=input_bytes,
-            output_bytes=0,
-            input_format=input_format or "unknown",
-            error="magick not found",
-        )
+            output_bytes = (
+                os.path.getsize(output_path) if os.path.exists(output_path) else 0
+            )
+            return TranscodeResult(
+                success=True,
+                input_path=input_path,
+                output_path=output_path,
+                input_bytes=input_bytes,
+                output_bytes=output_bytes,
+                input_format=input_format or "unknown",
+            )
+        except subprocess.TimeoutExpired:
+            return TranscodeResult(
+                success=False,
+                input_path=input_path,
+                output_path=output_path,
+                input_bytes=input_bytes,
+                output_bytes=0,
+                input_format=input_format or "unknown",
+                error=f"ImageMagick timed out after {timeouts.image}s",
+            )
+        except subprocess.CalledProcessError as e:
+            stderr = e.stderr.decode(errors="replace") if e.stderr else ""
+            return TranscodeResult(
+                success=False,
+                input_path=input_path,
+                output_path=output_path,
+                input_bytes=input_bytes,
+                output_bytes=0,
+                input_format=input_format or "unknown",
+                error=f"ImageMagick failed: {stderr}",
+            )
+        except FileNotFoundError:
+            continue
+
+    return TranscodeResult(
+        success=False,
+        input_path=input_path,
+        output_path=output_path,
+        input_bytes=input_bytes,
+        output_bytes=0,
+        input_format=input_format or "unknown",
+        error="ImageMagick not found (tried magick, convert)",
+    )
 
 
 def transcode(
