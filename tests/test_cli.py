@@ -227,6 +227,56 @@ class TestConfigMerge:
         with pytest.raises(ValueError, match="Invalid ASSET_TYPES"):
             Config.from_args_and_env(args)
 
+    def test_all_cli_flags_applied(self, monkeypatch):
+        """Every CLI flag in from_args_and_env has a branch; exercise each so
+        the merge paths are covered."""
+        monkeypatch.setenv("IMMICH_API_BASE", "https://env.example.com/api")
+        monkeypatch.setenv("IMMICH_API_KEY", "env_key")
+        args = parse_args(
+            [
+                "--immich-api-base",
+                "https://cli.example.com/api",
+                "--immich-api-key",
+                "cli_key",
+                "--max-assets",
+                "7",
+                "--image-distance",
+                "1.5",
+                "--image-distance-retry",
+                "3.0",
+                "--video-crf",
+                "32",
+                "--video-preset",
+                "5",
+                "--video-max-dimension",
+                "1080",
+                "--video-audio-bitrate",
+                "96k",
+                "--video-crf-retry",
+                "40",
+                "--no-state",
+                "--reset-state",
+                "--only-failed",
+                "--export-failures",
+                "/tmp/fails.csv",
+            ]
+        )
+        config = Config.from_args_and_env(args)
+        assert config.immich_api_base == "https://cli.example.com/api/"
+        assert config.immich_api_key == "cli_key"
+        assert config.max_assets == 7
+        assert config.image_distance == 1.5
+        assert config.image_distance_retry == 3.0
+        assert config.video_crf == 32
+        assert config.video_preset == "5"
+        assert config.video_max_dimension == 1080
+        assert config.video_audio_bitrate == "96k"
+        assert config.video_crf_retry == 40
+        assert config.use_state is False
+        assert config.reset_state is True
+        assert config.only_failed is True
+        assert config.export_failures == "/tmp/fails.csv"
+
 
 class TestLogging:
     """Tests for logging setup and JSON formatter."""

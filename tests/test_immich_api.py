@@ -182,6 +182,42 @@ class TestSearchAssets:
         assert "takenBefore" not in body
 
     @responses.activate
+    def test_filename_and_path_filters_included(self, client):
+        responses.add(
+            responses.POST,
+            "https://example.com/api/search/metadata",
+            json={"assets": {"items": []}},
+        )
+        client.search_assets(
+            page=1,
+            size=10,
+            asset_type="IMAGE",
+            original_filename="x.jpg",
+            original_path="/uploads/x.jpg",
+        )
+        body = json.loads(responses.calls[0].request.body)
+        assert body["originalFileName"] == "x.jpg"
+        assert body["originalPath"] == "/uploads/x.jpg"
+
+    @responses.activate
+    def test_archived_and_deleted_flags_passed_through(self, client):
+        responses.add(
+            responses.POST,
+            "https://example.com/api/search/metadata",
+            json={"assets": {"items": []}},
+        )
+        client.search_assets(
+            page=1,
+            size=10,
+            asset_type="IMAGE",
+            with_archived=True,
+            with_deleted=True,
+        )
+        body = json.loads(responses.calls[0].request.body)
+        assert body["withArchived"] is True
+        assert body["withDeleted"] is True
+
+    @responses.activate
     def test_returns_asset_dataclasses(self, client):
         responses.add(
             responses.POST,
@@ -417,6 +453,203 @@ class TestDeleteAssets:
         success, error = client.delete_assets(["a1"])
         assert success is False
         assert "Delete failed: HTTP 500" in error
+
+    @responses.activate
+    def test_network_exception_returns_error(self, client, monkeypatch):
+        monkeypatch.setattr("app.immich_api.time.sleep", lambda s: None)
+        responses.add(
+            responses.DELETE,
+            "https://example.com/api/assets",
+            body=requests.ConnectionError("boom"),
+        )
+        success, error = client.delete_assets(["a1"])
+        assert success is False
+        assert "boom" in error or "Request failed" in error
+
+
+class TestTestConnection:
+    @responses.activate
+    def test_success(self, client):
+        responses.add(
+            responses.POST,
+            "https://example.com/api/search/metadata",
+            json={"assets": {"items": []}},
+        )
+        ok, error = client.test_connection()
+        assert ok is True
+        assert error is None
+
+    @responses.activate
+    def test_failure(self, client):
+        responses.add(
+            responses.POST,
+            "https://example.com/api/search/metadata",
+            status=500,
+        )
+        ok, error = client.test_connection()
+        assert ok is False
+        assert "Search failed" in error
+
+
+class TestGetAsset:
+    @responses.activate
+    def test_success(self, client):
+        responses.add(
+            responses.GET,
+            "https://example.com/api/assets/a1",
+            json={"id": "a1"},
+        )
+        ok, error = client.get_asset("a1")
+        assert ok is True
+        assert error is None
+
+    @responses.activate
+    def test_not_found(self, client):
+        responses.add(responses.GET, "https://example.com/api/assets/a1", status=404)
+        ok, error = client.get_asset("a1")
+        assert ok is False
+        assert "HTTP 404" in error
+
+    @responses.activate
+    def test_exception(self, client, monkeypatch):
+        monkeypatch.setattr("app.immich_api.time.sleep", lambda s: None)
+        responses.add(
+            responses.GET,
+            "https://example.com/api/assets/a1",
+            body=requests.ConnectionError("dead"),
+        )
+        ok, error = client.get_asset("a1")
+        assert ok is False
+        assert "dead" in error or "Request failed" in error
+
+
+class TestUploadAssetAuthErrors:
+    @responses.activate
+    def test_401_returns_auth_error(self, client, tmp_path):
+        responses.add(responses.POST, "https://example.com/api/assets", status=401)
+        file_path = tmp_path / "f.bin"
+        file_path.write_bytes(b"x")
+        asset_id, error = client.upload_asset(
+            file_path=str(file_path),
+            device_asset_id="d",
+            device_id="p",
+            file_created_at="2023-01-01T00:00:00Z",
+            file_modified_at="2023-01-01T00:00:00Z",
+        )
+        assert asset_id is None
+        assert "Authentication failed" in error
+
+    @responses.activate
+    def test_403_returns_permission_error(self, client, tmp_path):
+        responses.add(responses.POST, "https://example.com/api/assets", status=403)
+        file_path = tmp_path / "f.bin"
+        file_path.write_bytes(b"x")
+        asset_id, error = client.upload_asset(
+            file_path=str(file_path),
+            device_asset_id="d",
+            device_id="p",
+            file_created_at="2023-01-01T00:00:00Z",
+            file_modified_at="2023-01-01T00:00:00Z",
+        )
+        assert asset_id is None
+        assert "Forbidden" in error
+
+    @responses.activate
+    def test_network_error_exhausts_retries(self, client, tmp_path, monkeypatch):
+        monkeypatch.setattr("app.immich_api.time.sleep", lambda s: None)
+        responses.add(
+            responses.POST,
+            "https://example.com/api/assets",
+            body=requests.ConnectionError("refused"),
+        )
+        file_path = tmp_path / "f.bin"
+        file_path.write_bytes(b"x")
+        asset_id, error = client.upload_asset(
+            file_path=str(file_path),
+            device_asset_id="d",
+            device_id="p",
+            file_created_at="2023-01-01T00:00:00Z",
+            file_modified_at="2023-01-01T00:00:00Z",
+        )
+        assert asset_id is None
+        assert "Upload failed after retries" in error
+
+
+class TestCopyAssetDataAlbums:
+    @responses.activate
+    def test_album_sync_tolerates_errors(self, client):
+        responses.add(
+            responses.GET,
+            "https://example.com/api/assets/src",
+            json={"id": "src", "isFavorite": False, "isArchived": False},
+        )
+        responses.add(responses.PUT, "https://example.com/api/assets", status=204)
+        responses.add(
+            responses.GET,
+            "https://example.com/api/albums",
+            json=[{"id": "album-1"}, {"id": ""}, {"id": "album-2"}],
+        )
+        responses.add(
+            responses.PUT,
+            "https://example.com/api/albums/album-1/assets",
+            status=500,
+        )
+        responses.add(
+            responses.PUT,
+            "https://example.com/api/albums/album-2/assets",
+            status=204,
+        )
+        ok, error = client.copy_asset_data("src", "dst")
+        assert ok is True
+        assert error is None
+
+    @responses.activate
+    def test_update_error_falls_back_to_text(self, client):
+        responses.add(
+            responses.GET,
+            "https://example.com/api/assets/src",
+            json={"id": "src", "isFavorite": False, "isArchived": False},
+        )
+        responses.add(
+            responses.PUT,
+            "https://example.com/api/assets",
+            body="plain text failure",
+            status=500,
+        )
+        ok, error = client.copy_asset_data("src", "dst")
+        assert ok is False
+        assert "plain text failure" in error
+
+    @responses.activate
+    def test_update_network_exception(self, client, monkeypatch):
+        monkeypatch.setattr("app.immich_api.time.sleep", lambda s: None)
+        responses.add(
+            responses.GET,
+            "https://example.com/api/assets/src",
+            json={"id": "src", "isFavorite": False, "isArchived": False},
+        )
+        responses.add(
+            responses.PUT,
+            "https://example.com/api/assets",
+            body=requests.ConnectionError("update-boom"),
+        )
+        ok, error = client.copy_asset_data("src", "dst")
+        assert ok is False
+        assert "update-boom" in error or "Request failed" in error
+
+
+class TestDownloadOriginalException:
+    @responses.activate
+    def test_connection_error_returns_tuple(self, client, tmp_path, monkeypatch):
+        monkeypatch.setattr("app.immich_api.time.sleep", lambda s: None)
+        responses.add(
+            responses.GET,
+            "https://example.com/api/assets/a1/original",
+            body=requests.ConnectionError("refused"),
+        )
+        size, error = client.download_original("a1", str(tmp_path / "out.bin"))
+        assert size == 0
+        assert "refused" in error or "Download failed" in error
 
 
 class TestGetAlbumAssets:

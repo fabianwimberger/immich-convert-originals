@@ -118,6 +118,57 @@ class TestTranscodeImage:
         # cjxl call uses the image timeout.
         assert mock_run.call_args_list[0][1]["timeout"] == 42
 
+    def test_jpeg_cjxl_timeout_returns_error(self, tmp_path):
+        input_path = tmp_path / "input.jpg"
+        input_path.write_bytes(b"\xff\xd8\xff" + b"\x00" * 29)
+        output_path = tmp_path / "output.jxl"
+
+        with patch("app.transcode.subprocess.run") as mock_run:
+            mock_run.side_effect = subprocess.TimeoutExpired(cmd="cjxl", timeout=5)
+            result = transcode(str(input_path), str(output_path), 1.0)
+
+        assert result.success is False
+        assert "cjxl timed out" in result.error
+
+    def test_magick_timeout_returns_error(self, tmp_path):
+        input_path = tmp_path / "input.png"
+        input_path.write_bytes(b"\x89\x50\x4e\x47\x0d\x0a\x1a\x0a" + b"\x00" * 24)
+        output_path = tmp_path / "output.jxl"
+
+        with patch("app.transcode.subprocess.run") as mock_run:
+            mock_run.side_effect = subprocess.TimeoutExpired(cmd="magick", timeout=5)
+            result = transcode(str(input_path), str(output_path), 1.0)
+
+        assert result.success is False
+        assert "ImageMagick timed out" in result.error
+
+    def test_magick_called_process_error(self, tmp_path):
+        input_path = tmp_path / "input.png"
+        input_path.write_bytes(b"\x89\x50\x4e\x47\x0d\x0a\x1a\x0a" + b"\x00" * 24)
+        output_path = tmp_path / "output.jxl"
+
+        with patch("app.transcode.subprocess.run") as mock_run:
+            mock_run.side_effect = subprocess.CalledProcessError(
+                returncode=1, cmd="magick", stderr=b"bad input"
+            )
+            result = transcode(str(input_path), str(output_path), 1.0)
+
+        assert result.success is False
+        assert "ImageMagick failed" in result.error
+        assert "bad input" in result.error
+
+    def test_magick_missing_returns_not_found_error(self, tmp_path):
+        input_path = tmp_path / "input.png"
+        input_path.write_bytes(b"\x89\x50\x4e\x47\x0d\x0a\x1a\x0a" + b"\x00" * 24)
+        output_path = tmp_path / "output.jxl"
+
+        with patch("app.transcode.subprocess.run") as mock_run:
+            mock_run.side_effect = FileNotFoundError("nope")
+            result = transcode(str(input_path), str(output_path), 1.0)
+
+        assert result.success is False
+        assert "ImageMagick not found" in result.error
+
 
 class TestTranscodeVideo:
     def test_skips_av1_input(self, tmp_path):

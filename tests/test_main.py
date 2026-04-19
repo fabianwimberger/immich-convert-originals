@@ -2,7 +2,7 @@
 
 from unittest.mock import MagicMock
 
-from app.main import main
+from app.main import _fmt_timings, _should_skip_by_mime_type, main
 
 
 class FakeAsset:
@@ -430,3 +430,50 @@ class TestMainEntrypoint:
         monkeypatch.setattr("app.main.ImmichClient", lambda **kwargs: ExplodingClient())
         assert main([]) == 0
         assert "network down" in caplog.text
+
+
+class TestFmtTimings:
+    def test_sub_second_uses_ms(self):
+        out = _fmt_timings({"dl": 0.12})
+        assert "dl=120ms" in out
+        assert "(total 0.1s)" in out
+
+    def test_over_second_uses_seconds(self):
+        out = _fmt_timings({"tx": 3.1})
+        assert "tx=3.1s" in out
+        assert "(total 3.1s)" in out
+
+    def test_mixed_stages(self):
+        out = _fmt_timings({"dl": 0.2, "tx": 2.5})
+        assert "dl=200ms" in out
+        assert "tx=2.5s" in out
+
+
+class TestShouldSkipByMimeType:
+    def test_video_asset_never_skipped_by_mime(self):
+        asset = FakeAsset(type="VIDEO", original_mime_type="video/mp4")
+        assert _should_skip_by_mime_type(asset) is False
+
+    def test_image_jxl_mime_skipped(self):
+        asset = FakeAsset(
+            type="IMAGE",
+            original_mime_type="image/jxl",
+            original_file_name="x.jxl",
+        )
+        assert _should_skip_by_mime_type(asset) is True
+
+    def test_image_jxl_extension_fallback(self):
+        asset = FakeAsset(
+            type="IMAGE",
+            original_mime_type=None,
+            original_file_name="photo.jxl",
+        )
+        assert _should_skip_by_mime_type(asset) is True
+
+    def test_image_jpeg_not_skipped(self):
+        asset = FakeAsset(
+            type="IMAGE",
+            original_mime_type="image/jpeg",
+            original_file_name="photo.jpg",
+        )
+        assert _should_skip_by_mime_type(asset) is False
