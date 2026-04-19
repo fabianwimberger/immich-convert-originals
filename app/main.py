@@ -7,16 +7,28 @@ import os
 import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-from cli import parse_args, setup_logging
-from config import Config
-from immich_api import Asset, ImmichClient
-from transcode import (
-    detect_video_codec,
-    transcode,
-    transcode_video,
-    validate_output,
-    validate_video_output,
-)
+try:
+    from app.cli import parse_args, setup_logging
+    from app.config import Config
+    from app.immich_api import Asset, ImmichClient
+    from app.transcode import (
+        detect_video_codec,
+        transcode,
+        transcode_video,
+        validate_output,
+        validate_video_output,
+    )
+except ImportError:
+    from cli import parse_args, setup_logging  # type: ignore[no-redef]
+    from config import Config  # type: ignore[no-redef]
+    from immich_api import Asset, ImmichClient  # type: ignore[no-redef]
+    from transcode import (  # type: ignore[no-redef]
+        detect_video_codec,
+        transcode,
+        transcode_video,
+        validate_output,
+        validate_video_output,
+    )
 
 try:
     from tqdm import tqdm
