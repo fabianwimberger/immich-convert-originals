@@ -63,6 +63,11 @@ mv .env.example .env
 # Edit .env with your Immich URL and API key
 nano .env
 
+# Create the host-side working directory before the first run.
+# Docker auto-creates missing bind-mount sources as root, which the container
+# (running as uid 1000) cannot write to. Pre-creating it avoids the permission error.
+mkdir -p work
+
 # Run with dry run first to preview
 docker run --rm --env-file .env -v ./work:/work ghcr.io/fabianwimberger/immich-convert-originals:main
 
@@ -82,6 +87,9 @@ cd immich-convert-originals
 # Copy and edit configuration
 cp .env.example .env
 # Edit .env with your Immich URL and API key
+
+# Create the host-side working directory before the first run (see Option 1 for why)
+mkdir -p work
 
 # Start with dry run to preview
 DRY_RUN=true docker compose up
@@ -103,10 +111,13 @@ pip install -r requirements.txt
 # See all available options
 python -m app --help
 
-# Run with environment variables
+# Run with environment variables.
+# WORKDIR defaults to /work (the in-container path used by Docker). When running
+# locally, point it at a writable host path such as ./work.
 IMMICH_API_BASE=https://photos.example.com/api \
 IMMICH_API_KEY=your_key \
 DRY_RUN=true \
+WORKDIR=./work \
 python -m app
 
 # Or pass options as CLI flags
@@ -114,6 +125,7 @@ python -m app \
   --api-base https://photos.example.com/api \
   --api-key your_key \
   --dry-run \
+  --workdir ./work \
   --max-assets 10
 ```
 
