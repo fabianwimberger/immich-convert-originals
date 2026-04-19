@@ -32,9 +32,10 @@ class TestTranscodeImage:
             result = transcode(str(input_path), str(output_path), 1.0)
 
         assert result.success is True
-        mock_run.assert_called_once()
-        args = mock_run.call_args[0][0]
-        assert args[0] == "cjxl"
+        # cjxl + exiftool (copy_metadata safeguard)
+        assert mock_run.call_count == 2
+        assert mock_run.call_args_list[0][0][0][0] == "cjxl"
+        assert mock_run.call_args_list[1][0][0][0] == "exiftool"
 
     def test_jpeg_cjxl_not_found_falls_back_to_magick(self, tmp_path):
         input_path = tmp_path / "input.jpg"
@@ -114,7 +115,8 @@ class TestTranscodeImage:
             mock_run.return_value = FakeCompletedProcess(returncode=0)
             transcode(str(input_path), str(output_path), 1.0, timeouts=timeouts)
 
-        assert mock_run.call_args[1]["timeout"] == 42
+        # cjxl call uses the image timeout.
+        assert mock_run.call_args_list[0][1]["timeout"] == 42
 
 
 class TestTranscodeVideo:

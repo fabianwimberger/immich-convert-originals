@@ -290,6 +290,14 @@ def transcode(
             )
 
         if result.returncode == 0:
+            # cjxl losslessly repacks the JPEG bytestream, which normally keeps
+            # EXIF APP markers intact. Re-apply via exiftool as a safeguard so
+            # GPS/DateTimeOriginal survive on any cjxl build.
+            if not copy_metadata(input_path, output_path, timeouts=timeouts):
+                logger.warning(
+                    "Failed to copy metadata for %s, file EXIF may be incomplete",
+                    input_path,
+                )
             output_bytes = (
                 os.path.getsize(output_path) if os.path.exists(output_path) else 0
             )
