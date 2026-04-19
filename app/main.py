@@ -4,7 +4,10 @@
 import json
 import logging
 import os
+import signal
 import sys
+import threading
+import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 try:
@@ -12,6 +15,7 @@ try:
     from app.config import Config
     from app.immich_api import Asset, ImmichClient
     from app.interactive import QuestionaryPrompt, run_interactive
+    from app.state import StateDB
     from app.transcode import (
         detect_video_codec,
         transcode,
@@ -24,6 +28,7 @@ except ImportError:  # pragma: no cover
     from config import Config  # type: ignore[no-redef]
     from immich_api import Asset, ImmichClient  # type: ignore[no-redef]
     from interactive import QuestionaryPrompt, run_interactive  # type: ignore[no-redef]
+    from state import StateDB  # type: ignore[no-redef]
     from transcode import (  # type: ignore[no-redef]
         detect_video_codec,
         transcode,
@@ -64,15 +69,33 @@ def _should_skip_by_mime_type(asset: Asset) -> bool:
     return ext == ".jxl"
 
 
+def _fmt_timings(timings: dict[str, float]) -> str:
+    """Render per-stage timings as `dl=120ms tx=3.1s` with a total."""
+    parts = []
+    total = 0.0
+    for stage, seconds in timings.items():
+        total += seconds
+        if seconds < 1:
+            parts.append(f"{stage}={int(seconds * 1000)}ms")
+        else:
+            parts.append(f"{stage}={seconds:.1f}s")
+    return " ".join(parts) + f" (total {total:.1f}s)"
+
+
 def process_asset(asset: Asset, client: ImmichClient, config: Config) -> dict:
     input_path = ""
     output_path = ""
-    result_info = {
+    timings: dict[str, float] = {}
+    result_info: dict = {
         "status": "unknown",
         "input_bytes": 0,
         "output_bytes": 0,
         "savings_pct": 0.0,
+        "timings": timings,
     }
+
+    def stage(name: str, start: float) -> None:
+        timings[name] = time.monotonic() - start
 
     is_video = asset.type == "VIDEO"
     target_format = _get_target_format(asset)
@@ -99,15 +122,19 @@ def process_asset(asset: Asset, client: ImmichClient, config: Config) -> dict:
             result_info["status"] = "dry_run_skip"
             return result_info
 
+        t = time.monotonic()
         input_bytes, error = client.download_original(asset.id, input_path)
+        stage("dl", t)
         if error:
             logger.error("%s: %s", asset.original_file_name, error)
             result_info["status"] = "failed_download"
+            result_info["error"] = error
             return result_info
 
         if input_bytes == 0:
             logger.error("%s: Downloaded file is empty", asset.original_file_name)
             result_info["status"] = "failed_download"
+            result_info["error"] = "Downloaded file is empty"
             return result_info
 
         result_info["input_bytes"] = input_bytes
@@ -130,6 +157,7 @@ def process_asset(asset: Asset, client: ImmichClient, config: Config) -> dict:
                 result_info["status"] = "dry_run_skip"
             return result_info
 
+        t = time.monotonic()
         if is_video:
             result = transcode_video(
                 input_path,
@@ -143,6 +171,7 @@ def process_asset(asset: Asset, client: ImmichClient, config: Config) -> dict:
         else:
             result = transcode(input_path, output_path, config.image_distance)
             is_valid = validate_output(output_path, "jxl")
+        stage("tx", t)
 
         if not result.success:
             if result.error and result.error.startswith("Already "):
@@ -151,11 +180,13 @@ def process_asset(asset: Asset, client: ImmichClient, config: Config) -> dict:
                 return result_info
             logger.error("%s: %s", asset.original_file_name, result.error)
             result_info["status"] = "failed_transcode"
+            result_info["error"] = result.error
             return result_info
 
         if not is_valid:
             logger.error("%s: Output validation failed", asset.original_file_name)
             result_info["status"] = "failed_transcode"
+            result_info["error"] = "Output validation failed"
             return result_info
 
         output_bytes = result.output_bytes
@@ -168,6 +199,7 @@ def process_asset(asset: Asset, client: ImmichClient, config: Config) -> dict:
                 pass
             elif config.enable_retry:
                 # Retry with lower quality settings
+                t = time.monotonic()
                 if is_video:
                     logger.info(
                         "%s: Output larger, retrying with CRF %d...",
@@ -193,6 +225,7 @@ def process_asset(asset: Asset, client: ImmichClient, config: Config) -> dict:
                         input_path, output_path, config.image_distance_retry
                     )
                     is_valid = validate_output(output_path, "jxl")
+                stage("tx_retry", t)
 
                 if not result.success or not is_valid:
                     logger.info(
@@ -228,6 +261,7 @@ def process_asset(asset: Asset, client: ImmichClient, config: Config) -> dict:
         new_filename = f"{base_name}.{target_format}"
         new_device_asset_id = f"{asset.id}-{target_format}"
 
+        t = time.monotonic()
         new_asset_id, error = client.upload_asset(
             file_path=output_path,
             device_asset_id=new_device_asset_id,
@@ -236,31 +270,41 @@ def process_asset(asset: Asset, client: ImmichClient, config: Config) -> dict:
             file_modified_at=asset.file_modified_at,
             filename=new_filename,
         )
+        stage("up", t)
 
         if error or not new_asset_id:
             logger.error("%s: Upload failed: %s", asset.original_file_name, error)
             result_info["status"] = "failed_upload"
+            result_info["error"] = error
             return result_info
 
+        t = time.monotonic()
         success, error = client.copy_asset_data(
             from_asset_id=asset.id, to_asset_id=new_asset_id
         )
+        stage("copy", t)
         if not success:
             client.delete_assets([new_asset_id])
             logger.error("%s: Copy failed: %s", asset.original_file_name, error)
             result_info["status"] = "failed_copy"
+            result_info["error"] = error
             return result_info
 
+        t = time.monotonic()
         verified, verify_error = client.get_asset(new_asset_id)
+        stage("verify", t)
         if not verified:
             client.delete_assets([new_asset_id])
             logger.error(
                 "%s: Verification failed: %s", asset.original_file_name, verify_error
             )
             result_info["status"] = "failed_verification"
+            result_info["error"] = verify_error
             return result_info
 
+        t = time.monotonic()
         success, error = client.delete_assets([asset.id])
+        stage("del", t)
         if not success:
             logger.warning(
                 "%s: Replaced but old asset not deleted: %s",
@@ -268,14 +312,16 @@ def process_asset(asset: Asset, client: ImmichClient, config: Config) -> dict:
                 error,
             )
             result_info["status"] = "partial_success"
+            result_info["error"] = error
             return result_info
 
         logger.info(
-            "%s: %d kB -> %d kB (%.1f%% saved)",
+            "%s: %d kB -> %d kB (%.1f%% saved) [%s]",
             asset.original_file_name,
             input_bytes / 1024,
             output_bytes / 1024,
             result_info["savings_pct"],
+            _fmt_timings(timings),
         )
         result_info["status"] = "success"
         return result_info
@@ -440,6 +486,35 @@ def run_converter(config: Config, stats_json_path: str | None = None) -> int:
                 if config.max_assets and len(assets) >= config.max_assets:
                     break
 
+    # State DB for resumability — only used outside dry-run.
+    state: StateDB | None = None
+    if config.use_state and not config.dry_run:
+        state = StateDB(config.state_db_path())
+        if config.reset_state:
+            logger.info("Resetting state DB at %s", config.state_db_path())
+            state.reset()
+
+        if config.only_failed:
+            failed = state.failed_ids()
+            before = len(assets)
+            assets = [a for a in assets if a.id in failed]
+            logger.info(
+                "--only-failed: kept %d/%d assets matching last-failure state",
+                len(assets),
+                before,
+            )
+        else:
+            done = state.completed_ids()
+            if done:
+                before = len(assets)
+                assets = [a for a in assets if a.id not in done]
+                skipped = before - len(assets)
+                if skipped:
+                    logger.info(
+                        "Resuming: skipping %d assets already recorded as done",
+                        skipped,
+                    )
+
     if config.max_assets and len(assets) > config.max_assets:
         assets = assets[: config.max_assets]
 
@@ -448,56 +523,107 @@ def run_converter(config: Config, stats_json_path: str | None = None) -> int:
 
     if total_count == 0:
         logger.info("Nothing to process")
+        if state is not None:
+            _maybe_export_failures(state, config)
+            state.close()
         return 0
 
-    results = []
+    # Graceful SIGINT: finish in-flight, cancel the rest.
+    interrupted = threading.Event()
+    prev_handler = signal.getsignal(signal.SIGINT)
 
-    with ThreadPoolExecutor(max_workers=config.concurrency) as executor:
-        futures = {
-            executor.submit(process_asset, asset, client, config): asset
-            for asset in assets
-        }
-
-        if tqdm is not None:
-            pbar = tqdm(
-                total=total_count,
-                desc="Converting",
-                unit="asset",
-                ncols=80,
+    def _on_sigint(signum, frame):  # type: ignore[no-untyped-def]
+        if not interrupted.is_set():
+            logger.warning(
+                "Interrupt received — finishing in-flight work, then stopping. "
+                "Press Ctrl-C again to abort immediately."
             )
+            interrupted.set()
         else:
-            pbar = None  # type: ignore
+            logger.error("Second interrupt — aborting.")
+            signal.signal(signal.SIGINT, signal.SIG_DFL)
+            os.kill(os.getpid(), signal.SIGINT)
 
-        for future in as_completed(futures):
-            asset = futures[future]
-            try:
-                result = future.result()
-                results.append(result)
-            except Exception as e:
-                logger.error("Unexpected error: %s: %s", asset.original_file_name, e)
-                results.append(
-                    {
+    try:
+        signal.signal(signal.SIGINT, _on_sigint)
+    except ValueError:
+        # Not on main thread — signals unavailable; skip graceful handler.
+        pass
+
+    results: list[dict] = []
+
+    try:
+        with ThreadPoolExecutor(max_workers=config.concurrency) as executor:
+            futures = {
+                executor.submit(process_asset, asset, client, config): asset
+                for asset in assets
+            }
+
+            if tqdm is not None:
+                pbar = tqdm(
+                    total=total_count,
+                    desc="Converting",
+                    unit="asset",
+                    ncols=80,
+                )
+            else:
+                pbar = None  # type: ignore
+
+            for future in as_completed(futures):
+                asset = futures[future]
+                try:
+                    result = future.result()
+                except Exception as e:
+                    logger.error(
+                        "Unexpected error: %s: %s", asset.original_file_name, e
+                    )
+                    result = {
                         "status": "error",
                         "input_bytes": 0,
                         "output_bytes": 0,
                         "savings_pct": 0.0,
+                        "error": str(e),
                     }
-                )
+                results.append(result)
 
-            if pbar is not None:
-                pbar.update(1)
-            else:
-                i = len(results)
-                if i % 50 == 0 or i == total_count:
-                    logger.info(
-                        "Progress: %d/%d (%.0f%%)",
-                        i,
-                        total_count,
-                        i / total_count * 100,
+                if state is not None and result.get("status") not in (
+                    "dry_run_skip",
+                    "unknown",
+                ):
+                    state.record(
+                        asset_id=asset.id,
+                        status=result["status"],
+                        filename=asset.original_file_name,
+                        error=result.get("error"),
+                        input_bytes=int(result.get("input_bytes", 0)),
+                        output_bytes=int(result.get("output_bytes", 0)),
                     )
 
-        if pbar is not None:
-            pbar.close()
+                if pbar is not None:
+                    pbar.update(1)
+                else:
+                    i = len(results)
+                    if i % 50 == 0 or i == total_count:
+                        logger.info(
+                            "Progress: %d/%d (%.0f%%)",
+                            i,
+                            total_count,
+                            i / total_count * 100,
+                        )
+
+                if interrupted.is_set():
+                    for pending in futures:
+                        if not pending.done():
+                            pending.cancel()
+                    break
+
+            if pbar is not None:
+                pbar.close()
+    finally:
+        try:
+            signal.signal(signal.SIGINT, prev_handler)
+        except ValueError:
+            pass
 
     total_input = sum(r["input_bytes"] for r in results)
     total_output = sum(r["output_bytes"] for r in results)
@@ -540,7 +666,21 @@ def run_converter(config: Config, stats_json_path: str | None = None) -> int:
         except OSError as e:
             logger.error("Failed to write stats to %s: %s", stats_json_path, e)
 
+    if state is not None:
+        _maybe_export_failures(state, config)
+        state.close()
+
     return 0
+
+
+def _maybe_export_failures(state: StateDB, config: Config) -> None:
+    if not config.export_failures:
+        return
+    try:
+        count = state.export_failures_csv(config.export_failures)
+        logger.info("Exported %d failure rows to %s", count, config.export_failures)
+    except OSError as e:
+        logger.error("Failed to export failures to %s: %s", config.export_failures, e)
 
 
 if __name__ == "__main__":

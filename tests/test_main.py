@@ -68,6 +68,11 @@ def _patch_deps(
     fake_config.workdir = workdir
     fake_config.input_dir.return_value = f"{workdir}/in"
     fake_config.output_dir.return_value = f"{workdir}/out"
+    fake_config.use_state = config_kwargs.get("use_state", False)
+    fake_config.reset_state = config_kwargs.get("reset_state", False)
+    fake_config.only_failed = config_kwargs.get("only_failed", False)
+    fake_config.export_failures = config_kwargs.get("export_failures", None)
+    fake_config.state_db_path.return_value = f"{workdir}/state.db"
 
     fake_client = FakeClient(assets=assets or [], ok=connection_ok)
 
@@ -263,6 +268,147 @@ class TestMainEntrypoint:
             config_kwargs={"filter_album_id": "album-1"},
         )
         assert main([]) == 0
+
+    def test_state_records_outcomes(self, monkeypatch, tmp_path):
+        from app.state import StateDB
+
+        assets = [FakeAsset(id="a1"), FakeAsset(id="a2")]
+
+        def stub_process(asset, client, cfg):
+            return {
+                "status": "success" if asset.id == "a1" else "failed_upload",
+                "input_bytes": 100,
+                "output_bytes": 50,
+                "savings_pct": 50.0,
+                "error": "boom" if asset.id == "a2" else None,
+            }
+
+        _patch_deps(
+            monkeypatch,
+            tmp_path,
+            assets=assets,
+            config_kwargs={"dry_run": False, "use_state": True},
+        )
+        monkeypatch.setattr("app.main.process_asset", stub_process)
+        assert main([]) == 0
+
+        db = StateDB(f"{tmp_path}/state.db")
+        try:
+            assert db.get_status("a1") == "success"
+            assert db.get_status("a2") == "failed_upload"
+        finally:
+            db.close()
+
+    def test_resume_skips_completed(self, monkeypatch, tmp_path):
+        from app.state import StateDB
+
+        with StateDB(f"{tmp_path}/state.db") as db:
+            db.record("a1", "success", "x.jpg")
+
+        processed = []
+
+        def track(asset, client, cfg):
+            processed.append(asset.id)
+            return {
+                "status": "success",
+                "input_bytes": 0,
+                "output_bytes": 0,
+                "savings_pct": 0.0,
+            }
+
+        _patch_deps(
+            monkeypatch,
+            tmp_path,
+            assets=[FakeAsset(id="a1"), FakeAsset(id="a2")],
+            config_kwargs={"dry_run": False, "use_state": True},
+        )
+        monkeypatch.setattr("app.main.process_asset", track)
+        assert main([]) == 0
+        assert processed == ["a2"]
+
+    def test_only_failed_filters(self, monkeypatch, tmp_path):
+        from app.state import StateDB
+
+        with StateDB(f"{tmp_path}/state.db") as db:
+            db.record("a1", "success", "x.jpg")
+            db.record("a2", "failed_upload", "y.jpg", error="boom")
+
+        processed = []
+
+        def track(asset, client, cfg):
+            processed.append(asset.id)
+            return {
+                "status": "success",
+                "input_bytes": 0,
+                "output_bytes": 0,
+                "savings_pct": 0.0,
+            }
+
+        _patch_deps(
+            monkeypatch,
+            tmp_path,
+            assets=[FakeAsset(id="a1"), FakeAsset(id="a2")],
+            config_kwargs={
+                "dry_run": False,
+                "use_state": True,
+                "only_failed": True,
+            },
+        )
+        monkeypatch.setattr("app.main.process_asset", track)
+        assert main([]) == 0
+        assert processed == ["a2"]
+
+    def test_reset_state_wipes(self, monkeypatch, tmp_path):
+        from app.state import StateDB
+
+        with StateDB(f"{tmp_path}/state.db") as db:
+            db.record("a1", "success", "x.jpg")
+
+        processed = []
+
+        def track(asset, client, cfg):
+            processed.append(asset.id)
+            return {
+                "status": "success",
+                "input_bytes": 0,
+                "output_bytes": 0,
+                "savings_pct": 0.0,
+            }
+
+        _patch_deps(
+            monkeypatch,
+            tmp_path,
+            assets=[FakeAsset(id="a1")],
+            config_kwargs={
+                "dry_run": False,
+                "use_state": True,
+                "reset_state": True,
+            },
+        )
+        monkeypatch.setattr("app.main.process_asset", track)
+        assert main([]) == 0
+        assert processed == ["a1"]
+
+    def test_export_failures_written(self, monkeypatch, tmp_path):
+        from app.state import StateDB
+
+        csv_path = str(tmp_path / "failures.csv")
+        with StateDB(f"{tmp_path}/state.db") as db:
+            db.record("a1", "failed_upload", "y.jpg", error="boom")
+
+        _patch_deps(
+            monkeypatch,
+            tmp_path,
+            assets=[],
+            config_kwargs={
+                "dry_run": False,
+                "use_state": True,
+                "export_failures": csv_path,
+            },
+        )
+        assert main([]) == 0
+        content = open(csv_path).read()
+        assert "a1" in content and "boom" in content
 
     def test_search_exception_logs_error(self, monkeypatch, tmp_path, caplog):
         class ExplodingClient:

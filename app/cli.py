@@ -184,6 +184,31 @@ def build_parser() -> argparse.ArgumentParser:
         help="Write machine-readable summary to PATH",
     )
 
+    # State / resumability
+    parser.add_argument(
+        "--no-state",
+        action="store_true",
+        default=None,
+        help="Disable the resumable-state database (env: USE_STATE=false)",
+    )
+    parser.add_argument(
+        "--reset-state",
+        action="store_true",
+        default=None,
+        help="Wipe state.db before running (env: RESET_STATE)",
+    )
+    parser.add_argument(
+        "--only-failed",
+        action="store_true",
+        default=None,
+        help="Re-run only assets whose last recorded state was a failure (env: ONLY_FAILED)",
+    )
+    parser.add_argument(
+        "--export-failures",
+        metavar="PATH",
+        help="Write a failure CSV derived from state.db to PATH (env: EXPORT_FAILURES)",
+    )
+
     return parser
 
 

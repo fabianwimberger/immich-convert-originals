@@ -50,6 +50,15 @@ class Config:
     # Paths
     workdir: str = "/work"
 
+    # State / resumability
+    use_state: bool = True
+    reset_state: bool = False
+    only_failed: bool = False
+    export_failures: str | None = None
+
+    def state_db_path(self) -> str:
+        return os.path.join(self.workdir, "state.db")
+
     @classmethod
     def from_env(cls) -> "Config":
         values = _read_env_values()
@@ -120,6 +129,16 @@ class Config:
             if args.workdir is not None:
                 values["workdir"] = args.workdir
 
+            # State / resumability
+            if getattr(args, "no_state", None) is not None:
+                values["use_state"] = not args.no_state
+            if getattr(args, "reset_state", None):
+                values["reset_state"] = True
+            if getattr(args, "only_failed", None):
+                values["only_failed"] = True
+            if getattr(args, "export_failures", None) is not None:
+                values["export_failures"] = args.export_failures
+
         return cls._from_values(values)
 
     @classmethod
@@ -187,6 +206,12 @@ class Config:
         # Paths
         workdir = values["workdir"]
 
+        # State
+        use_state = values["use_state"]
+        reset_state = values["reset_state"]
+        only_failed = values["only_failed"]
+        export_failures = values.get("export_failures")
+
         return cls(
             immich_api_base=immich_api_base,
             immich_api_key=immich_api_key,
@@ -210,6 +235,10 @@ class Config:
             accept_retry_output=accept_retry_output,
             allow_larger=allow_larger,
             workdir=workdir,
+            use_state=use_state,
+            reset_state=reset_state,
+            only_failed=only_failed,
+            export_failures=export_failures,
         )
 
     def input_dir(self) -> str:
@@ -254,6 +283,11 @@ def _read_env_values() -> dict[str, Any]:
 
     workdir = os.environ.get("WORKDIR", "/work").strip() or "/work"
 
+    use_state = _parse_bool("USE_STATE", default=True)
+    reset_state = _parse_bool("RESET_STATE", default=False)
+    only_failed = _parse_bool("ONLY_FAILED", default=False)
+    export_failures = os.environ.get("EXPORT_FAILURES", "").strip() or None
+
     return {
         "immich_api_base": immich_api_base,
         "immich_api_key": immich_api_key,
@@ -277,6 +311,10 @@ def _read_env_values() -> dict[str, Any]:
         "accept_retry_output": accept_retry_output,
         "allow_larger": allow_larger,
         "workdir": workdir,
+        "use_state": use_state,
+        "reset_state": reset_state,
+        "only_failed": only_failed,
+        "export_failures": export_failures,
     }
 
 
