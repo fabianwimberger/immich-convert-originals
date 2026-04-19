@@ -137,13 +137,16 @@ class TestEndToEnd:
         assert code == 0
         assert _count_assets(admin_client) == before_count
 
-        # 2. Happy path: convert one JPEG (sample.jpg)
+        # 2. Happy path: convert sample.jpg. Scope by date so we target
+        # exactly this asset regardless of Immich's default sort order.
         sample_id = lib["images"]["sample.jpg"]
         code = _run_converter(
             admin_client.api_base,
             admin_client.api_key,
             dry_run=False,
             asset_types=("IMAGE",),
+            filter_date_after="2014-12-31T00:00:00Z",
+            filter_date_before="2015-12-31T23:59:59Z",
             max_assets=1,
             image_distance=1.0,
         )
@@ -403,7 +406,9 @@ def test_upload_failure_rollback(
     before_count = _count_assets(admin_client)
 
     # Run the converter through the fault proxy, scoped to the fresh asset's
-    # date. POST /api/assets returns 503 → upload path must fail cleanly.
+    # date. allow_larger=True forces an upload even if JXL is larger than the
+    # tiny source JPEG, so POST /api/assets is actually attempted and the
+    # injected 503 exercises the rollback path.
     code = _run_converter(
         upload_fault_api_base,
         admin_client.api_key,
@@ -412,6 +417,7 @@ def test_upload_failure_rollback(
         filter_date_after="2017-05-04T00:00:00Z",
         filter_date_before="2017-05-06T00:00:00Z",
         max_assets=1,
+        allow_larger=True,
     )
     # Exit code is 0 even with per-asset failures; the failure is observable
     # only in state/logs.

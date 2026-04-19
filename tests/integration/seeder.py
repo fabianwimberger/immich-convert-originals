@@ -31,9 +31,8 @@ VIDEO_NAMES = (
 def _generate_media(fixtures_dir: Path, tmp_dir: Path) -> dict[str, Path]:
     files: dict[str, Path] = {}
 
-    # Copy shipped fixtures
+    # Copy shipped fixtures used for already-target and retry-path coverage.
     for name in (
-        "sample.jpg",
         "progressive.jpg",
         "sample.png",
         "sample.webp",
@@ -44,6 +43,30 @@ def _generate_media(fixtures_dir: Path, tmp_dir: Path) -> dict[str, Path]:
         dst = tmp_dir / name
         dst.write_bytes(src.read_bytes())
         files[name] = dst
+
+    # Generate a photo-sized sample.jpg with mandelbrot content. The tiny
+    # shipped fixture (~400 B) is too small for JXL to compress below input
+    # size, so the converter would skip it and the trash/upload path wouldn't
+    # be exercised.
+    sample_jpg = tmp_dir / "sample.jpg"
+    subprocess.run(
+        [
+            "ffmpeg",
+            "-y",
+            "-f",
+            "lavfi",
+            "-i",
+            "mandelbrot=size=1024x768:rate=1",
+            "-frames:v",
+            "1",
+            "-q:v",
+            "3",
+            str(sample_jpg),
+        ],
+        check=True,
+        capture_output=True,
+    )
+    files["sample.jpg"] = sample_jpg
 
     # Inject EXIF (GPS + DateTimeOriginal + Artist) into sample.jpg so we can
     # verify the transcode pipeline preserves metadata end-to-end.
