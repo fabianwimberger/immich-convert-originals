@@ -64,11 +64,12 @@ mv .env.example .env
 nano .env
 
 # Run with dry run first to preview
-docker run --rm --env-file .env ghcr.io/fabianwimberger/immich-convert-originals:main
+docker run --rm --env-file .env -v ./work:/work ghcr.io/fabianwimberger/immich-convert-originals:main
 
 # When ready, disable dry run and run for real
 # Edit .env: set DRY_RUN=false
-docker run --rm --env-file .env ghcr.io/fabianwimberger/immich-convert-originals:main
+# The ./work:/work volume persists state.db so interrupted runs can resume
+docker run --rm --env-file .env -v ./work:/work ghcr.io/fabianwimberger/immich-convert-originals:main
 ```
 
 ### Option 2: Docker Compose (Build Locally)

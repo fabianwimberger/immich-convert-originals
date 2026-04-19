@@ -39,8 +39,10 @@ except ImportError:  # pragma: no cover
 
 try:
     from tqdm import tqdm
+    from tqdm.contrib.logging import logging_redirect_tqdm
 except ImportError:  # pragma: no cover
     tqdm = None  # type: ignore
+    logging_redirect_tqdm = None  # type: ignore
 
 logger = logging.getLogger(__name__)
 
@@ -315,7 +317,7 @@ def process_asset(asset: Asset, client: ImmichClient, config: Config) -> dict:
             result_info["error"] = error
             return result_info
 
-        logger.info(
+        logger.debug(
             "%s: %d kB -> %d kB (%.1f%% saved) [%s]",
             asset.original_file_name,
             input_bytes / 1024,
@@ -552,6 +554,10 @@ def run_converter(config: Config, stats_json_path: str | None = None) -> int:
 
     results: list[dict] = []
 
+    _redirect = logging_redirect_tqdm() if logging_redirect_tqdm is not None and tqdm is not None else None
+    if _redirect is not None:
+        _redirect.__enter__()
+
     try:
         with ThreadPoolExecutor(max_workers=config.concurrency) as executor:
             futures = {
@@ -564,7 +570,6 @@ def run_converter(config: Config, stats_json_path: str | None = None) -> int:
                     total=total_count,
                     desc="Converting",
                     unit="asset",
-                    ncols=80,
                 )
             else:
                 pbar = None  # type: ignore
@@ -620,6 +625,8 @@ def run_converter(config: Config, stats_json_path: str | None = None) -> int:
             if pbar is not None:
                 pbar.close()
     finally:
+        if _redirect is not None:
+            _redirect.__exit__(None, None, None)
         try:
             signal.signal(signal.SIGINT, prev_handler)
         except ValueError:
