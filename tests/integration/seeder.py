@@ -10,6 +10,22 @@ import requests
 from app.immich_api import ImmichClient
 
 DEVICE_ID = "integration-test-device"
+SEED_MARKER_ALBUM = "__immich-convert-seed-marker__"
+IMAGE_NAMES = (
+    "sample.jpg",
+    "progressive.jpg",
+    "sample.png",
+    "sample.webp",
+    "sample.heic",
+    "already.jxl",
+    "tiny.png",
+)
+VIDEO_NAMES = (
+    "h264.mp4",
+    "h264_portrait.mp4",
+    "hevc.mov",
+    "av1.mp4",
+)
 
 
 def _generate_media(fixtures_dir: Path, tmp_dir: Path) -> dict[str, Path]:
@@ -28,6 +44,24 @@ def _generate_media(fixtures_dir: Path, tmp_dir: Path) -> dict[str, Path]:
         dst = tmp_dir / name
         dst.write_bytes(src.read_bytes())
         files[name] = dst
+
+    # Inject EXIF (GPS + DateTimeOriginal + Artist) into sample.jpg so we can
+    # verify the transcode pipeline preserves metadata end-to-end.
+    subprocess.run(
+        [
+            "exiftool",
+            "-overwrite_original",
+            "-GPSLatitude=48.2082",
+            "-GPSLatitudeRef=N",
+            "-GPSLongitude=16.3738",
+            "-GPSLongitudeRef=E",
+            "-DateTimeOriginal=2015:01:01 12:00:00",
+            "-Artist=immich-convert-originals integration test",
+            str(files["sample.jpg"]),
+        ],
+        check=True,
+        capture_output=True,
+    )
 
     # Generate HEIC from sample.jpg (ImageMagick 7 uses 'magick', v6 uses 'convert')
     heic_path = tmp_dir / "sample.heic"
@@ -199,7 +233,65 @@ def _create_album(api_base: str, api_key: str, name: str, asset_ids: list[str]) 
     return resp.json()["id"]
 
 
+def _list_albums(api_base: str, api_key: str) -> list[dict[str, Any]]:
+    resp = requests.get(
+        f"{api_base}albums",
+        headers={"x-api-key": api_key},
+        timeout=30,
+    )
+    resp.raise_for_status()
+    return list(resp.json())
+
+
+def _existing_library(client: ImmichClient) -> dict[str, Any] | None:
+    """If a previous run already seeded this Immich, rebuild the library dict
+    from the marker album without re-uploading."""
+    albums = _list_albums(client.api_base, client.api_key)
+    marker = next((a for a in albums if a["albumName"] == SEED_MARKER_ALBUM), None)
+    if marker is None:
+        return None
+
+    by_name = {a["albumName"]: a["id"] for a in albums}
+    vacation_id = by_name.get("Vacation 2023")
+    screenshots_id = by_name.get("Screenshots")
+    if not (vacation_id and screenshots_id):
+        return None
+
+    # Pull every asset and index by original filename.
+    image_ids: dict[str, str] = {}
+    video_ids: dict[str, str] = {}
+    for asset_type, bucket in (("IMAGE", image_ids), ("VIDEO", video_ids)):
+        page = 1
+        while True:
+            assets = client.search_assets(
+                page=page, size=500, asset_type=asset_type, with_archived=True
+            )
+            if not assets:
+                break
+            for a in assets:
+                bucket.setdefault(a.original_file_name, a.id)
+            page += 1
+
+    expected_images = set(IMAGE_NAMES)
+    expected_videos = set(VIDEO_NAMES)
+    if not expected_images.issubset(image_ids) or not expected_videos.issubset(
+        video_ids
+    ):
+        return None
+
+    return {
+        "assets": {**image_ids, **video_ids},
+        "images": {k: image_ids[k] for k in IMAGE_NAMES},
+        "videos": {k: video_ids[k] for k in VIDEO_NAMES},
+        "albums": {"vacation": vacation_id, "screenshots": screenshots_id},
+    }
+
+
 def seed_library(client: ImmichClient, tmp_path_factory: Any) -> dict[str, Any]:
+    existing = _existing_library(client)
+    if existing is not None:
+        return existing
+
     fixtures_dir = Path(__file__).parent / "fixtures"
     tmp_dir = tmp_path_factory.mktemp("fixtures")
 
@@ -257,6 +349,14 @@ def seed_library(client: ImmichClient, tmp_path_factory: Any) -> dict[str, Any]:
     )
     _update_assets(
         client.api_base, client.api_key, [image_ids["sample.heic"]], isArchived=True
+    )
+
+    # Drop a marker album so future sessions can short-circuit the seed.
+    _create_album(
+        client.api_base,
+        client.api_key,
+        SEED_MARKER_ALBUM,
+        [image_ids["sample.jpg"]],
     )
 
     return {

@@ -174,6 +174,31 @@ class TestEndToEnd:
         assert detail is not None
         assert detail.get("isFavorite") is True
 
+        # Verify EXIF/GPS preserved in the converted JXL.
+        exif = subprocess.run(
+            [
+                "exiftool",
+                "-json",
+                "-GPSLatitude",
+                "-GPSLongitude",
+                "-DateTimeOriginal",
+                "-Artist",
+                jxl_path,
+            ],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        tags = json.loads(exif.stdout)[0]
+        assert tags.get("GPSLatitude"), "GPSLatitude missing from converted JXL"
+        assert tags.get("GPSLongitude"), "GPSLongitude missing from converted JXL"
+        assert "2015" in str(tags.get("DateTimeOriginal", "")), (
+            "DateTimeOriginal not preserved"
+        )
+        assert "integration test" in str(tags.get("Artist", "")), (
+            "Artist tag not preserved"
+        )
+
         # Verify album membership by querying the album
         album_url = f"{admin_client.api_base}albums/{lib['albums']['vacation']}"
         album_resp = requests.get(
@@ -342,6 +367,66 @@ class TestEndToEnd:
         assert code == 0
 
 
-@pytest.mark.skip(reason="toxiproxy sidecar not yet wired")
-def test_upload_failure_rollback(admin_client: ImmichClient, seeded_library: Any):
-    pass
+def test_upload_failure_rollback(
+    admin_client: ImmichClient,
+    seeded_library: Any,
+    upload_fault_api_base: str,
+    tmp_path: Any,
+):
+    """POST /api/assets returns 503 via the fault proxy. The converter must
+    record `failed_upload`, leave the original intact, create no new asset,
+    and issue no delete."""
+    import uuid as _uuid
+    from pathlib import Path as _Path
+
+    from tests.integration.seeder import DEVICE_ID
+
+    _ = seeded_library  # fixture dependency only.
+
+    # Upload a fresh JPEG out-of-band so this test is independent of other
+    # tests' mutations.
+    fixture = _Path(__file__).parent / "fixtures" / "sample.jpg"
+    unique_name = f"rollback-target-{_uuid.uuid4().hex[:8]}.jpg"
+    target_path = tmp_path / unique_name
+    target_path.write_bytes(fixture.read_bytes())
+
+    fresh_id, err = admin_client.upload_asset(
+        file_path=str(target_path),
+        device_asset_id=f"{unique_name}-{_uuid.uuid4()}",
+        device_id=DEVICE_ID,
+        file_created_at="2017-05-05T00:00:00Z",
+        file_modified_at="2017-05-05T00:00:00Z",
+        filename=unique_name,
+    )
+    assert err is None and fresh_id, f"Setup upload failed: {err}"
+
+    before_count = _count_assets(admin_client)
+
+    # Run the converter through the fault proxy, scoped to the fresh asset's
+    # date. POST /api/assets returns 503 → upload path must fail cleanly.
+    code = _run_converter(
+        upload_fault_api_base,
+        admin_client.api_key,
+        dry_run=False,
+        asset_types=("IMAGE",),
+        filter_date_after="2017-05-04T00:00:00Z",
+        filter_date_before="2017-05-06T00:00:00Z",
+        max_assets=1,
+    )
+    # Exit code is 0 even with per-asset failures; the failure is observable
+    # only in state/logs.
+    assert code == 0
+
+    # Original still exists, not trashed.
+    detail = _get_asset_detail(admin_client, fresh_id)
+    assert detail is not None, "Original asset was deleted on upload failure"
+    assert not detail.get("isTrashed"), (
+        "Original should not be trashed when upload fails"
+    )
+
+    # No new JXL asset was created for the target.
+    after_count = _count_assets(admin_client)
+    assert after_count == before_count, (
+        f"Asset count changed ({before_count} -> {after_count}); "
+        "rollback left stray state."
+    )
