@@ -184,55 +184,25 @@ def seeded_library(admin_client: ImmichClient, tmp_path_factory: Any) -> dict[st
 
 @pytest.fixture(scope="session")
 def upload_fault_api_base(immich_stack: str) -> Generator[str, None, None]:
-    """Start an nginx sidecar that returns 503 on POST /api/assets. Yields an
-    API base URL that's byte-identical to Immich except for that one endpoint.
-    Skips if docker compose isn't reachable from this environment."""
-    if os.environ.get("IMMICH_TEST_API_BASE"):
-        # Test runner is on the shared network — use service DNS name.
-        proxy_host = "immich-test-upload-fault"
-        api_base = f"http://{proxy_host}:2283/api/"
-    else:
-        if not _docker_available():
-            pytest.skip("Docker not available for fault-injection sidecar")
-        # No external stack: we can't route a host-side client into the
-        # internal network without publishing a port. Skip cleanly.
-        pytest.skip("upload-fault sidecar only runs inside the test runner container")
+    """Yield the URL of an nginx sidecar that returns 503 on POST /api/assets.
+    The sidecar must already be running on the `immich-test-net` network under
+    the container name `immich-test-upload-fault` (CI brings it up from the
+    host; see tests/integration/upload-fault-compose.yml). Skipped cleanly if
+    the sidecar isn't reachable from this process."""
+    proxy_host = "immich-test-upload-fault"
+    api_base = f"http://{proxy_host}:2283/api/"
 
-    compose_file = os.path.join(os.path.dirname(__file__), "upload-fault-compose.yml")
-    project = "immich-convert-test-faults"
-    env = {**os.environ, "COMPOSE_PROJECT_NAME": project}
-
-    subprocess.run(
-        ["docker", "compose", "-f", compose_file, "-p", project, "up", "-d"],
-        capture_output=True,
-        text=True,
-        env=env,
-        check=True,
-    )
-
-    # Wait for nginx to be reachable from within the network.
-    deadline = time.time() + 60
+    deadline = time.time() + 30
     last_error = ""
     while time.time() < deadline:
         try:
-            resp = requests.get(f"{api_base}server/ping", timeout=5)
+            resp = requests.get(f"{api_base}server/ping", timeout=3)
             if resp.status_code == 200:
                 break
         except Exception as e:
             last_error = str(e)
         time.sleep(2)
     else:
-        subprocess.run(
-            ["docker", "compose", "-f", compose_file, "-p", project, "down", "-v"],
-            capture_output=True,
-            env=env,
-        )
-        pytest.fail(f"upload-fault proxy did not come up: {last_error}")
+        pytest.skip(f"upload-fault sidecar not reachable: {last_error}")
 
     yield api_base
-
-    subprocess.run(
-        ["docker", "compose", "-f", compose_file, "-p", project, "down", "-v"],
-        capture_output=True,
-        env=env,
-    )

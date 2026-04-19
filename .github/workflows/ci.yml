@@ -10,7 +10,7 @@ on:
 
 env:
   PYTHON_VERSION: "3.13"
-  IMMICH_TEST_TAG_PINNED: "v1.131.3"
+  IMMICH_TEST_TAG_PINNED: "v2.7.5"
 
 jobs:
   lint:
@@ -85,7 +85,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
-      IMMICH_TEST_TAG: v1.131.3
+      IMMICH_TEST_TAG: v2.7.5
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
@@ -101,7 +101,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/immich-image-cache
-          key: immich-images-${{ env.IMMICH_TEST_TAG }}-pgvecto-rs-pg14-v0.2.0-redis-6.2-alpine
+          key: immich-images-${{ env.IMMICH_TEST_TAG }}-postgres-vectorchord0.4.3-valkey-9
 
       - name: Load images from cache
         if: steps.img-cache.outputs.cache-hit == 'true'
@@ -114,12 +114,12 @@ jobs:
         if: steps.img-cache.outputs.cache-hit != 'true'
         run: |
           docker pull ghcr.io/immich-app/immich-server:${IMMICH_TEST_TAG}
-          docker pull docker.io/tensorchord/pgvecto-rs:pg14-v0.2.0
-          docker pull docker.io/redis:6.2-alpine
+          docker pull ghcr.io/immich-app/postgres:14-vectorchord0.4.3-pgvectors0.2.0
+          docker pull docker.io/valkey/valkey:9-alpine
           mkdir -p ~/immich-image-cache
           docker save ghcr.io/immich-app/immich-server:${IMMICH_TEST_TAG} -o ~/immich-image-cache/immich-server.tar
-          docker save docker.io/tensorchord/pgvecto-rs:pg14-v0.2.0 -o ~/immich-image-cache/pgvecto-rs.tar
-          docker save docker.io/redis:6.2-alpine -o ~/immich-image-cache/redis.tar
+          docker save ghcr.io/immich-app/postgres:14-vectorchord0.4.3-pgvectors0.2.0 -o ~/immich-image-cache/postgres.tar
+          docker save docker.io/valkey/valkey:9-alpine -o ~/immich-image-cache/valkey.tar
 
       - name: Build test runner image
         run: docker build -t immich-convert-test-runner -f tests/integration/Dockerfile.runner .
@@ -138,6 +138,11 @@ jobs:
           curl --retry 30 --retry-delay 5 --retry-all-errors \
             http://127.0.0.1:$IMMICH_TEST_PORT/api/server/ping
 
+      - name: Start upload-fault sidecar
+        run: |
+          docker compose -f tests/integration/upload-fault-compose.yml \
+            -p immich-convert-test-faults up -d
+
       - name: Run integration tests
         run: |
           docker run --rm \
@@ -153,6 +158,7 @@ jobs:
           IMMICH_TEST_PORT: ${{ steps.port.outputs.port }}
           COMPOSE_PROJECT_NAME: immich-convert-test
         run: |
+          docker compose -f tests/integration/upload-fault-compose.yml -p immich-convert-test-faults down -v || true
           docker compose -f tests/integration/docker-compose.test.yml -p immich-convert-test down -v
           docker network rm immich-test-net || true
 
@@ -192,6 +198,11 @@ jobs:
           curl --retry 30 --retry-delay 5 --retry-all-errors \
             http://127.0.0.1:$IMMICH_TEST_PORT/api/server/ping
 
+      - name: Start upload-fault sidecar
+        run: |
+          docker compose -f tests/integration/upload-fault-compose.yml \
+            -p immich-convert-test-faults up -d
+
       - name: Run integration tests
         run: |
           docker run --rm \
@@ -207,5 +218,6 @@ jobs:
           IMMICH_TEST_PORT: ${{ steps.port.outputs.port }}
           COMPOSE_PROJECT_NAME: immich-convert-test
         run: |
+          docker compose -f tests/integration/upload-fault-compose.yml -p immich-convert-test-faults down -v || true
           docker compose -f tests/integration/docker-compose.test.yml -p immich-convert-test down -v
           docker network rm immich-test-net || true

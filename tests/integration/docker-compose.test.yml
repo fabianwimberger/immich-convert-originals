@@ -3,11 +3,11 @@ name: immich-convert-test
 services:
   immich-test-server:
     container_name: immich-test-server
-    image: ghcr.io/immich-app/immich-server:${IMMICH_TEST_TAG:-v1.131.3}
+    image: ghcr.io/immich-app/immich-server:${IMMICH_TEST_TAG:-v2.7.5}
     ports:
       - "127.0.0.1:${IMMICH_TEST_PORT}:2283"
     environment:
-      IMMICH_VERSION: ${IMMICH_TEST_TAG:-v1.131.3}
+      IMMICH_VERSION: ${IMMICH_TEST_TAG:-v2.7.5}
       DB_HOSTNAME: immich-test-postgres
       DB_PORT: 5432
       DB_USERNAME: postgres
@@ -15,9 +15,9 @@ services:
       DB_DATABASE_NAME: immich
       REDIS_HOSTNAME: immich-test-redis
       REDIS_PORT: 6379
-      UPLOAD_LOCATION: /usr/src/app/upload
+      UPLOAD_LOCATION: /data
     volumes:
-      - immich-test-uploads:/usr/src/app/upload
+      - immich-test-uploads:/data
     networks:
       - immich-test-net
     depends_on:
@@ -26,16 +26,12 @@ services:
       immich-test-redis:
         condition: service_started
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:2283/api/server/ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 12
-      start_period: 30s
+      disable: false
     restart: "no"
 
   immich-test-postgres:
     container_name: immich-test-postgres
-    image: docker.io/tensorchord/pgvecto-rs:pg14-v0.2.0
+    image: ghcr.io/immich-app/postgres:14-vectorchord0.4.3-pgvectors0.2.0
     environment:
       POSTGRES_PASSWORD: postgres
       POSTGRES_USER: postgres
@@ -51,22 +47,14 @@ services:
       timeout: 5s
       retries: 5
       start_period: 30s
-    command: >-
-      postgres
-      -c shared_preload_libraries=vectors.so
-      -c 'search_path="$user", public, vectors'
-      -c logging_collector=off
-      -c max_wal_size=2GB
-      -c shared_buffers=512MB
-      -c wal_compression=on
     restart: "no"
 
   immich-test-redis:
     container_name: immich-test-redis
-    image: docker.io/redis:6.2-alpine
+    image: docker.io/valkey/valkey:9-alpine
     networks:
       - immich-test-net
-    command: redis-server --save "" --appendonly no
+    command: valkey-server --save "" --appendonly no
     tmpfs:
       - /data
     healthcheck:
