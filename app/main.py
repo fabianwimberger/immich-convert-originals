@@ -19,7 +19,7 @@ try:
         validate_output,
         validate_video_output,
     )
-except ImportError:
+except ImportError:  # pragma: no cover
     from cli import parse_args, setup_logging  # type: ignore[no-redef]
     from config import Config  # type: ignore[no-redef]
     from immich_api import Asset, ImmichClient  # type: ignore[no-redef]
@@ -316,7 +316,7 @@ def main(argv: list[str] | None = None) -> int:
         if preview_code != 0:
             return preview_code
 
-        if not args.yes:
+        if not args.yes:  # pragma: no cover
             import questionary
 
             proceed = questionary.confirm(

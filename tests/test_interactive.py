@@ -44,6 +44,16 @@ class TestParseDateInput:
         with pytest.raises(ValueError):
             _parse_date_input("not-a-date")
 
+    def test_invalid_iso_raises(self):
+        with pytest.raises(ValueError):
+            _parse_date_input("2023-13-45T10:00:00Z")
+
+    def test_iso_without_z_passthrough(self):
+        assert (
+            _parse_date_input("2023-06-15T10:00:00+00:00")
+            == "2023-06-15T10:00:00+00:00"
+        )
+
 
 class TestRunInteractiveHappyPath:
     def test_returns_config_with_dry_run_true(self):
@@ -370,6 +380,107 @@ class TestRunInteractiveHappyPath:
             client_factory=_client_factory(client),
         )
         assert config.max_assets == 25
+
+    def test_negative_max_assets_fallback(self):
+        client = _make_client()
+        answers = [
+            "https://example.com/api/",
+            "key",
+            ["IMAGE"],
+            "library",
+            "-5",  # negative max_assets
+            True,
+            True,
+        ]
+        prompt = FakePrompt(answers)
+        config = run_interactive(
+            prompt=prompt,
+            env_defaults={},
+            client_factory=_client_factory(client),
+        )
+        assert config.max_assets == 25
+
+    def test_negative_image_distance_fallback(self):
+        client = _make_client()
+        answers = [
+            "https://example.com/api/",
+            "key",
+            ["IMAGE"],
+            "library",
+            "25",
+            False,  # custom encoding
+            "-1.0",  # negative distance
+            "99",  # out of range CRF
+            True,
+        ]
+        prompt = FakePrompt(answers)
+        config = run_interactive(
+            prompt=prompt,
+            env_defaults={},
+            client_factory=_client_factory(client),
+        )
+        assert config.image_distance == 1.0
+        assert config.video_crf == 36
+
+    def test_bad_encoding_values_fallback(self):
+        client = _make_client()
+        answers = [
+            "https://example.com/api/",
+            "key",
+            ["IMAGE"],
+            "library",
+            "25",
+            False,  # custom encoding
+            "bad",  # invalid distance
+            "bad",  # invalid CRF
+            True,
+        ]
+        prompt = FakePrompt(answers)
+        config = run_interactive(
+            prompt=prompt,
+            env_defaults={},
+            client_factory=_client_factory(client),
+        )
+        assert config.image_distance == 1.0
+        assert config.video_crf == 36
+
+    def test_server_info_none(self):
+        client = _make_client(info=None)
+        answers = [
+            "https://example.com/api/",
+            "key",
+            ["IMAGE"],
+            "library",
+            "25",
+            True,
+            True,
+        ]
+        prompt = FakePrompt(answers)
+        config = run_interactive(
+            prompt=prompt,
+            env_defaults={},
+            client_factory=_client_factory(client),
+        )
+        assert config is not None
+
+    def test_server_info_empty_dict(self):
+        client = _make_client(info={})
+        answers = [
+            "https://example.com/api/",
+            "key",
+            ["IMAGE"],
+            "library",
+            "25",
+            True,
+            True,
+        ]
+        prompt = FakePrompt(answers)
+        config = run_interactive(
+            prompt=prompt,
+            env_defaults={},
+            client_factory=_client_factory(client),
+        )
+        assert config is not None
 
     def test_empty_api_base_returns_none(self):
         client = _make_client()

@@ -3,8 +3,12 @@
 import logging
 from typing import Any, Protocol
 
-from app.config import Config
-from app.immich_api import ImmichClient
+try:
+    from app.config import Config
+    from app.immich_api import ImmichClient
+except ImportError:  # pragma: no cover
+    from config import Config  # type: ignore[no-redef]
+    from immich_api import ImmichClient  # type: ignore[no-redef]
 
 logger = logging.getLogger(__name__)
 
@@ -24,30 +28,32 @@ class Prompt(Protocol):
 class QuestionaryPrompt:
     """Real TTY prompts via questionary."""
 
-    def text(self, message: str, default: str = "") -> str:
+    def text(self, message: str, default: str = "") -> str:  # pragma: no cover
         import questionary
 
         return questionary.text(message, default=default).unsafe_ask()
 
-    def password(self, message: str, default: str = "") -> str:
+    def password(self, message: str, default: str = "") -> str:  # pragma: no cover
         import questionary
 
         return questionary.password(message, default=default).unsafe_ask()
 
-    def confirm(self, message: str, default: bool = False) -> bool:
+    def confirm(self, message: str, default: bool = False) -> bool:  # pragma: no cover
         import questionary
 
         return questionary.confirm(message, default=default).unsafe_ask()
 
     def select(
         self, message: str, choices: list[tuple[str, str]], default: str | None = None
-    ) -> str:
+    ) -> str:  # pragma: no cover
         import questionary
 
         qc = [questionary.Choice(title=label, value=value) for value, label in choices]
         return questionary.select(message, choices=qc, default=default).unsafe_ask()
 
-    def checkbox(self, message: str, choices: list[tuple[str, str]]) -> list[str]:
+    def checkbox(
+        self, message: str, choices: list[tuple[str, str]]
+    ) -> list[str]:  # pragma: no cover
         import questionary
 
         qc = [questionary.Choice(title=label, value=value) for value, label in choices]
@@ -95,7 +101,9 @@ class FakePrompt:
         return self._calls
 
 
-def _default_client_factory(api_base: str, api_key: str) -> ImmichClient:
+def _default_client_factory(
+    api_base: str, api_key: str
+) -> ImmichClient:  # pragma: no cover
     return ImmichClient(
         api_base=api_base, api_key=api_key, retry_max=1, retry_backoff=0
     )
