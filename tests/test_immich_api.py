@@ -380,9 +380,7 @@ class TestCopyAssetData:
 
     @responses.activate
     def test_source_not_found(self, client):
-        responses.add(
-            responses.GET, "https://example.com/api/assets/src", status=404
-        )
+        responses.add(responses.GET, "https://example.com/api/assets/src", status=404)
         success, error = client.copy_asset_data("src", "dst")
         assert success is False
         assert "Source asset not found" in error

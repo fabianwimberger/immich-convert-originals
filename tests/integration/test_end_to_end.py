@@ -120,7 +120,9 @@ def _run_converter(
 
 
 class TestEndToEnd:
-    def test_full_flow(self, admin_client: ImmichClient, seeded_library: Any, tmp_path: Any):
+    def test_full_flow(
+        self, admin_client: ImmichClient, seeded_library: Any, tmp_path: Any
+    ):
         lib = seeded_library
 
         # 1. Dry run: count should not change
@@ -152,9 +154,7 @@ class TestEndToEnd:
         assert detail is None or detail.get("isTrashed") is True
 
         # Find new JXL asset by searching all images
-        all_images = admin_client.search_assets(
-            page=1, size=50, asset_type="IMAGE"
-        )
+        all_images = admin_client.search_assets(page=1, size=50, asset_type="IMAGE")
         jxl_assets = [a for a in all_images if a.original_file_name.endswith(".jxl")]
         assert len(jxl_assets) >= 1, "New JXL asset not found"
         new_jxl = jxl_assets[0]
@@ -195,9 +195,7 @@ class TestEndToEnd:
         )
         assert code == 0
 
-        all_videos = admin_client.search_assets(
-            page=1, size=50, asset_type="VIDEO"
-        )
+        all_videos = admin_client.search_assets(page=1, size=50, asset_type="VIDEO")
         new_mp4s = [a for a in all_videos if a.original_file_name.endswith(".mp4")]
         # Should have the original av1.mp4 plus at least one new converted mp4
         assert len(new_mp4s) >= 1

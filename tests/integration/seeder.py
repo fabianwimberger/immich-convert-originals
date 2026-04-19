@@ -31,7 +31,11 @@ def _generate_media(fixtures_dir: Path, tmp_dir: Path) -> dict[str, Path]:
 
     # Generate HEIC from sample.jpg (ImageMagick 7 uses 'magick', v6 uses 'convert')
     heic_path = tmp_dir / "sample.heic"
-    magick_cmd = "magick" if subprocess.run(["which", "magick"], capture_output=True).returncode == 0 else "convert"
+    magick_cmd = (
+        "magick"
+        if subprocess.run(["which", "magick"], capture_output=True).returncode == 0
+        else "convert"
+    )
     subprocess.run(
         [magick_cmd, str(files["sample.jpg"]), str(heic_path)],
         check=True,
