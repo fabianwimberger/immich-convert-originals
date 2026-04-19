@@ -87,24 +87,14 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v6
 
-      - name: Set up Python
-        uses: actions/setup-python@v6
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-
-      - name: Install dependencies
-        run: pip install -r requirements-dev.txt
-
-      - name: Install ffmpeg and ImageMagick
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y ffmpeg imagemagick exiftool
-
       - name: Pick free port
         id: port
         run: |
-          python -c "import socket; s=socket.socket(); s.bind(('',0)); print(s.getsockname()[1]); s.close()" > port.txt
+          python3 -c "import socket; s=socket.socket(); s.bind(('',0)); print(s.getsockname()[1]); s.close()" > port.txt
           echo "port=$(cat port.txt)" >> "$GITHUB_OUTPUT"
+
+      - name: Build test runner image
+        run: docker build -t immich-convert-test-runner -f tests/integration/Dockerfile.runner .
 
       - name: Start Immich test stack
         env:
@@ -121,9 +111,13 @@ jobs:
             http://127.0.0.1:$IMMICH_TEST_PORT/api/server/ping
 
       - name: Run integration tests
-        env:
-          IMMICH_TEST_PORT: ${{ steps.port.outputs.port }}
-        run: pytest tests/ -m integration -v
+        run: |
+          docker run --rm \
+            --network immich-test-net \
+            -v "$PWD:/workspace" \
+            -e IMMICH_TEST_API_BASE=http://immich-test-server:2283/api/ \
+            immich-convert-test-runner \
+            pytest tests/ -m integration -v
 
       - name: Tear down stack
         if: always()

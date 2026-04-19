@@ -36,6 +36,26 @@ def _docker_available() -> bool:
 
 @pytest.fixture(scope="session")
 def immich_stack() -> Generator[str, None, None]:
+    external = os.environ.get("IMMICH_TEST_API_BASE")
+    if external:
+        api_base = external if external.endswith("/") else external + "/"
+        deadline = time.time() + 120
+        last_error = ""
+        while time.time() < deadline:
+            try:
+                resp = requests.get(f"{api_base}server/ping", timeout=5)
+                if resp.status_code == 200:
+                    break
+            except Exception as e:
+                last_error = str(e)
+            time.sleep(2)
+        else:
+            pytest.fail(
+                f"External Immich at {api_base} not reachable within 120s: {last_error}"
+            )
+        yield api_base
+        return
+
     if not _docker_available():
         pytest.skip("Docker not available")
 
