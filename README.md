@@ -87,6 +87,33 @@ DRY_RUN=true docker compose up
 docker compose up
 ```
 
+### Option 3: Local Python
+
+```bash
+# Clone the repository
+git clone https://github.com/fabianwimberger/immich-convert-originals.git
+cd immich-convert-originals
+
+# Install dependencies
+pip install -r requirements.txt
+
+# See all available options
+python -m app --help
+
+# Run with environment variables
+IMMICH_API_BASE=https://photos.example.com/api \
+IMMICH_API_KEY=your_key \
+DRY_RUN=true \
+python -m app
+
+# Or pass options as CLI flags
+python -m app \
+  --api-base https://photos.example.com/api \
+  --api-key your_key \
+  --dry-run \
+  --max-assets 10
+```
+
 ## How It Works
 
 ```

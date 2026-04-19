@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 """Main orchestration for batch-transcoding Immich library assets."""
 
+import json
 import logging
 import os
 import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
+from cli import parse_args, setup_logging
 from config import Config
 from immich_api import Asset, ImmichClient
 from transcode import (
@@ -15,6 +17,11 @@ from transcode import (
     validate_output,
     validate_video_output,
 )
+
+try:
+    from tqdm import tqdm
+except ImportError:  # pragma: no cover
+    tqdm = None  # type: ignore
 
 logger = logging.getLogger(__name__)
 
@@ -268,15 +275,19 @@ def process_asset(asset: Asset, client: ImmichClient, config: Config) -> dict:
                     logger.warning("Failed to clean up %s: %s", path, e)
 
 
-def main() -> int:
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s [%(levelname)s] %(message)s",
-        datefmt="%H:%M:%S",
+def main(argv: list[str] | None = None) -> int:
+    args = parse_args(argv)
+    setup_logging(
+        level=args.log_level or "info",
+        fmt=args.log_format or "text",
     )
 
+    if args.interactive:
+        logger.error("Interactive mode is not yet implemented")
+        return 1
+
     try:
-        config = Config.from_env()
+        config = Config.from_args_and_env(args)
     except ValueError as e:
         logger.error("Configuration error: %s", e)
         return 1
@@ -397,7 +408,17 @@ def main() -> int:
             for asset in assets
         }
 
-        for i, future in enumerate(as_completed(futures), 1):
+        if tqdm is not None:
+            pbar = tqdm(
+                total=total_count,
+                desc="Converting",
+                unit="asset",
+                ncols=80,
+            )
+        else:
+            pbar = None  # type: ignore
+
+        for future in as_completed(futures):
             asset = futures[future]
             try:
                 result = future.result()
@@ -413,10 +434,20 @@ def main() -> int:
                     }
                 )
 
-            if i % 50 == 0 or i == total_count:
-                logger.info(
-                    "Progress: %d/%d (%.0f%%)", i, total_count, i / total_count * 100
-                )
+            if pbar is not None:
+                pbar.update(1)
+            else:
+                i = len(results)
+                if i % 50 == 0 or i == total_count:
+                    logger.info(
+                        "Progress: %d/%d (%.0f%%)",
+                        i,
+                        total_count,
+                        i / total_count * 100,
+                    )
+
+        if pbar is not None:
+            pbar.close()
 
     total_input = sum(r["input_bytes"] for r in results)
     total_output = sum(r["output_bytes"] for r in results)
@@ -440,6 +471,24 @@ def main() -> int:
             f"{total_savings:+,}",
             (total_savings / total_input) * 100,
         )
+
+    if args.stats_json:
+        stats = {
+            "total_assets": total_count,
+            "status_counts": status_counts,
+            "input_bytes": total_input,
+            "output_bytes": total_output,
+            "savings_bytes": total_savings,
+            "savings_pct": (total_savings / total_input) * 100
+            if total_input > 0
+            else 0.0,
+        }
+        try:
+            with open(args.stats_json, "w") as f:
+                json.dump(stats, f, indent=2)
+            logger.info("Stats written to %s", args.stats_json)
+        except OSError as e:
+            logger.error("Failed to write stats to %s: %s", args.stats_json, e)
 
     return 0
 
