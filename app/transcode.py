@@ -269,7 +269,7 @@ def transcode(
         # JPEG: Use cjxl for lossless repack (no distance parameter)
         try:
             result = subprocess.run(
-                ["cjxl", input_path, output_path],
+                ["cjxl", "--compress_boxes=0", input_path, output_path],
                 capture_output=True,
                 timeout=timeouts.image,
             )
