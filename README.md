@@ -26,7 +26,9 @@ JPEG XL shrinks photos by 20-40% and AV1 shrinks videos by 30-50% with no visibl
 - **Video conversion** — MP4, MOV, MKV → AV1 (MP4)
 - **Metadata preservation** — EXIF, GPS, tags, albums, faces
 - **Smart retry logic** — automatically retries with higher compression if output is larger
+- **Resumable runs** — SQLite state DB tracks outcomes; interrupted runs skip already-converted assets on restart, handles SIGINT gracefully
 - **Dry-run mode** — preview changes before executing
+- **Interactive wizard** — guided setup via `--interactive`
 - **Date filtering** — process only assets within a date range
 - **Concurrency control** — configurable parallel workers
 
@@ -149,6 +151,17 @@ If any step fails, the new asset is cleaned up and the original is preserved.
 | `IMAGE_DISTANCE` | JXL distance (0=lossless, 1=visually lossless) | `1.0` |
 | `VIDEO_CRF` | AV1 quality (0-63, lower=better) | `36` |
 | `VIDEO_PRESET` | AV1 speed/quality tradeoff (0-13, lower=slower) | `4` |
+| `VIDEO_MAX_DIMENSION` | Limit shorter-side resolution, 0=disable | `0` |
+| `VIDEO_AUDIO_BITRATE` | Opus audio bitrate | `64k` |
+
+### Resumable State
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `USE_STATE` | Track per-asset outcomes in `state.db` for resumable runs | `true` |
+| `RESET_STATE` | Wipe `state.db` before running | `false` |
+| `ONLY_FAILED` | Re-run only assets whose last recorded status was a failure | `false` |
+| `EXPORT_FAILURES` | Write a failure CSV to this path after the run | — |
 
 ## Security & Safety
 
