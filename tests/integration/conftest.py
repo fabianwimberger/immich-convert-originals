@@ -5,6 +5,7 @@ import os
 import socket
 import subprocess
 import time
+from collections.abc import Generator
 from typing import Any
 
 import pytest
@@ -34,7 +35,7 @@ def _docker_available() -> bool:
 
 
 @pytest.fixture(scope="session")
-def immich_stack() -> str:
+def immich_stack() -> Generator[str, None, None]:
     if not _docker_available():
         pytest.skip("Docker not available")
 

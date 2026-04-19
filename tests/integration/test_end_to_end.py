@@ -99,9 +99,9 @@ def _run_converter(
     import app.main as main_mod
 
     orig_from_args = main_mod.Config.from_args_and_env
-    main_mod.Config.from_args_and_env = lambda args: config  # type: ignore
+    main_mod.Config.from_args_and_env = lambda args: config  # type: ignore[method-assign]
     orig_parse_args = main_mod.parse_args
-    main_mod.parse_args = lambda argv=None: type(
+    main_mod.parse_args = lambda argv=None: type(  # type: ignore[assignment, return-value, method-assign]
         "Args",
         (),
         {
@@ -111,12 +111,12 @@ def _run_converter(
             "log_format": None,
             "stats_json": None,
         },
-    )  # type: ignore
+    )
     try:
         return main_mod.main([])
     finally:
-        main_mod.Config.from_args_and_env = orig_from_args
-        main_mod.parse_args = orig_parse_args
+        main_mod.Config.from_args_and_env = orig_from_args  # type: ignore[method-assign]
+        main_mod.parse_args = orig_parse_args  # type: ignore[method-assign]
 
 
 class TestEndToEnd:
@@ -185,7 +185,6 @@ class TestEndToEnd:
         assert new_jxl.id in album_asset_ids
 
         # 3. Happy path: convert one video (h264.mp4)
-        h264_id = lib["videos"]["h264.mp4"]
         code = _run_converter(
             admin_client.api_base,
             admin_client.api_key,
@@ -263,10 +262,12 @@ class TestEndToEnd:
         # untouched by earlier steps and would be skipped in a full run.
         jxl_id = lib["images"]["already.jxl"]
         av1_id = lib["videos"]["av1.mp4"]
-        assert _get_asset_detail(admin_client, jxl_id) is not None
-        assert not _get_asset_detail(admin_client, jxl_id).get("isTrashed")
-        assert _get_asset_detail(admin_client, av1_id) is not None
-        assert not _get_asset_detail(admin_client, av1_id).get("isTrashed")
+        jxl_detail = _get_asset_detail(admin_client, jxl_id)
+        assert jxl_detail is not None
+        assert not jxl_detail.get("isTrashed")
+        av1_detail = _get_asset_detail(admin_client, av1_id)
+        assert av1_detail is not None
+        assert not av1_detail.get("isTrashed")
 
         # 5. Album filter
         vacation_id = lib["albums"]["vacation"]
@@ -315,9 +316,6 @@ class TestEndToEnd:
         # sample.webp (retry-skipped earlier) and sample.heic (archived).
         # sample.webp is tiny and may still be skipped; sample.heic should convert.
         heic_id = lib["images"]["sample.heic"]
-        heic_pre = str(tmp_path / "pre_heic")
-        _download_original(admin_client, heic_id, heic_pre)
-        heic_hash = _sha256(heic_pre)
 
         code = _run_converter(
             admin_client.api_base,
