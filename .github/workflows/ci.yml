@@ -52,7 +52,7 @@ jobs:
         run: pip install -r requirements-dev.txt
 
       - name: Run tests
-        run: pytest tests/ -v --cov=app --cov-report=xml
+        run: pytest tests/ -v --cov=app --cov-report=xml --cov-fail-under=26
 
       - name: Upload coverage
         uses: codecov/codecov-action@v6
