@@ -413,3 +413,73 @@ class TestGetAlbumAssets:
         )
         with pytest.raises(RuntimeError, match="Failed to get album: HTTP 404"):
             client.get_album_assets("album-1")
+
+
+class TestServerInfo:
+    @responses.activate
+    def test_happy_path(self, client):
+        responses.add(
+            responses.GET,
+            "https://example.com/api/server/version",
+            json={"major": 1, "minor": 2, "patch": 3},
+        )
+        info = client.server_info()
+        assert info == {"major": 1, "minor": 2, "patch": 3}
+
+    @responses.activate
+    def test_non_200_returns_none(self, client):
+        responses.add(
+            responses.GET, "https://example.com/api/server/version", status=500
+        )
+        assert client.server_info() is None
+
+    @responses.activate
+    def test_exception_returns_none(self, client):
+        responses.add(
+            responses.GET,
+            "https://example.com/api/server/version",
+            body=requests.ConnectionError("refused"),
+        )
+        assert client.server_info() is None
+
+
+class TestListAlbums:
+    @responses.activate
+    def test_happy_path(self, client):
+        responses.add(
+            responses.GET,
+            "https://example.com/api/albums",
+            json=[
+                {
+                    "id": "album-1",
+                    "albumName": "Vacation",
+                    "assetCount": 42,
+                },
+                {
+                    "id": "album-2",
+                    "albumName": "Screenshots",
+                    "assetCount": 3,
+                },
+            ],
+        )
+        albums = client.list_albums()
+        assert len(albums) == 2
+        assert albums[0]["id"] == "album-1"
+        assert albums[0]["album_name"] == "Vacation"
+        assert albums[0]["asset_count"] == 42
+
+    @responses.activate
+    def test_empty_list(self, client):
+        responses.add(
+            responses.GET,
+            "https://example.com/api/albums",
+            json=[],
+        )
+        albums = client.list_albums()
+        assert albums == []
+
+    @responses.activate
+    def test_error_raises(self, client):
+        responses.add(responses.GET, "https://example.com/api/albums", status=500)
+        with pytest.raises(RuntimeError, match="Failed to list albums: HTTP 500"):
+            client.list_albums()

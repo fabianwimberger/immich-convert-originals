@@ -11,6 +11,7 @@ try:
     from app.cli import parse_args, setup_logging
     from app.config import Config
     from app.immich_api import Asset, ImmichClient
+    from app.interactive import QuestionaryPrompt, run_interactive
     from app.transcode import (
         detect_video_codec,
         transcode,
@@ -22,6 +23,7 @@ except ImportError:
     from cli import parse_args, setup_logging  # type: ignore[no-redef]
     from config import Config  # type: ignore[no-redef]
     from immich_api import Asset, ImmichClient  # type: ignore[no-redef]
+    from interactive import QuestionaryPrompt, run_interactive  # type: ignore[no-redef]
     from transcode import (  # type: ignore[no-redef]
         detect_video_codec,
         transcode,
@@ -295,8 +297,39 @@ def main(argv: list[str] | None = None) -> int:
     )
 
     if args.interactive:
-        logger.error("Interactive mode is not yet implemented")
-        return 1
+        config = run_interactive(
+            prompt=QuestionaryPrompt(),
+            env_defaults={
+                "api_base": os.environ.get("IMMICH_API_BASE", ""),
+                "api_key": os.environ.get("IMMICH_API_KEY", ""),
+            },
+            auto_confirm=args.yes,
+        )
+        if config is None:
+            logger.info("Aborted by user")
+            return 0
+
+        logger.info("=" * 50)
+        logger.info("Running dry-run preview...")
+        logger.info("Preview shows what will be processed, not estimated savings.")
+        preview_code = run_converter(config)
+        if preview_code != 0:
+            return preview_code
+
+        if not args.yes:
+            import questionary
+
+            proceed = questionary.confirm(
+                "Proceed with real run?", default=False
+            ).unsafe_ask()
+            if not proceed:
+                logger.info("Aborted by user")
+                return 0
+
+        from dataclasses import replace
+
+        real_config = replace(config, dry_run=False)
+        return run_converter(real_config)
 
     try:
         config = Config.from_args_and_env(args)
@@ -304,6 +337,11 @@ def main(argv: list[str] | None = None) -> int:
         logger.error("Configuration error: %s", e)
         return 1
 
+    return run_converter(config, stats_json_path=args.stats_json)
+
+
+def run_converter(config: Config, stats_json_path: str | None = None) -> int:
+    """Run the conversion pipeline with the given config."""
     type_labels = ", ".join(config.asset_types)
     target_formats = []
     if "IMAGE" in config.asset_types:
@@ -484,7 +522,7 @@ def main(argv: list[str] | None = None) -> int:
             (total_savings / total_input) * 100,
         )
 
-    if args.stats_json:
+    if stats_json_path:
         stats = {
             "total_assets": total_count,
             "status_counts": status_counts,
@@ -496,11 +534,11 @@ def main(argv: list[str] | None = None) -> int:
             else 0.0,
         }
         try:
-            with open(args.stats_json, "w") as f:
+            with open(stats_json_path, "w") as f:
                 json.dump(stats, f, indent=2)
-            logger.info("Stats written to %s", args.stats_json)
+            logger.info("Stats written to %s", stats_json_path)
         except OSError as e:
-            logger.error("Failed to write stats to %s: %s", args.stats_json, e)
+            logger.error("Failed to write stats to %s: %s", stats_json_path, e)
 
     return 0
 

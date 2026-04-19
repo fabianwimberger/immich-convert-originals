@@ -77,6 +77,7 @@ def _patch_deps(
             log_level=None,
             log_format=None,
             interactive=False,
+            yes=False,
             stats_json=None,
         ),
     )
@@ -105,6 +106,7 @@ class TestMainEntrypoint:
                 log_level=None,
                 log_format=None,
                 interactive=False,
+                yes=False,
                 stats_json=None,
             ),
         )
@@ -115,18 +117,62 @@ class TestMainEntrypoint:
         monkeypatch.setattr("app.main.setup_logging", lambda **kwargs: None)
         assert main([]) == 1
 
-    def test_interactive_mode_returns_1(self, monkeypatch):
+    def test_interactive_mode_aborted_returns_0(self, monkeypatch):
         monkeypatch.setattr(
             "app.main.parse_args",
             lambda argv=None: MagicMock(
                 log_level=None,
                 log_format=None,
                 interactive=True,
+                yes=False,
                 stats_json=None,
             ),
         )
         monkeypatch.setattr("app.main.setup_logging", lambda **kwargs: None)
-        assert main([]) == 1
+        monkeypatch.setattr("app.main.run_interactive", lambda **kwargs: None)
+        assert main([]) == 0
+
+    def test_interactive_mode_preview_then_real(self, monkeypatch, tmp_path):
+        from app.config import Config
+
+        workdir = str(tmp_path)
+
+        fake_config = Config(
+            immich_api_base="https://example.com/api/",
+            immich_api_key="key",
+            dry_run=True,
+            concurrency=1,
+            max_assets=0,
+            asset_types=("IMAGE",),
+            workdir=workdir,
+        )
+
+        fake_client = FakeClient(assets=[FakeAsset()], ok=True)
+
+        monkeypatch.setattr(
+            "app.main.parse_args",
+            lambda argv=None: MagicMock(
+                log_level=None,
+                log_format=None,
+                interactive=True,
+                yes=True,
+                stats_json=None,
+            ),
+        )
+        monkeypatch.setattr("app.main.setup_logging", lambda **kwargs: None)
+        monkeypatch.setattr("app.main.run_interactive", lambda **kwargs: fake_config)
+        monkeypatch.setattr("app.main.ImmichClient", lambda **kwargs: fake_client)
+        monkeypatch.setattr(
+            "app.main.process_asset",
+            lambda asset, client, cfg: {
+                "status": "dry_run_skip",
+                "input_bytes": 0,
+                "output_bytes": 0,
+                "savings_pct": 0.0,
+            },
+        )
+        monkeypatch.setattr("app.main.tqdm", None)
+        assert main([]) == 0
 
     def test_connection_failure_returns_1(self, monkeypatch, tmp_path):
         _patch_deps(monkeypatch, tmp_path, connection_ok=False)
@@ -179,6 +225,7 @@ class TestMainEntrypoint:
                 log_level=None,
                 log_format=None,
                 interactive=False,
+                yes=False,
                 stats_json=stats_path,
             ),
         )

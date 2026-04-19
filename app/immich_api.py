@@ -291,6 +291,35 @@ class ImmichClient:
         except Exception as e:
             return False, str(e)
 
+    def server_info(self) -> dict[str, Any] | None:
+        """Get server version/info."""
+        url = urljoin(self.api_base, "server/version")
+        try:
+            response = self._request_with_retry("GET", url)
+            if response.status_code == 200:
+                return response.json()
+            return None
+        except Exception:
+            return None
+
+    def list_albums(self) -> list[dict[str, Any]]:
+        """List all albums with id, name, and asset count."""
+        url = urljoin(self.api_base, "albums")
+        response = self._request_with_retry("GET", url)
+        if response.status_code != 200:
+            raise RuntimeError(f"Failed to list albums: HTTP {response.status_code}")
+        data = response.json()
+        albums = []
+        for item in data:
+            albums.append(
+                {
+                    "id": item.get("id", ""),
+                    "album_name": item.get("albumName", "Unnamed"),
+                    "asset_count": item.get("assetCount", 0),
+                }
+            )
+        return albums
+
     def get_album_assets(self, album_id: str) -> list[Asset]:
         """Get all assets from a specific album."""
         url = urljoin(self.api_base, f"albums/{album_id}")
