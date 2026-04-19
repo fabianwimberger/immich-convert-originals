@@ -347,22 +347,62 @@ class TestUploadAsset:
 class TestCopyAssetData:
     @responses.activate
     def test_happy_path(self, client):
-        responses.add(responses.PUT, "https://example.com/api/assets/copy", status=204)
+        responses.add(
+            responses.GET,
+            "https://example.com/api/assets/src",
+            json={
+                "id": "src",
+                "isFavorite": True,
+                "isArchived": False,
+                "albums": [{"id": "album-1"}],
+            },
+        )
+        responses.add(responses.PUT, "https://example.com/api/assets", status=204)
+        responses.add(
+            responses.PUT,
+            "https://example.com/api/albums/album-1/assets",
+            status=204,
+        )
         success, error = client.copy_asset_data("src", "dst")
         assert success is True
         assert error is None
 
     @responses.activate
-    def test_error_path(self, client):
+    def test_no_albums(self, client):
         responses.add(
-            responses.PUT,
-            "https://example.com/api/assets/copy",
-            json={"message": "Not found"},
-            status=404,
+            responses.GET,
+            "https://example.com/api/assets/src",
+            json={"id": "src", "isFavorite": False, "isArchived": False, "albums": []},
+        )
+        responses.add(responses.PUT, "https://example.com/api/assets", status=204)
+        success, error = client.copy_asset_data("src", "dst")
+        assert success is True
+
+    @responses.activate
+    def test_source_not_found(self, client):
+        responses.add(
+            responses.GET, "https://example.com/api/assets/src", status=404
         )
         success, error = client.copy_asset_data("src", "dst")
         assert success is False
-        assert "Not found" in error
+        assert "Source asset not found" in error
+
+    @responses.activate
+    def test_update_error(self, client):
+        responses.add(
+            responses.GET,
+            "https://example.com/api/assets/src",
+            json={"id": "src", "isFavorite": False, "isArchived": False, "albums": []},
+        )
+        responses.add(
+            responses.PUT,
+            "https://example.com/api/assets",
+            json={"message": "Bad request"},
+            status=400,
+        )
+        success, error = client.copy_asset_data("src", "dst")
+        assert success is False
+        assert "Bad request" in error
 
 
 class TestDeleteAssets:

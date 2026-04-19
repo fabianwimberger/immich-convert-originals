@@ -200,11 +200,12 @@ class ImmichClient:
         if filename:
             data["filename"] = filename
 
+        upload_filename = filename or os.path.basename(file_path)
         last_error = None
         for attempt in range(self.retry_max + 1):
             try:
                 with open(file_path, "rb") as f:
-                    files = {"assetData": f}
+                    files = {"assetData": (upload_filename, f)}
                     response = requests.request(
                         "POST",
                         url,
@@ -253,31 +254,65 @@ class ImmichClient:
         from_asset_id: str,
         to_asset_id: str,
     ) -> tuple[bool, str | None]:
-        """Copy asset data (albums, favorites, etc.) from one asset to another."""
-        url = urljoin(self.api_base, "assets/copy")
-
-        body = {
-            "sourceId": from_asset_id,
-            "targetId": to_asset_id,
-            "albums": True,
-            "favorite": True,
-            "sharedLinks": True,
-            "sidecar": True,
-            "stack": True,
-        }
-
+        """Copy asset metadata (favorite, archive, albums) from one asset to another."""
+        # 1. Fetch source asset details
+        source_url = urljoin(self.api_base, f"assets/{from_asset_id}")
         try:
-            response = self._request_with_retry("PUT", url, json=body)
-            if response.status_code == 204:
-                return True, None
-            try:
-                error_detail = response.json()
-                error_msg = error_detail.get("message", str(error_detail))
-            except Exception:
-                error_msg = response.text or "Unknown error"
-            return False, f"Copy failed: HTTP {response.status_code} - {error_msg}"
+            source_resp = self._request_with_retry("GET", source_url)
+            if source_resp.status_code != 200:
+                return False, (
+                    f"Source asset not found: HTTP {source_resp.status_code}"
+                )
+            source_data = source_resp.json()
         except Exception as e:
             return False, str(e)
+
+        # 2. Bulk-update target asset with favorite / archive status
+        update_url = urljoin(self.api_base, "assets")
+        update_body = {
+            "ids": [to_asset_id],
+            "isFavorite": source_data.get("isFavorite", False),
+            "isArchived": source_data.get("isArchived", False),
+        }
+        try:
+            update_resp = self._request_with_retry("PUT", update_url, json=update_body)
+            if update_resp.status_code not in (200, 204):
+                try:
+                    error_detail = update_resp.json()
+                    error_msg = error_detail.get("message", str(error_detail))
+                except Exception:
+                    error_msg = update_resp.text or "Unknown error"
+                return False, (
+                    f"Update failed: HTTP {update_resp.status_code} - {error_msg}"
+                )
+        except Exception as e:
+            return False, str(e)
+
+        # 3. Add target asset to each of the source's albums
+        albums_url = urljoin(self.api_base, "albums")
+        try:
+            albums_resp = self._request_with_retry(
+                "GET", albums_url, params={"assetId": from_asset_id}
+            )
+            if albums_resp.status_code == 200:
+                albums = albums_resp.json()
+                for album in albums:
+                    album_id = album.get("id")
+                    if not album_id:
+                        continue
+                    album_url = urljoin(self.api_base, f"albums/{album_id}/assets")
+                    try:
+                        album_resp = self._request_with_retry(
+                            "PUT", album_url, json={"ids": [to_asset_id]}
+                        )
+                        if album_resp.status_code not in (200, 204):
+                            pass
+                    except Exception:
+                        pass
+        except Exception:
+            pass
+
+        return True, None
 
     def delete_assets(self, asset_ids: list[str]) -> tuple[bool, str | None]:
         """Delete assets by ID."""

@@ -5,6 +5,8 @@ on:
     branches: [main, develop]
   pull_request:
     branches: [main]
+  schedule:
+    - cron: "0 6 * * 1"
 
 env:
   PYTHON_VERSION: "3.13"
@@ -51,8 +53,8 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements-dev.txt
 
-      - name: Run tests
-        run: pytest tests/ -v --cov=app --cov-report=xml --cov-fail-under=85
+      - name: Run unit tests
+        run: pytest tests/ -m "not integration" -v --cov=app --cov-report=xml --cov-fail-under=85
 
       - name: Upload coverage
         uses: codecov/codecov-action@v6
@@ -76,3 +78,58 @@ jobs:
         run: |
           docker run --rm --entrypoint python3 immich-convert-originals:test -c \
             "import main; print('imports OK')"
+
+  integration:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: pip install -r requirements-dev.txt
+
+      - name: Install ffmpeg and ImageMagick
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg imagemagick exiftool
+
+      - name: Pick free port
+        id: port
+        run: |
+          python -c "import socket; s=socket.socket(); s.bind(('',0)); print(s.getsockname()[1]); s.close()" > port.txt
+          echo "port=$(cat port.txt)" >> "$GITHUB_OUTPUT"
+
+      - name: Start Immich test stack
+        env:
+          IMMICH_TEST_PORT: ${{ steps.port.outputs.port }}
+          COMPOSE_PROJECT_NAME: immich-convert-test
+        run: |
+          docker compose -f tests/integration/docker-compose.test.yml -p immich-convert-test up -d
+
+      - name: Wait for Immich healthy
+        env:
+          IMMICH_TEST_PORT: ${{ steps.port.outputs.port }}
+        run: |
+          curl --retry 30 --retry-delay 5 --retry-all-errors \
+            http://127.0.0.1:$IMMICH_TEST_PORT/api/server/ping
+
+      - name: Run integration tests
+        env:
+          IMMICH_TEST_PORT: ${{ steps.port.outputs.port }}
+        run: pytest tests/ -m integration -v
+
+      - name: Tear down stack
+        if: always()
+        env:
+          IMMICH_TEST_PORT: ${{ steps.port.outputs.port }}
+          COMPOSE_PROJECT_NAME: immich-convert-test
+        run: |
+          docker compose -f tests/integration/docker-compose.test.yml -p immich-convert-test down -v
+          docker network rm immich-test-net || true

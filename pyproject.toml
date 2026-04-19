@@ -23,6 +23,9 @@ dev = [
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-v --cov=app --cov-report=term --cov-report=xml"
+markers = [
+    "integration: end-to-end tests against real Immich",
+]
 
 [tool.coverage.run]
 source = ["app"]
