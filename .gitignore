@@ -9,3 +9,5 @@ __pycache__/
 .vscode/
 *.log
 /work/
+.coverage
+coverage.xml

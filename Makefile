@@ -1,4 +1,4 @@
-.PHONY: all build up down clean lint
+.PHONY: all build up down clean lint test integration
 
 all: build
 
@@ -25,3 +25,11 @@ lint:
 format:
 	@echo "Formatting code..."
 	@ruff format app/
+
+test:
+	@echo "Running unit tests..."
+	@pytest tests/ -m "not integration" -v
+
+integration:
+	@echo "Running integration tests..."
+	@pytest tests/ -m integration -v

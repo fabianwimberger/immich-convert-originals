@@ -1,1 +1,3 @@
 requests==2.33.1
+tqdm==4.67.1
+questionary==2.1.1

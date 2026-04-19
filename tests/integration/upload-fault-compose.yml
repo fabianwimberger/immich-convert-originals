@@ -1,0 +1,28 @@
+name: immich-convert-test-faults
+
+# HTTP-level fault injection sidecar for the upload-rollback test.
+# nginx reverse-proxies the Immich API but returns 503 on POST /api/assets
+# so process_asset's upload path sees a real server failure.
+# (TCP-level proxies like toxiproxy can't selectively fail a specific
+# endpoint, so we use nginx instead.)
+
+services:
+  upload-fault-proxy:
+    image: docker.io/nginx:1.27-alpine
+    container_name: immich-test-upload-fault
+    networks:
+      - immich-test-net
+    volumes:
+      - ./upload-fault-proxy/nginx.conf:/etc/nginx/nginx.conf:ro
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:2283/api/server/ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
+    restart: "no"
+
+networks:
+  immich-test-net:
+    external: true
+    name: immich-test-net

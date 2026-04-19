@@ -13,6 +13,17 @@ VIDEO_TIMEOUT = 43200  # 12 hours for video transcoding (ffmpeg)
 PROBE_TIMEOUT = 60  # 1 minute for ffprobe
 METADATA_TIMEOUT = 120  # 2 minutes for exiftool
 
+
+@dataclass(frozen=True)
+class Timeouts:
+    image: int = IMAGE_TIMEOUT
+    video: int = VIDEO_TIMEOUT
+    probe: int = PROBE_TIMEOUT
+    metadata: int = METADATA_TIMEOUT
+
+
+DEFAULT_TIMEOUTS = Timeouts()
+
 # Unambiguous magic byte signatures.
 # Ambiguous formats (RIFF, ftyp-based) are resolved in detect_format().
 MAGIC_BYTES = {
@@ -79,7 +90,7 @@ def detect_format(path: str) -> str | None:
         return None
 
 
-def detect_video_codec(path: str) -> str | None:
+def detect_video_codec(path: str, timeouts: Timeouts = DEFAULT_TIMEOUTS) -> str | None:
     """Detect video codec using ffprobe."""
     try:
         result = subprocess.run(
@@ -97,7 +108,7 @@ def detect_video_codec(path: str) -> str | None:
             ],
             capture_output=True,
             text=True,
-            timeout=PROBE_TIMEOUT,
+            timeout=timeouts.probe,
         )
         if result.returncode == 0:
             codec = result.stdout.strip().lower()
@@ -119,7 +130,9 @@ def validate_output(path: str, expected_format: str) -> bool:
     return detect_format(path) == expected_format
 
 
-def copy_metadata(source_path: str, dest_path: str) -> bool:
+def copy_metadata(
+    source_path: str, dest_path: str, timeouts: Timeouts = DEFAULT_TIMEOUTS
+) -> bool:
     """Copy EXIF/XMP metadata from source to dest using exiftool."""
     try:
         subprocess.run(
@@ -132,7 +145,7 @@ def copy_metadata(source_path: str, dest_path: str) -> bool:
             ],
             capture_output=True,
             check=True,
-            timeout=METADATA_TIMEOUT,
+            timeout=timeouts.metadata,
         )
         return True
     except subprocess.TimeoutExpired:
@@ -143,76 +156,82 @@ def copy_metadata(source_path: str, dest_path: str) -> bool:
 
 
 def _transcode_with_magick(
-    input_path: str, output_path: str, distance: float
+    input_path: str,
+    output_path: str,
+    distance: float,
+    timeouts: Timeouts = DEFAULT_TIMEOUTS,
 ) -> TranscodeResult:
     """Transcode using ImageMagick with specified JXL distance."""
     input_bytes = os.path.getsize(input_path)
     input_format = detect_format(input_path)
 
-    cmd = [
-        "magick",
-        input_path,
-        "-define",
-        f"jxl:distance={distance}",
-        output_path,
-    ]
+    for magick_cmd in ("magick", "convert"):
+        cmd = [
+            magick_cmd,
+            input_path,
+            "-define",
+            f"jxl:distance={distance}",
+            output_path,
+        ]
+        try:
+            subprocess.run(cmd, check=True, capture_output=True, timeout=timeouts.image)
+            if not copy_metadata(input_path, output_path, timeouts=timeouts):
+                logger.warning(
+                    "Failed to copy metadata for %s, file EXIF may be incomplete",
+                    input_path,
+                )
 
-    try:
-        subprocess.run(cmd, check=True, capture_output=True, timeout=IMAGE_TIMEOUT)
-        if not copy_metadata(input_path, output_path):
-            logger.warning(
-                "Failed to copy metadata for %s, file EXIF may be incomplete",
-                input_path,
+            output_bytes = (
+                os.path.getsize(output_path) if os.path.exists(output_path) else 0
             )
+            return TranscodeResult(
+                success=True,
+                input_path=input_path,
+                output_path=output_path,
+                input_bytes=input_bytes,
+                output_bytes=output_bytes,
+                input_format=input_format or "unknown",
+            )
+        except subprocess.TimeoutExpired:
+            return TranscodeResult(
+                success=False,
+                input_path=input_path,
+                output_path=output_path,
+                input_bytes=input_bytes,
+                output_bytes=0,
+                input_format=input_format or "unknown",
+                error=f"ImageMagick timed out after {timeouts.image}s",
+            )
+        except subprocess.CalledProcessError as e:
+            stderr = e.stderr.decode(errors="replace") if e.stderr else ""
+            return TranscodeResult(
+                success=False,
+                input_path=input_path,
+                output_path=output_path,
+                input_bytes=input_bytes,
+                output_bytes=0,
+                input_format=input_format or "unknown",
+                error=f"ImageMagick failed: {stderr}",
+            )
+        except FileNotFoundError:
+            continue
 
-        output_bytes = (
-            os.path.getsize(output_path) if os.path.exists(output_path) else 0
-        )
-        return TranscodeResult(
-            success=True,
-            input_path=input_path,
-            output_path=output_path,
-            input_bytes=input_bytes,
-            output_bytes=output_bytes,
-            input_format=input_format or "unknown",
-        )
-    except subprocess.TimeoutExpired:
-        return TranscodeResult(
-            success=False,
-            input_path=input_path,
-            output_path=output_path,
-            input_bytes=input_bytes,
-            output_bytes=0,
-            input_format=input_format or "unknown",
-            error=f"ImageMagick timed out after {IMAGE_TIMEOUT}s",
-        )
-    except subprocess.CalledProcessError as e:
-        stderr = e.stderr.decode(errors="replace") if e.stderr else ""
-        return TranscodeResult(
-            success=False,
-            input_path=input_path,
-            output_path=output_path,
-            input_bytes=input_bytes,
-            output_bytes=0,
-            input_format=input_format or "unknown",
-            error=f"ImageMagick failed: {stderr}",
-        )
-    except FileNotFoundError:
-        return TranscodeResult(
-            success=False,
-            input_path=input_path,
-            output_path=output_path,
-            input_bytes=input_bytes,
-            output_bytes=0,
-            input_format=input_format or "unknown",
-            error="magick not found",
-        )
+    return TranscodeResult(
+        success=False,
+        input_path=input_path,
+        output_path=output_path,
+        input_bytes=input_bytes,
+        output_bytes=0,
+        input_format=input_format or "unknown",
+        error="ImageMagick not found (tried magick, convert)",
+    )
 
 
 def transcode(
     input_path: str,
     output_path: str,
     distance: float,
+    timeouts: Timeouts = DEFAULT_TIMEOUTS,
 ) -> TranscodeResult:
     """Transcode an image to JPEG XL.
 
@@ -250,9 +269,9 @@ def transcode(
         # JPEG: Use cjxl for lossless repack (no distance parameter)
         try:
             result = subprocess.run(
-                ["cjxl", input_path, output_path],
+                ["cjxl", "--compress_boxes=0", input_path, output_path],
                 capture_output=True,
-                timeout=IMAGE_TIMEOUT,
+                timeout=timeouts.image,
             )
         except subprocess.TimeoutExpired:
             return TranscodeResult(
@@ -262,13 +281,23 @@ def transcode(
                 input_bytes=input_bytes,
                 output_bytes=0,
                 input_format=input_format,
-                error=f"cjxl timed out after {IMAGE_TIMEOUT}s",
+                error=f"cjxl timed out after {timeouts.image}s",
             )
         except FileNotFoundError:
             # cjxl not installed - fall back to ImageMagick
-            return _transcode_with_magick(input_path, output_path, distance)
+            return _transcode_with_magick(
+                input_path, output_path, distance, timeouts=timeouts
+            )
 
         if result.returncode == 0:
+            # cjxl losslessly repacks the JPEG bytestream, which normally keeps
+            # EXIF APP markers intact. Re-apply via exiftool as a safeguard so
+            # GPS/DateTimeOriginal survive on any cjxl build.
+            if not copy_metadata(input_path, output_path, timeouts=timeouts):
+                logger.warning(
+                    "Failed to copy metadata for %s, file EXIF may be incomplete",
+                    input_path,
+                )
             output_bytes = (
                 os.path.getsize(output_path) if os.path.exists(output_path) else 0
             )
@@ -282,10 +311,14 @@ def transcode(
             )
         else:
             # cjxl failed (e.g., progressive JPEG) - fall back to ImageMagick
-            return _transcode_with_magick(input_path, output_path, distance)
+            return _transcode_with_magick(
+                input_path, output_path, distance, timeouts=timeouts
+            )
     else:
         # Non-JPEG: Use ImageMagick directly with configured distance
-        return _transcode_with_magick(input_path, output_path, distance)
+        return _transcode_with_magick(
+            input_path, output_path, distance, timeouts=timeouts
+        )
 
 
 def transcode_video(
@@ -295,6 +328,7 @@ def transcode_video(
     preset: str,
     max_dimension: int,
     audio_bitrate: str,
+    timeouts: Timeouts = DEFAULT_TIMEOUTS,
 ) -> TranscodeResult:
     """Transcode a video to MP4/AV1 using ffmpeg + SVT-AV1.
 
@@ -309,7 +343,7 @@ def transcode_video(
     """
     input_bytes = os.path.getsize(input_path)
 
-    current_codec = detect_video_codec(input_path)
+    current_codec = detect_video_codec(input_path, timeouts=timeouts)
     if current_codec is None:
         return TranscodeResult(
             success=False,
@@ -371,7 +405,7 @@ def transcode_video(
     )
 
     try:
-        subprocess.run(cmd, check=True, capture_output=True, timeout=VIDEO_TIMEOUT)
+        subprocess.run(cmd, check=True, capture_output=True, timeout=timeouts.video)
         output_bytes = (
             os.path.getsize(output_path) if os.path.exists(output_path) else 0
         )
@@ -391,7 +425,7 @@ def transcode_video(
             input_bytes=input_bytes,
             output_bytes=0,
             input_format=current_codec,
-            error=f"ffmpeg timed out after {VIDEO_TIMEOUT}s",
+            error=f"ffmpeg timed out after {timeouts.video}s",
         )
     except subprocess.CalledProcessError as e:
         stderr = e.stderr.decode(errors="replace") if e.stderr else ""
@@ -416,7 +450,7 @@ def transcode_video(
         )
 
 
-def validate_video_output(path: str) -> bool:
+def validate_video_output(path: str, timeouts: Timeouts = DEFAULT_TIMEOUTS) -> bool:
     """Validate output video using ffprobe."""
     if not os.path.exists(path) or os.path.getsize(path) == 0:
         return False
@@ -434,7 +468,7 @@ def validate_video_output(path: str) -> bool:
             ],
             capture_output=True,
             text=True,
-            timeout=PROBE_TIMEOUT,
+            timeout=timeouts.probe,
         )
         duration = result.stdout.strip()
         return duration != "N/A" and float(duration) > 0

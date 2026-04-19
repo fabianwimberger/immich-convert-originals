@@ -1,0 +1,17 @@
+FROM python:3.14-alpine
+
+RUN apk add --no-cache \
+    libjxl-tools \
+    imagemagick imagemagick-heic imagemagick-jxl imagemagick-webp \
+    exiftool \
+    ffmpeg \
+    curl \
+    git
+
+COPY requirements-dev.txt /tmp/requirements-dev.txt
+COPY requirements.txt /tmp/requirements.txt
+RUN pip install --no-cache-dir -r /tmp/requirements-dev.txt
+
+ENV PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1
+
+WORKDIR /workspace

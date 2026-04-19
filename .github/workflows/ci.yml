@@ -5,9 +5,12 @@ on:
     branches: [main, develop]
   pull_request:
     branches: [main]
+  schedule:
+    - cron: "0 6 * * 1"
 
 env:
   PYTHON_VERSION: "3.13"
+  IMMICH_TEST_TAG_PINNED: "v2.7.5"
 
 jobs:
   lint:
@@ -51,8 +54,8 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements-dev.txt
 
-      - name: Run tests
-        run: pytest tests/ -v --cov=app --cov-report=xml
+      - name: Run unit tests
+        run: pytest tests/ -m "not integration" -v --cov=app --cov-report=xml --cov-fail-under=85
 
       - name: Upload coverage
         uses: codecov/codecov-action@v6
@@ -76,3 +79,145 @@ jobs:
         run: |
           docker run --rm --entrypoint python3 immich-convert-originals:test -c \
             "import main; print('imports OK')"
+
+  integration:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      IMMICH_TEST_TAG: v2.7.5
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Pick free port
+        id: port
+        run: |
+          python3 -c "import socket; s=socket.socket(); s.bind(('',0)); print(s.getsockname()[1]); s.close()" > port.txt
+          echo "port=$(cat port.txt)" >> "$GITHUB_OUTPUT"
+
+      - name: Restore Immich image cache
+        id: img-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/immich-image-cache
+          key: immich-images-${{ env.IMMICH_TEST_TAG }}-postgres-vectorchord0.4.3-valkey-9
+
+      - name: Load images from cache
+        if: steps.img-cache.outputs.cache-hit == 'true'
+        run: |
+          for tar in ~/immich-image-cache/*.tar; do
+            docker load -i "$tar"
+          done
+
+      - name: Pull images (cache miss)
+        if: steps.img-cache.outputs.cache-hit != 'true'
+        run: |
+          docker pull ghcr.io/immich-app/immich-server:${IMMICH_TEST_TAG}
+          docker pull ghcr.io/immich-app/postgres:14-vectorchord0.4.3-pgvectors0.2.0
+          docker pull docker.io/valkey/valkey:9-alpine
+          mkdir -p ~/immich-image-cache
+          docker save ghcr.io/immich-app/immich-server:${IMMICH_TEST_TAG} -o ~/immich-image-cache/immich-server.tar
+          docker save ghcr.io/immich-app/postgres:14-vectorchord0.4.3-pgvectors0.2.0 -o ~/immich-image-cache/postgres.tar
+          docker save docker.io/valkey/valkey:9-alpine -o ~/immich-image-cache/valkey.tar
+
+      - name: Build test runner image
+        run: docker build -t immich-convert-test-runner -f tests/integration/Dockerfile.runner .
+
+      - name: Start Immich test stack
+        env:
+          IMMICH_TEST_PORT: ${{ steps.port.outputs.port }}
+          COMPOSE_PROJECT_NAME: immich-convert-test
+        run: |
+          docker compose -f tests/integration/docker-compose.test.yml -p immich-convert-test up -d
+
+      - name: Wait for Immich healthy
+        env:
+          IMMICH_TEST_PORT: ${{ steps.port.outputs.port }}
+        run: |
+          curl --retry 30 --retry-delay 5 --retry-all-errors \
+            http://127.0.0.1:$IMMICH_TEST_PORT/api/server/ping
+
+      - name: Start upload-fault sidecar
+        run: |
+          docker compose -f tests/integration/upload-fault-compose.yml \
+            -p immich-convert-test-faults up -d
+
+      - name: Run integration tests
+        run: |
+          docker run --rm \
+            --network immich-test-net \
+            -v "$PWD:/workspace" \
+            -e IMMICH_TEST_API_BASE=http://immich-test-server:2283/api/ \
+            immich-convert-test-runner \
+            pytest tests/ -m integration -v
+
+      - name: Tear down stack
+        if: always()
+        env:
+          IMMICH_TEST_PORT: ${{ steps.port.outputs.port }}
+          COMPOSE_PROJECT_NAME: immich-convert-test
+        run: |
+          docker compose -f tests/integration/upload-fault-compose.yml -p immich-convert-test-faults down -v || true
+          docker compose -f tests/integration/docker-compose.test.yml -p immich-convert-test down -v
+          docker network rm immich-test-net || true
+
+  integration-release:
+    name: Integration Tests (Immich :release)
+    # Surface API drift against the latest Immich release without blocking PRs.
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    continue-on-error: true
+    env:
+      IMMICH_TEST_TAG: release
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Pick free port
+        id: port
+        run: |
+          python3 -c "import socket; s=socket.socket(); s.bind(('',0)); print(s.getsockname()[1]); s.close()" > port.txt
+          echo "port=$(cat port.txt)" >> "$GITHUB_OUTPUT"
+
+      - name: Build test runner image
+        run: docker build -t immich-convert-test-runner -f tests/integration/Dockerfile.runner .
+
+      - name: Start Immich test stack
+        env:
+          IMMICH_TEST_PORT: ${{ steps.port.outputs.port }}
+          COMPOSE_PROJECT_NAME: immich-convert-test
+        run: |
+          docker compose -f tests/integration/docker-compose.test.yml -p immich-convert-test up -d
+
+      - name: Wait for Immich healthy
+        env:
+          IMMICH_TEST_PORT: ${{ steps.port.outputs.port }}
+        run: |
+          curl --retry 30 --retry-delay 5 --retry-all-errors \
+            http://127.0.0.1:$IMMICH_TEST_PORT/api/server/ping
+
+      - name: Start upload-fault sidecar
+        run: |
+          docker compose -f tests/integration/upload-fault-compose.yml \
+            -p immich-convert-test-faults up -d
+
+      - name: Run integration tests
+        run: |
+          docker run --rm \
+            --network immich-test-net \
+            -v "$PWD:/workspace" \
+            -e IMMICH_TEST_API_BASE=http://immich-test-server:2283/api/ \
+            immich-convert-test-runner \
+            pytest tests/ -m integration -v
+
+      - name: Tear down stack
+        if: always()
+        env:
+          IMMICH_TEST_PORT: ${{ steps.port.outputs.port }}
+          COMPOSE_PROJECT_NAME: immich-convert-test
+        run: |
+          docker compose -f tests/integration/upload-fault-compose.yml -p immich-convert-test-faults down -v || true
+          docker compose -f tests/integration/docker-compose.test.yml -p immich-convert-test down -v
+          docker network rm immich-test-net || true

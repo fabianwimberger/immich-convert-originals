@@ -26,7 +26,9 @@ JPEG XL shrinks photos by 20-40% and AV1 shrinks videos by 30-50% with no visibl
 - **Video conversion** — MP4, MOV, MKV → AV1 (MP4)
 - **Metadata preservation** — EXIF, GPS, tags, albums, faces
 - **Smart retry logic** — automatically retries with higher compression if output is larger
+- **Resumable runs** — SQLite state DB tracks outcomes; interrupted runs skip already-converted assets on restart, handles SIGINT gracefully
 - **Dry-run mode** — preview changes before executing
+- **Interactive wizard** — guided setup via `--interactive`
 - **Date filtering** — process only assets within a date range
 - **Concurrency control** — configurable parallel workers
 
@@ -62,11 +64,12 @@ mv .env.example .env
 nano .env
 
 # Run with dry run first to preview
-docker run --rm --env-file .env ghcr.io/fabianwimberger/immich-convert-originals:main
+docker run --rm --env-file .env -v ./work:/work ghcr.io/fabianwimberger/immich-convert-originals:main
 
 # When ready, disable dry run and run for real
 # Edit .env: set DRY_RUN=false
-docker run --rm --env-file .env ghcr.io/fabianwimberger/immich-convert-originals:main
+# The ./work:/work volume persists state.db so interrupted runs can resume
+docker run --rm --env-file .env -v ./work:/work ghcr.io/fabianwimberger/immich-convert-originals:main
 ```
 
 ### Option 2: Docker Compose (Build Locally)
@@ -85,6 +88,33 @@ DRY_RUN=true docker compose up
 
 # When ready, run for real
 docker compose up
+```
+
+### Option 3: Local Python
+
+```bash
+# Clone the repository
+git clone https://github.com/fabianwimberger/immich-convert-originals.git
+cd immich-convert-originals
+
+# Install dependencies
+pip install -r requirements.txt
+
+# See all available options
+python -m app --help
+
+# Run with environment variables
+IMMICH_API_BASE=https://photos.example.com/api \
+IMMICH_API_KEY=your_key \
+DRY_RUN=true \
+python -m app
+
+# Or pass options as CLI flags
+python -m app \
+  --api-base https://photos.example.com/api \
+  --api-key your_key \
+  --dry-run \
+  --max-assets 10
 ```
 
 ## How It Works
@@ -122,6 +152,17 @@ If any step fails, the new asset is cleaned up and the original is preserved.
 | `IMAGE_DISTANCE` | JXL distance (0=lossless, 1=visually lossless) | `1.0` |
 | `VIDEO_CRF` | AV1 quality (0-63, lower=better) | `36` |
 | `VIDEO_PRESET` | AV1 speed/quality tradeoff (0-13, lower=slower) | `4` |
+| `VIDEO_MAX_DIMENSION` | Limit shorter-side resolution, 0=disable | `0` |
+| `VIDEO_AUDIO_BITRATE` | Opus audio bitrate | `64k` |
+
+### Resumable State
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `USE_STATE` | Track per-asset outcomes in `state.db` for resumable runs | `true` |
+| `RESET_STATE` | Wipe `state.db` before running | `false` |
+| `ONLY_FAILED` | Re-run only assets whose last recorded status was a failure | `false` |
+| `EXPORT_FAILURES` | Write a failure CSV to this path after the run | — |
 
 ## Security & Safety
 
