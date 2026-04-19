@@ -174,9 +174,7 @@ def _transcode_with_magick(
             output_path,
         ]
         try:
-            subprocess.run(
-                cmd, check=True, capture_output=True, timeout=timeouts.image
-            )
+            subprocess.run(cmd, check=True, capture_output=True, timeout=timeouts.image)
             if not copy_metadata(input_path, output_path, timeouts=timeouts):
                 logger.warning(
                     "Failed to copy metadata for %s, file EXIF may be incomplete",
