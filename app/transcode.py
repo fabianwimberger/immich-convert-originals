@@ -133,12 +133,18 @@ def validate_output(path: str, expected_format: str) -> bool:
 def copy_metadata(
     source_path: str, dest_path: str, timeouts: Timeouts = DEFAULT_TIMEOUTS
 ) -> bool:
-    """Copy EXIF/XMP metadata from source to dest using exiftool."""
+    """Copy EXIF/XMP metadata from source to dest using exiftool.
+
+    Strips any existing metadata from the destination first so that malformed
+    tags (e.g. bogus IFD0 dimensions or StripOffsets from camera JPEGs) are
+    not carried over by cjxl or ImageMagick.
+    """
     try:
         subprocess.run(
             [
                 "exiftool",
                 "-overwrite_original",
+                "-all=",
                 "-tagsFromFile",
                 source_path,
                 dest_path,
