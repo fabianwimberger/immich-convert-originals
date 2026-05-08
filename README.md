@@ -5,6 +5,8 @@
 [![Docker](https://github.com/fabianwimberger/immich-convert-originals/actions/workflows/docker-publish.yml/badge.svg)](https://github.com/fabianwimberger/immich-convert-originals/pkgs/container/immich-convert-originals)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
+> **⚠️ Disclaimer**: This is an independent, community-created project. It is **not affiliated with, endorsed by, or sponsored by Immich**. "Immich" and its associated logos are trademarks of their respective owners. Use of the name is solely for identification and compatibility purposes. Use at your own risk.
+
 Batch-transcode your Immich library to modern efficient formats:
 - **Images** → JPEG XL (JXL)
 - **Videos** → AV1 (MP4 container)
