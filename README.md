@@ -5,13 +5,13 @@
 [![Docker](https://github.com/fabianwimberger/immich-convert-originals/actions/workflows/docker-publish.yml/badge.svg)](https://github.com/fabianwimberger/immich-convert-originals/pkgs/container/immich-convert-originals)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-> **⚠️ Disclaimer**: This is an independent, community-created project. It is **not affiliated with, endorsed by, or sponsored by Immich**. "Immich" and its associated logos are trademarks of their respective owners. Use of the name is solely for identification and compatibility purposes. Use at your own risk.
+> **Disclaimer**: This is an independent, community-created project. It is **not affiliated with, endorsed by, or sponsored by Immich**. "Immich" and its associated logos are trademarks of their respective owners. Use of the name is solely for identification and compatibility purposes. Use at your own risk.
 
 Batch-transcode your Immich library to modern efficient formats:
 - **Images** → JPEG XL (JXL)
 - **Videos** → AV1 (MP4 container)
 
-This tool downloads your original assets, transcodes them to space-efficient formats, uploads the new versions, copies all metadata (EXIF, location, tags, albums, etc.), and removes the originals.
+This tool downloads your original assets, transcodes them to space-efficient formats, uploads the new versions, preserves EXIF/GPS data and album membership, and removes the originals.
 
 ## Background
 
@@ -26,7 +26,7 @@ JPEG XL shrinks photos by 20-40% and AV1 shrinks videos by 30-50% with no visibl
 
 - **Image conversion** — JPEG, PNG, WebP, HEIC → JPEG XL
 - **Video conversion** — MP4, MOV, MKV → AV1 (MP4)
-- **Metadata preservation** — EXIF, GPS, tags, albums, faces
+- **Metadata preservation** — EXIF, GPS, favorite/archive/rating state, and albums
 - **Smart retry logic** — automatically retries with higher compression if output is larger
 - **Resumable runs** — SQLite state DB tracks outcomes; interrupted runs skip already-converted assets on restart, handles SIGINT gracefully
 - **Dry-run mode** — preview changes before executing
@@ -142,7 +142,7 @@ Each step is verified:
 2. **Transcode** based on asset type
 3. **Validate** output format and integrity
 4. **Upload** new asset to Immich
-5. **Copy metadata** (EXIF, GPS, tags, albums, faces, etc.)
+5. **Copy metadata** (EXIF, GPS, favorite/archive/rating state, and albums)
 6. **Verify** new asset is accessible
 7. **Delete** original (goes to trash, recoverable for 30 days)
 
@@ -180,7 +180,7 @@ If any step fails, the new asset is cleaned up and the original is preserved.
 
 ## Security & Safety
 
-**⚠️ USE AT YOUR OWN RISK.** This tool deletes originals after conversion (recoverable via Immich trash for 30 days). Always backup first and test on a small subset with `MAX_ASSETS`.
+**USE AT YOUR OWN RISK.** This tool deletes originals after conversion (recoverable via Immich trash for 30 days). Always backup first and test on a small subset with `MAX_ASSETS`.
 
 ## Docker Image Tags
 
