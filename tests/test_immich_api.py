@@ -395,6 +395,11 @@ class TestCopyAssetData:
         )
         responses.add(responses.PUT, "https://example.com/api/assets", status=204)
         responses.add(
+            responses.GET,
+            "https://example.com/api/albums",
+            json=[{"id": "album-1", "albumName": "Test"}],
+        )
+        responses.add(
             responses.PUT,
             "https://example.com/api/albums/album-1/assets",
             status=204,
@@ -411,6 +416,11 @@ class TestCopyAssetData:
             json={"id": "src", "isFavorite": False, "isArchived": False, "albums": []},
         )
         responses.add(responses.PUT, "https://example.com/api/assets", status=204)
+        responses.add(
+            responses.GET,
+            "https://example.com/api/albums",
+            json=[],
+        )
         success, error = client.copy_asset_data("src", "dst")
         assert success is True
 
@@ -577,7 +587,7 @@ class TestUploadAssetAuthErrors:
 
 class TestCopyAssetDataAlbums:
     @responses.activate
-    def test_album_sync_tolerates_errors(self, client):
+    def test_album_sync_reports_errors(self, client):
         responses.add(
             responses.GET,
             "https://example.com/api/assets/src",
@@ -587,7 +597,7 @@ class TestCopyAssetDataAlbums:
         responses.add(
             responses.GET,
             "https://example.com/api/albums",
-            json=[{"id": "album-1"}, {"id": ""}, {"id": "album-2"}],
+            json=[{"id": "album-1", "albumName": "A1"}, {"id": ""}, {"id": "album-2", "albumName": "A2"}],
         )
         responses.add(
             responses.PUT,
@@ -600,8 +610,8 @@ class TestCopyAssetDataAlbums:
             status=204,
         )
         ok, error = client.copy_asset_data("src", "dst")
-        assert ok is True
-        assert error is None
+        assert ok is False
+        assert "album 'A1': HTTP 500" in error
 
     @responses.activate
     def test_update_error_falls_back_to_text(self, client):
