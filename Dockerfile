@@ -31,4 +31,4 @@ COPY NOTICE DOCKER_LICENSES.md /app/
 WORKDIR /app
 USER appuser
 
-ENTRYPOINT ["python", "main.py"]
+ENTRYPOINT ["python", "-m", "app"]

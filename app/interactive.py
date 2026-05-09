@@ -214,12 +214,7 @@ def run_interactive(
             from datetime import datetime, timedelta, timezone
 
             now = datetime.now(timezone.utc)
-            filter_date_after = now.replace(
-                hour=0, minute=0, second=0, microsecond=0
-            ).isoformat()
             filter_date_before = None
-            # Overwrite with a simpler relative description — actually just set the date
-            # Compute 30 days ago
             ago = now - timedelta(days=30)
             filter_date_after = ago.replace(
                 hour=0, minute=0, second=0, microsecond=0

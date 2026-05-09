@@ -371,13 +371,6 @@ def _parse_float(
         raise
 
 
-def _parse_date(name: str) -> str | None:
-    value = os.environ.get(name, "").strip()
-    if not value:
-        return None
-    return _parse_date_value(value, before="BEFORE" in name)
-
-
 def _parse_date_value(value: str, before: bool = False) -> str | None:
     if not value:
         return None
