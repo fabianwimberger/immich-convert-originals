@@ -1,6 +1,9 @@
 """Immich API client."""
 
+import base64
+import hashlib
 import os
+import random
 import time
 from dataclasses import dataclass
 from typing import Any
@@ -62,6 +65,7 @@ class ImmichClient:
         merged_headers = {**self._default_headers, **extra_headers}
 
         for attempt in range(self.retry_max + 1):
+            response = None
             try:
                 response = requests.request(
                     method, url, headers=merged_headers, timeout=self._timeout, **kwargs
@@ -80,7 +84,11 @@ class ImmichClient:
 
                 if response.status_code == 429 or response.status_code >= 500:
                     if attempt < self.retry_max:
-                        time.sleep(self.retry_backoff * (2**attempt))
+                        if response is not None:
+                            response.close()
+                        time.sleep(
+                            self.retry_backoff * (2**attempt) * random.uniform(0.5, 1.5)
+                        )
                         continue
 
                 return response
@@ -88,13 +96,29 @@ class ImmichClient:
             except requests.RequestException as e:
                 last_error = e
                 if attempt < self.retry_max:
-                    time.sleep(self.retry_backoff * (2**attempt))
+                    if response is not None:
+                        response.close()
+                    time.sleep(
+                        self.retry_backoff * (2**attempt) * random.uniform(0.5, 1.5)
+                    )
                     continue
                 raise RuntimeError(f"Request failed: {e}") from e
+            finally:
+                # If we're retrying, ensure the response body is consumed/closed
+                # to prevent connection-pool leaks on streamed requests.
+                if response is not None and response.status_code in (
+                    429,
+                    500,
+                    502,
+                    503,
+                    504,
+                ):
+                    response.close()
 
         if last_error:
             raise RuntimeError(f"Request failed: {last_error}")
-        return None  # type: ignore
+        # Unreachable — kept only to satisfy type checker.
+        raise RuntimeError("Request failed after exhausting all retries")
 
     def search_assets(
         self,
@@ -140,8 +164,15 @@ class ImmichClient:
     def download_original(
         self, asset_id: str, output_path: str
     ) -> tuple[int, str | None]:
-        """Download original asset binary to file."""
+        """Download original asset binary to file.
+
+        After download, verifies the file size is non-zero and the SHA1
+        checksum matches the value reported by Immich.
+        """
         url = urljoin(self.api_base, f"assets/{asset_id}/original")
+
+        # Fetch expected checksum before download
+        expected_checksum = self._get_asset_checksum(asset_id)
 
         try:
             response = self._request_with_retry("GET", url, stream=True)
@@ -156,9 +187,42 @@ class ImmichClient:
             response.close()
 
             size = os.path.getsize(output_path)
+            if size == 0:
+                return 0, "Downloaded file is empty"
+
+            if expected_checksum:
+                actual_checksum = self._sha1_file(output_path)
+                expected_hex = base64.b64decode(expected_checksum).hex()
+                if actual_checksum.lower() != expected_hex.lower():
+                    return (
+                        0,
+                        f"Checksum mismatch: expected {expected_checksum}, "
+                        f"got {actual_checksum}",
+                    )
+
             return size, None
         except Exception as e:
             return 0, f"Download failed: {e}"
+
+    def _get_asset_checksum(self, asset_id: str) -> str | None:
+        """Return the SHA1 checksum reported by Immich for an asset."""
+        url = urljoin(self.api_base, f"assets/{asset_id}")
+        try:
+            response = self._request_with_retry("GET", url)
+            if response.status_code == 200:
+                data = response.json()
+                return data.get("checksum")
+        except Exception:
+            pass
+        return None
+
+    @staticmethod
+    def _sha1_file(path: str) -> str:
+        h = hashlib.sha1()
+        with open(path, "rb") as f:
+            for chunk in iter(lambda: f.read(65536), b""):
+                h.update(chunk)
+        return h.hexdigest()
 
     def test_connection(self) -> tuple[bool, str | None]:
         """Test API connection and permissions."""
@@ -222,7 +286,11 @@ class ImmichClient:
 
                     if response.status_code == 429 or response.status_code >= 500:
                         if attempt < self.retry_max:
-                            time.sleep(self.retry_backoff * (2**attempt))
+                            time.sleep(
+                                self.retry_backoff
+                                * (2**attempt)
+                                * random.uniform(0.5, 1.5)
+                            )
                             continue
 
                     if response.status_code in (200, 201):
@@ -242,7 +310,9 @@ class ImmichClient:
             except requests.RequestException as e:
                 last_error = e
                 if attempt < self.retry_max:
-                    time.sleep(self.retry_backoff * (2**attempt))
+                    time.sleep(
+                        self.retry_backoff * (2**attempt) * random.uniform(0.5, 1.5)
+                    )
                     continue
             except Exception as e:
                 return None, str(e)
@@ -267,28 +337,34 @@ class ImmichClient:
         except Exception as e:
             return False, str(e)
 
-        # 2. Bulk-update target asset with favorite / archive status
+        # 2. Bulk-update target asset with favorite / archive status.
+        #    Only include fields that were explicitly present in the source
+        #    so we don't reset state when the API omits keys.
         update_url = urljoin(self.api_base, "assets")
-        update_body = {
-            "ids": [to_asset_id],
-            "isFavorite": source_data.get("isFavorite", False),
-            "isArchived": source_data.get("isArchived", False),
-        }
-        try:
-            update_resp = self._request_with_retry("PUT", update_url, json=update_body)
-            if update_resp.status_code not in (200, 204):
-                try:
-                    error_detail = update_resp.json()
-                    error_msg = error_detail.get("message", str(error_detail))
-                except Exception:
-                    error_msg = update_resp.text or "Unknown error"
-                return False, (
-                    f"Update failed: HTTP {update_resp.status_code} - {error_msg}"
+        update_body: dict[str, Any] = {"ids": [to_asset_id]}
+        for key in ("isFavorite", "isArchived", "isTrashed", "rating"):
+            if key in source_data:
+                update_body[key] = source_data[key]
+
+        if len(update_body) > 1:  # ids is always present
+            try:
+                update_resp = self._request_with_retry(
+                    "PUT", update_url, json=update_body
                 )
-        except Exception as e:
-            return False, str(e)
+                if update_resp.status_code not in (200, 204):
+                    try:
+                        error_detail = update_resp.json()
+                        error_msg = error_detail.get("message", str(error_detail))
+                    except Exception:
+                        error_msg = update_resp.text or "Unknown error"
+                    return False, (
+                        f"Update failed: HTTP {update_resp.status_code} - {error_msg}"
+                    )
+            except Exception as e:
+                return False, str(e)
 
         # 3. Add target asset to each of the source's albums
+        album_errors: list[str] = []
         albums_url = urljoin(self.api_base, "albums")
         try:
             albums_resp = self._request_with_retry(
@@ -306,11 +382,18 @@ class ImmichClient:
                             "PUT", album_url, json={"ids": [to_asset_id]}
                         )
                         if album_resp.status_code not in (200, 204):
-                            pass
-                    except Exception:
-                        pass
-        except Exception:
-            pass
+                            album_name = album.get("albumName", "unknown")
+                            album_errors.append(
+                                f"album '{album_name}': HTTP {album_resp.status_code}"
+                            )
+                    except Exception as e:
+                        album_name = album.get("albumName", "unknown")
+                        album_errors.append(f"album '{album_name}': {e}")
+        except Exception as e:
+            album_errors.append(f"fetch albums: {e}")
+
+        if album_errors:
+            return False, f"Album copy failed: {'; '.join(album_errors)}"
 
         return True, None
 

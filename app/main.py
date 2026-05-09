@@ -9,6 +9,7 @@ import sys
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import datetime
 
 try:
     from app.cli import parse_args, setup_logging
@@ -280,6 +281,8 @@ def process_asset(asset: Asset, client: ImmichClient, config: Config) -> dict:
             result_info["error"] = error
             return result_info
 
+        result_info["new_asset_id"] = new_asset_id
+
         t = time.monotonic()
         success, error = client.copy_asset_data(
             from_asset_id=asset.id, to_asset_id=new_asset_id
@@ -446,17 +449,32 @@ def run_converter(config: Config, stats_json_path: str | None = None) -> int:
             for asset in album_assets:
                 if asset.type not in config.asset_types:
                     continue
-                # Apply date filters if set
-                if (
-                    config.filter_date_after
-                    and asset.file_created_at < config.filter_date_after
-                ):
-                    continue
-                if (
-                    config.filter_date_before
-                    and asset.file_created_at > config.filter_date_before
-                ):
-                    continue
+                # Apply date filters if set — parse to datetime for robust
+                # comparison instead of relying on ISO string lexicographic order.
+                if config.filter_date_after:
+                    try:
+                        asset_dt = datetime.fromisoformat(
+                            asset.file_created_at.replace("Z", "+00:00")
+                        )
+                        filter_dt = datetime.fromisoformat(
+                            config.filter_date_after.replace("Z", "+00:00")
+                        )
+                        if asset_dt < filter_dt:
+                            continue
+                    except (ValueError, AttributeError):
+                        pass
+                if config.filter_date_before:
+                    try:
+                        asset_dt = datetime.fromisoformat(
+                            asset.file_created_at.replace("Z", "+00:00")
+                        )
+                        filter_dt = datetime.fromisoformat(
+                            config.filter_date_before.replace("Z", "+00:00")
+                        )
+                        if asset_dt > filter_dt:
+                            continue
+                    except (ValueError, AttributeError):
+                        pass
                 assets.append(asset)
                 if config.max_assets and len(assets) >= config.max_assets:
                     break
@@ -604,6 +622,8 @@ def run_converter(config: Config, stats_json_path: str | None = None) -> int:
                         status=result["status"],
                         filename=asset.original_file_name,
                         error=result.get("error"),
+                        new_asset_id=result.get("new_asset_id"),
+                        target_format=_get_target_format(asset),
                         input_bytes=int(result.get("input_bytes", 0)),
                         output_bytes=int(result.get("output_bytes", 0)),
                     )

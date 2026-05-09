@@ -32,10 +32,9 @@ class TestTranscodeImage:
             result = transcode(str(input_path), str(output_path), 1.0)
 
         assert result.success is True
-        # cjxl + exiftool (copy_metadata safeguard)
-        assert mock_run.call_count == 2
+        # cjxl only — EXIF is preserved natively by lossless repack
+        assert mock_run.call_count == 1
         assert mock_run.call_args_list[0][0][0][0] == "cjxl"
-        assert mock_run.call_args_list[1][0][0][0] == "exiftool"
 
     def test_jpeg_cjxl_not_found_falls_back_to_magick(self, tmp_path):
         input_path = tmp_path / "input.jpg"

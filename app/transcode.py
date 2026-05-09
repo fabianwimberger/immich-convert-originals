@@ -182,9 +182,14 @@ def _transcode_with_magick(
         try:
             subprocess.run(cmd, check=True, capture_output=True, timeout=timeouts.image)
             if not copy_metadata(input_path, output_path, timeouts=timeouts):
-                logger.warning(
-                    "Failed to copy metadata for %s, file EXIF may be incomplete",
-                    input_path,
+                return TranscodeResult(
+                    success=False,
+                    input_path=input_path,
+                    output_path=output_path,
+                    input_bytes=input_bytes,
+                    output_bytes=0,
+                    input_format=input_format or "unknown",
+                    error=f"Metadata copy failed for {input_path}",
                 )
 
             output_bytes = (
@@ -272,7 +277,9 @@ def transcode(
     is_jpeg = input_format == "jpg"
 
     if is_jpeg:
-        # JPEG: Use cjxl for lossless repack (no distance parameter)
+        # JPEG: Use cjxl for lossless repack (no distance parameter).
+        # cjxl preserves EXIF APP markers natively; running exiftool afterwards
+        # is unnecessary and can accidentally downgrade metadata.
         try:
             result = subprocess.run(
                 ["cjxl", "--compress_boxes=0", input_path, output_path],
@@ -296,14 +303,6 @@ def transcode(
             )
 
         if result.returncode == 0:
-            # cjxl losslessly repacks the JPEG bytestream, which normally keeps
-            # EXIF APP markers intact. Re-apply via exiftool as a safeguard so
-            # GPS/DateTimeOriginal survive on any cjxl build.
-            if not copy_metadata(input_path, output_path, timeouts=timeouts):
-                logger.warning(
-                    "Failed to copy metadata for %s, file EXIF may be incomplete",
-                    input_path,
-                )
             output_bytes = (
                 os.path.getsize(output_path) if os.path.exists(output_path) else 0
             )

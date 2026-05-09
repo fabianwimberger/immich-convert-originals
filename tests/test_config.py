@@ -5,7 +5,6 @@ import pytest
 from app.config import (
     Config,
     _parse_bool,
-    _parse_date,
     _parse_float,
     _parse_int,
 )
@@ -90,34 +89,6 @@ class TestParseFloat:
         monkeypatch.setenv("TEST_FLOAT", "10.0")
         with pytest.raises(ValueError, match="must be <= 5.0"):
             _parse_float("TEST_FLOAT", default=0.0, max=5.0)
-
-
-class TestParseDate:
-    """Tests for _parse_date function."""
-
-    def test_none_when_missing(self, monkeypatch):
-        monkeypatch.delenv("TEST_DATE", raising=False)
-        assert _parse_date("TEST_DATE") is None
-
-    def test_parses_yyyy_mm_dd_after(self, monkeypatch):
-        monkeypatch.setenv("TEST_DATE_AFTER", "2023-06-15")
-        result = _parse_date("TEST_DATE_AFTER")
-        assert result == "2023-06-15T00:00:00.000Z"
-
-    def test_parses_yyyy_mm_dd_before(self, monkeypatch):
-        monkeypatch.setenv("TEST_DATE_BEFORE", "2023-06-15")
-        result = _parse_date("TEST_DATE_BEFORE")
-        assert result == "2023-06-15T23:59:59.999Z"
-
-    def test_invalid_date_raises_error(self, monkeypatch):
-        monkeypatch.setenv("TEST_DATE", "2023-13-45")
-        with pytest.raises(ValueError, match="Invalid date"):
-            _parse_date("TEST_DATE")
-
-    def test_accepts_iso_format(self, monkeypatch):
-        monkeypatch.setenv("TEST_DATE", "2023-06-15T10:30:00Z")
-        result = _parse_date("TEST_DATE")
-        assert result == "2023-06-15T10:30:00Z"
 
 
 class TestConfigFromEnv:

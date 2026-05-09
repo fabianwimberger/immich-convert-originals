@@ -43,6 +43,8 @@ class StateDB:
                 status TEXT NOT NULL,
                 error TEXT,
                 filename TEXT,
+                new_asset_id TEXT,
+                target_format TEXT,
                 input_bytes INTEGER DEFAULT 0,
                 output_bytes INTEGER DEFAULT 0,
                 updated_at TEXT NOT NULL
@@ -57,6 +59,8 @@ class StateDB:
         status: str,
         filename: str,
         error: str | None = None,
+        new_asset_id: str | None = None,
+        target_format: str | None = None,
         input_bytes: int = 0,
         output_bytes: int = 0,
     ) -> None:
@@ -64,12 +68,15 @@ class StateDB:
             self._conn.execute(
                 """
                 INSERT INTO assets(asset_id, status, error, filename,
+                                   new_asset_id, target_format,
                                    input_bytes, output_bytes, updated_at)
-                VALUES(?,?,?,?,?,?,?)
+                VALUES(?,?,?,?,?,?,?,?,?)
                 ON CONFLICT(asset_id) DO UPDATE SET
                     status=excluded.status,
                     error=excluded.error,
                     filename=excluded.filename,
+                    new_asset_id=excluded.new_asset_id,
+                    target_format=excluded.target_format,
                     input_bytes=excluded.input_bytes,
                     output_bytes=excluded.output_bytes,
                     updated_at=excluded.updated_at
@@ -79,6 +86,8 @@ class StateDB:
                     status,
                     error,
                     filename,
+                    new_asset_id,
+                    target_format,
                     input_bytes,
                     output_bytes,
                     _utcnow_iso(),
