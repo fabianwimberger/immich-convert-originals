@@ -1,5 +1,6 @@
 """Immich API client."""
 
+import base64
 import hashlib
 import os
 import random
@@ -189,10 +190,10 @@ class ImmichClient:
             if size == 0:
                 return 0, "Downloaded file is empty"
 
-            # Verify checksum if Immich provided one
             if expected_checksum:
                 actual_checksum = self._sha1_file(output_path)
-                if actual_checksum.lower() != expected_checksum.lower():
+                expected_hex = base64.b64decode(expected_checksum).hex()
+                if actual_checksum.lower() != expected_hex.lower():
                     return (
                         0,
                         f"Checksum mismatch: expected {expected_checksum}, "
@@ -310,9 +311,7 @@ class ImmichClient:
                 last_error = e
                 if attempt < self.retry_max:
                     time.sleep(
-                        self.retry_backoff
-                        * (2**attempt)
-                        * random.uniform(0.5, 1.5)
+                        self.retry_backoff * (2**attempt) * random.uniform(0.5, 1.5)
                     )
                     continue
             except Exception as e:

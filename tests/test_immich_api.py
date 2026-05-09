@@ -597,7 +597,11 @@ class TestCopyAssetDataAlbums:
         responses.add(
             responses.GET,
             "https://example.com/api/albums",
-            json=[{"id": "album-1", "albumName": "A1"}, {"id": ""}, {"id": "album-2", "albumName": "A2"}],
+            json=[
+                {"id": "album-1", "albumName": "A1"},
+                {"id": ""},
+                {"id": "album-2", "albumName": "A2"},
+            ],
         )
         responses.add(
             responses.PUT,
