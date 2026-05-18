@@ -7,7 +7,7 @@ name = "immich-convert-originals"
 version = "1.1.1"
 requires-python = ">=3.13"
 dependencies = [
-    "requests>=2.33.1",
+    "requests>=2.34.2",
 ]
 
 [project.optional-dependencies]
