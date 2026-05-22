@@ -7,7 +7,7 @@ name = "immich-convert-originals"
 version = "1.1.1"
 requires-python = ">=3.13"
 dependencies = [
-    "requests>=2.33.1",
+    "requests>=2.34.2",
 ]
 
 [project.optional-dependencies]
@@ -17,7 +17,7 @@ dev = [
     "responses>=0.26.0",
     "ruff>=0.15.13",
     "mypy>=2.1.0",
-    "types-requests>=2.33.0.20260513",
+    "types-requests>=2.33.0.20260518",
 ]
 
 [tool.pytest.ini_options]
