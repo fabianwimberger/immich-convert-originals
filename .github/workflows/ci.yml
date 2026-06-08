@@ -58,7 +58,7 @@ jobs:
         run: pytest tests/ -m "not integration" -v --cov=app --cov-report=xml --cov-fail-under=85
 
       - name: Upload coverage
-        uses: codecov/codecov-action@v6
+        uses: codecov/codecov-action@v7
         with:
           files: ./coverage.xml
           token: ${{ secrets.CODECOV_TOKEN }}
