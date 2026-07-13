@@ -15,7 +15,7 @@ dev = [
     "pytest>=9.1.1",
     "pytest-cov>=7.0.0",
     "responses>=0.26.1",
-    "ruff>=0.15.18",
+    "ruff>=0.15.21",
     "mypy>=2.1.0",
     "types-requests>=2.33.0.20260518",
 ]
