@@ -50,8 +50,6 @@ def _make_asset(
         original_path="/uploads/" + file_name,
         original_mime_type=mime_type,
         type=asset_type,
-        device_asset_id="da1",
-        device_id="phone1",
         file_created_at="2023-01-01T00:00:00Z",
         file_modified_at="2023-01-01T00:00:00Z",
     )
