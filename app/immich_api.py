@@ -452,9 +452,7 @@ class ImmichClient:
             }
             response = self._request_with_retry("POST", url, json=body)
             if response.status_code != 200:
-                raise RuntimeError(
-                    f"Failed to get album: HTTP {response.status_code}"
-                )
+                raise RuntimeError(f"Failed to get album: HTTP {response.status_code}")
             items = response.json().get("assets", {}).get("items", [])
             if not items:
                 break
