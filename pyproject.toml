@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=82.0.1"]
+requires = ["setuptools>=83.0.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -15,8 +15,8 @@ dev = [
     "pytest>=9.1.1",
     "pytest-cov>=7.0.0",
     "responses>=0.26.1",
-    "ruff>=0.15.18",
-    "mypy>=2.1.0",
+    "ruff>=0.15.21",
+    "mypy>=2.2.0",
     "types-requests>=2.33.0.20260518",
 ]
 
