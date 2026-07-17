@@ -3,11 +3,11 @@ name: immich-convert-test
 services:
   immich-test-server:
     container_name: immich-test-server
-    image: ghcr.io/immich-app/immich-server:${IMMICH_TEST_TAG:-v2.7.5}
+    image: ghcr.io/immich-app/immich-server:${IMMICH_TEST_TAG:-v3.0.3}
     ports:
       - "127.0.0.1:${IMMICH_TEST_PORT}:2283"
     environment:
-      IMMICH_VERSION: ${IMMICH_TEST_TAG:-v2.7.5}
+      IMMICH_VERSION: ${IMMICH_TEST_TAG:-v3.0.3}
       DB_HOSTNAME: immich-test-postgres
       DB_PORT: 5432
       DB_USERNAME: postgres

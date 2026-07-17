@@ -1,7 +1,6 @@
 """Seed a test library into a real Immich instance."""
 
 import subprocess
-import uuid
 from pathlib import Path
 from typing import Any
 
@@ -9,7 +8,6 @@ import requests
 
 from app.immich_api import ImmichClient
 
-DEVICE_ID = "integration-test-device"
 SEED_MARKER_ALBUM = "__immich-convert-seed-marker__"
 IMAGE_NAMES = (
     "sample.jpg",
@@ -216,11 +214,8 @@ def _generate_media(fixtures_dir: Path, tmp_dir: Path) -> dict[str, Path]:
 def _upload_asset(
     client: ImmichClient, path: Path, filename: str, created_at: str
 ) -> str:
-    device_asset_id = f"{filename}-{uuid.uuid4()}"
     asset_id, error = client.upload_asset(
         file_path=str(path),
-        device_asset_id=device_asset_id,
-        device_id=DEVICE_ID,
         file_created_at=created_at,
         file_modified_at=created_at,
         filename=filename,
@@ -373,7 +368,10 @@ def seed_library(client: ImmichClient, tmp_path_factory: Any) -> dict[str, Any]:
         client.api_base, client.api_key, [image_ids["sample.jpg"]], isFavorite=True
     )
     _update_assets(
-        client.api_base, client.api_key, [image_ids["sample.heic"]], isArchived=True
+        client.api_base,
+        client.api_key,
+        [image_ids["sample.heic"]],
+        visibility="archive",
     )
 
     # Drop a marker album so future sessions can short-circuit the seed.

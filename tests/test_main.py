@@ -11,8 +11,6 @@ class FakeAsset:
         self.type = kwargs.get("type", "IMAGE")
         self.original_file_name = kwargs.get("original_file_name", "x.jpg")
         self.original_mime_type = kwargs.get("original_mime_type", "image/jpeg")
-        self.device_id = kwargs.get("device_id", "phone1")
-        self.device_asset_id = kwargs.get("device_asset_id", "da1")
         self.file_created_at = kwargs.get("file_created_at", "2023-01-01T00:00:00Z")
         self.file_modified_at = kwargs.get("file_modified_at", "2023-01-01T00:00:00Z")
 

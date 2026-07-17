@@ -202,14 +202,10 @@ class TestEndToEnd:
             "Artist tag not preserved"
         )
 
-        # Verify album membership by querying the album
-        album_url = f"{admin_client.api_base}albums/{lib['albums']['vacation']}"
-        album_resp = requests.get(
-            album_url, headers=admin_client._default_headers, timeout=10
-        )
-        assert album_resp.status_code == 200
-        album_data = album_resp.json()
-        album_asset_ids = {a["id"] for a in album_data.get("assets", [])}
+        # Verify album membership via search (GET /albums/{id} no longer
+        # returns an `assets` array).
+        album_assets = admin_client.get_album_assets(lib["albums"]["vacation"])
+        album_asset_ids = {a.id for a in album_assets}
         assert new_jxl.id in album_asset_ids
 
         # 3. Happy path: convert one video (h264.mp4)
@@ -382,8 +378,6 @@ def test_upload_failure_rollback(
     import uuid as _uuid
     from pathlib import Path as _Path
 
-    from tests.integration.seeder import DEVICE_ID
-
     _ = seeded_library  # fixture dependency only.
 
     # Upload a fresh JPEG out-of-band so this test is independent of other
@@ -395,8 +389,6 @@ def test_upload_failure_rollback(
 
     fresh_id, err = admin_client.upload_asset(
         file_path=str(target_path),
-        device_asset_id=f"{unique_name}-{_uuid.uuid4()}",
-        device_id=DEVICE_ID,
         file_created_at="2017-05-05T00:00:00Z",
         file_modified_at="2017-05-05T00:00:00Z",
         filename=unique_name,
