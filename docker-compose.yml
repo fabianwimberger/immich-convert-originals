@@ -11,11 +11,13 @@ services:
     container_name: immich-library-converter
     env_file:
       - .env
-    # Use host networking to access Immich on localhost.
-    # If Immich is on a remote server, you can remove this and use the default bridge network.
-    network_mode: host
-    restart: "no"
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
     # ffmpeg and ImageMagick use shared memory for large frame buffers
     shm_size: 1G
     volumes:
-      - ./work:/work
+      # Persists settings.db (connection + encoding defaults, run history)
+      # across restarts. Not required, but you'll lose the Settings page
+      # config and run history without it.
+      - ./data:/app/data

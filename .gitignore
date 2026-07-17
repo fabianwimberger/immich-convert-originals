@@ -8,7 +8,7 @@ __pycache__/
 .idea/
 .vscode/
 *.log
-/work/
+/data/
 .coverage
 coverage.xml
 backend/tests/.test-data/

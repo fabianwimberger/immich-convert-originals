@@ -28,6 +28,12 @@ class RunQueue:
 
     async def start(self) -> None:
         if self._worker_task is None:
+            # asyncio.Queue binds lazily to whatever loop first awaits on
+            # it. Recreate it here so start()/stop() is safe to call more
+            # than once in the same process on a different loop (matters
+            # for tests using per-test event loops; a no-op difference in
+            # production, where start() runs exactly once).
+            self._queue = asyncio.Queue()
             self._worker_task = asyncio.create_task(self._worker())
 
     async def stop(self) -> None:

@@ -8,10 +8,17 @@ RUN apk add --no-cache \
     curl \
     git
 
-COPY requirements-dev.txt /tmp/requirements-dev.txt
-COPY requirements.txt /tmp/requirements.txt
+COPY backend/requirements-dev.txt /tmp/requirements-dev.txt
+COPY backend/requirements.txt /tmp/requirements.txt
 RUN pip install --no-cache-dir -r /tmp/requirements-dev.txt
 
 ENV PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1
+
+# Run as a non-root UID so pytest's own artifacts (.test-data/,
+# .pytest_cache/, coverage.xml) written back through the -v bind mount
+# don't end up root-owned on the host (harmless on ephemeral CI runners,
+# but blocks cleanup on a persistent local checkout).
+RUN adduser -D -u 1000 -s /bin/sh runner
+USER runner
 
 WORKDIR /workspace

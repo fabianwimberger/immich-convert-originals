@@ -30,13 +30,13 @@ jobs:
         run: pip install ruff mypy types-requests
 
       - name: Lint with ruff
-        run: ruff check app/ tests/
+        run: ruff check backend/
 
       - name: Format check with ruff
-        run: ruff format --check app/ tests/
+        run: ruff format --check backend/
 
       - name: Type check with mypy
-        run: mypy app/ tests/ --ignore-missing-imports --explicit-package-bases
+        run: mypy backend/app --ignore-missing-imports --explicit-package-bases
 
   test:
     name: Test
@@ -52,10 +52,10 @@ jobs:
           python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Install dependencies
-        run: pip install -r requirements-dev.txt
+        run: pip install -r backend/requirements-dev.txt
 
       - name: Run unit tests
-        run: pytest tests/ -m "not integration" -v --cov=app --cov-report=xml --cov-fail-under=85
+        run: pytest -m "not integration" -v --cov-fail-under=85
 
       - name: Upload coverage
         uses: codecov/codecov-action@v7
@@ -75,10 +75,12 @@ jobs:
       - name: Build Docker image
         run: docker build -t immich-convert-originals:test .
 
-      - name: Test container starts
+      - name: Test container starts and serves the health check
         run: |
-          docker run --rm --entrypoint python3 immich-convert-originals:test -c \
-            "import main; print('imports OK')"
+          docker run -d --name test-container -p 18000:8000 immich-convert-originals:test
+          curl --retry 10 --retry-delay 2 --retry-all-errors -sf http://127.0.0.1:18000/api/health
+          docker logs test-container
+          docker stop test-container
 
   integration:
     name: Integration Tests
@@ -122,14 +124,14 @@ jobs:
           docker save docker.io/valkey/valkey:9-alpine -o ~/immich-image-cache/valkey.tar
 
       - name: Build test runner image
-        run: docker build -t immich-convert-test-runner -f tests/integration/Dockerfile.runner .
+        run: docker build -t immich-convert-test-runner -f backend/tests/integration/Dockerfile.runner .
 
       - name: Start Immich test stack
         env:
           IMMICH_TEST_PORT: ${{ steps.port.outputs.port }}
           COMPOSE_PROJECT_NAME: immich-convert-test
         run: |
-          docker compose -f tests/integration/docker-compose.test.yml -p immich-convert-test up -d
+          docker compose -f backend/tests/integration/docker-compose.test.yml -p immich-convert-test up -d
 
       - name: Wait for Immich healthy
         env:
@@ -140,7 +142,7 @@ jobs:
 
       - name: Start upload-fault sidecar
         run: |
-          docker compose -f tests/integration/upload-fault-compose.yml \
+          docker compose -f backend/tests/integration/upload-fault-compose.yml \
             -p immich-convert-test-faults up -d
 
       - name: Run integration tests
@@ -150,7 +152,7 @@ jobs:
             -v "$PWD:/workspace" \
             -e IMMICH_TEST_API_BASE=http://immich-test-server:2283/api/ \
             immich-convert-test-runner \
-            pytest tests/ -m integration -v
+            pytest -m integration -v
 
       - name: Tear down stack
         if: always()
@@ -158,8 +160,8 @@ jobs:
           IMMICH_TEST_PORT: ${{ steps.port.outputs.port }}
           COMPOSE_PROJECT_NAME: immich-convert-test
         run: |
-          docker compose -f tests/integration/upload-fault-compose.yml -p immich-convert-test-faults down -v || true
-          docker compose -f tests/integration/docker-compose.test.yml -p immich-convert-test down -v
+          docker compose -f backend/tests/integration/upload-fault-compose.yml -p immich-convert-test-faults down -v || true
+          docker compose -f backend/tests/integration/docker-compose.test.yml -p immich-convert-test down -v
           docker network rm immich-test-net || true
 
   integration-release:
@@ -182,14 +184,14 @@ jobs:
           echo "port=$(cat port.txt)" >> "$GITHUB_OUTPUT"
 
       - name: Build test runner image
-        run: docker build -t immich-convert-test-runner -f tests/integration/Dockerfile.runner .
+        run: docker build -t immich-convert-test-runner -f backend/tests/integration/Dockerfile.runner .
 
       - name: Start Immich test stack
         env:
           IMMICH_TEST_PORT: ${{ steps.port.outputs.port }}
           COMPOSE_PROJECT_NAME: immich-convert-test
         run: |
-          docker compose -f tests/integration/docker-compose.test.yml -p immich-convert-test up -d
+          docker compose -f backend/tests/integration/docker-compose.test.yml -p immich-convert-test up -d
 
       - name: Wait for Immich healthy
         env:
@@ -200,7 +202,7 @@ jobs:
 
       - name: Start upload-fault sidecar
         run: |
-          docker compose -f tests/integration/upload-fault-compose.yml \
+          docker compose -f backend/tests/integration/upload-fault-compose.yml \
             -p immich-convert-test-faults up -d
 
       - name: Run integration tests
@@ -210,7 +212,7 @@ jobs:
             -v "$PWD:/workspace" \
             -e IMMICH_TEST_API_BASE=http://immich-test-server:2283/api/ \
             immich-convert-test-runner \
-            pytest tests/ -m integration -v
+            pytest -m integration -v
 
       - name: Tear down stack
         if: always()
@@ -218,6 +220,6 @@ jobs:
           IMMICH_TEST_PORT: ${{ steps.port.outputs.port }}
           COMPOSE_PROJECT_NAME: immich-convert-test
         run: |
-          docker compose -f tests/integration/upload-fault-compose.yml -p immich-convert-test-faults down -v || true
-          docker compose -f tests/integration/docker-compose.test.yml -p immich-convert-test down -v
+          docker compose -f backend/tests/integration/upload-fault-compose.yml -p immich-convert-test-faults down -v || true
+          docker compose -f backend/tests/integration/docker-compose.test.yml -p immich-convert-test down -v
           docker network rm immich-test-net || true

@@ -5,11 +5,14 @@ import os
 import socket
 import subprocess
 import time
-from collections.abc import Generator
+from collections.abc import AsyncGenerator, Generator
 from typing import Any
 
 import pytest
+import pytest_asyncio
 import requests
+from httpx import ASGITransport, AsyncClient
+from sqlalchemy import delete
 
 from app.services.immich_client import ImmichClient
 
@@ -206,3 +209,32 @@ def upload_fault_api_base(immich_stack: str) -> Generator[str, None, None]:
         pytest.skip(f"upload-fault sidecar not reachable: {last_error}")
 
     yield api_base
+
+
+@pytest_asyncio.fixture
+async def gui_client(admin_client: ImmichClient) -> AsyncGenerator[AsyncClient, None]:
+    """An httpx AsyncClient wired to our own FastAPI app, running its full
+    lifespan (so the run queue worker actually processes runs), pointed at
+    the real seeded Immich instance via admin_client's credentials."""
+    import app.main as main_mod
+    from app.database import AsyncSessionLocal, init_db
+    from app.models.settings import SETTINGS_ROW_ID
+    from app.models.settings import Settings as SettingsRow
+
+    await init_db()
+    async with AsyncSessionLocal() as db:
+        await db.execute(delete(SettingsRow))
+        db.add(
+            SettingsRow(
+                id=SETTINGS_ROW_ID,
+                immich_api_base=admin_client.api_base,
+                immich_api_key=admin_client.api_key,
+                asset_types="IMAGE,VIDEO",
+            )
+        )
+        await db.commit()
+
+    async with main_mod.app.router.lifespan_context(main_mod.app):
+        transport = ASGITransport(app=main_mod.app)
+        async with AsyncClient(transport=transport, base_url="http://test") as ac:
+            yield ac
