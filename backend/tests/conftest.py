@@ -23,19 +23,31 @@ from sqlalchemy import delete  # noqa: E402
 
 import app.main  # noqa: E402
 from app.database import AsyncSessionLocal, init_db  # noqa: E402
+from app.models.asset_outcome import AssetOutcome  # noqa: E402
+from app.models.run import Run  # noqa: E402
 from app.models.settings import Settings  # noqa: E402
+from app.services import run_service  # noqa: E402
 from app.services.lifecycle import seed_settings  # noqa: E402
 
 
 @pytest_asyncio.fixture
 async def client():
-    """An httpx AsyncClient wired to the FastAPI app with a clean Settings row."""
+    """An httpx AsyncClient wired to the FastAPI app with a clean db.
+
+    Run ids restart from 1 each test (sqlite reuses ids after DELETE
+    without AUTOINCREMENT), so in-memory run_service state keyed by id
+    must be reset too, or a stale cancelled-id from a prior test can
+    collide with a fresh run here.
+    """
     await init_db()
 
     async with AsyncSessionLocal() as db:
         await db.execute(delete(Settings))
+        await db.execute(delete(AssetOutcome))
+        await db.execute(delete(Run))
         await db.commit()
     await seed_settings()
+    run_service._cancelled_runs.clear()
 
     transport = ASGITransport(app=app.main.app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:

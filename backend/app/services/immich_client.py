@@ -261,6 +261,17 @@ class ImmichClient:
         except Exception as e:
             return False, str(e)
 
+    def get_asset_full(self, asset_id: str) -> Asset | None:
+        """Fetch full asset metadata by ID, or None if it can't be found."""
+        url = urljoin(self.api_base, f"assets/{asset_id}")
+        try:
+            response = self._request_with_retry("GET", url)
+            if response.status_code != 200:
+                return None
+            return Asset.from_dict(response.json())
+        except Exception:
+            return None
+
     def upload_asset(
         self,
         file_path: str,
