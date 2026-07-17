@@ -27,8 +27,6 @@ class TestAssetFromDict:
             "originalPath": "/uploads/photo.jpg",
             "originalMimeType": "image/jpeg",
             "type": "IMAGE",
-            "deviceAssetId": "device-1",
-            "deviceId": "phone-1",
             "fileCreatedAt": "2023-01-01T00:00:00Z",
             "fileModifiedAt": "2023-01-01T00:00:00Z",
         }
@@ -43,8 +41,6 @@ class TestAssetFromDict:
             "originalFileName": "photo.jpg",
             "originalPath": "/uploads/photo.jpg",
             "type": "IMAGE",
-            "deviceAssetId": "device-1",
-            "deviceId": "phone-1",
             "fileCreatedAt": "2023-01-01T00:00:00Z",
             "fileModifiedAt": "2023-01-01T00:00:00Z",
         }
@@ -58,8 +54,6 @@ class TestAssetFromDict:
             "originalPath": None,
             "originalMimeType": "image/jpeg",
             "type": "VIDEO",
-            "deviceAssetId": "d1",
-            "deviceId": "p1",
             "fileCreatedAt": "2023-01-01T00:00:00Z",
             "fileModifiedAt": "2023-01-01T00:00:00Z",
         }
@@ -147,8 +141,8 @@ class TestSearchAssets:
             "page": 2,
             "size": 100,
             "order": "asc",
-            "withArchived": False,
             "withDeleted": False,
+            "visibility": "timeline",
         }
 
     @responses.activate
@@ -200,7 +194,7 @@ class TestSearchAssets:
         assert body["originalPath"] == "/uploads/x.jpg"
 
     @responses.activate
-    def test_archived_and_deleted_flags_passed_through(self, client):
+    def test_deleted_flag_passed_through(self, client):
         responses.add(
             responses.POST,
             "https://example.com/api/search/metadata",
@@ -214,8 +208,29 @@ class TestSearchAssets:
             with_deleted=True,
         )
         body = json.loads(responses.calls[0].request.body)
-        assert body["withArchived"] is True
         assert body["withDeleted"] is True
+
+    @responses.activate
+    def test_with_archived_true_omits_visibility_filter(self, client):
+        responses.add(
+            responses.POST,
+            "https://example.com/api/search/metadata",
+            json={"assets": {"items": []}},
+        )
+        client.search_assets(page=1, size=10, asset_type="IMAGE", with_archived=True)
+        body = json.loads(responses.calls[0].request.body)
+        assert "visibility" not in body
+
+    @responses.activate
+    def test_with_archived_false_restricts_to_timeline(self, client):
+        responses.add(
+            responses.POST,
+            "https://example.com/api/search/metadata",
+            json={"assets": {"items": []}},
+        )
+        client.search_assets(page=1, size=10, asset_type="IMAGE", with_archived=False)
+        body = json.loads(responses.calls[0].request.body)
+        assert body["visibility"] == "timeline"
 
     @responses.activate
     def test_returns_asset_dataclasses(self, client):
@@ -231,8 +246,6 @@ class TestSearchAssets:
                             "originalPath": "/p/x.jpg",
                             "originalMimeType": "image/jpeg",
                             "type": "IMAGE",
-                            "deviceAssetId": "d1",
-                            "deviceId": "p1",
                             "fileCreatedAt": "2023-01-01T00:00:00Z",
                             "fileModifiedAt": "2023-01-01T00:00:00Z",
                         }
@@ -308,8 +321,6 @@ class TestUploadAsset:
         file_path.write_bytes(b"data")
         asset_id, error = client.upload_asset(
             file_path=str(file_path),
-            device_asset_id="da1",
-            device_id="phone1",
             file_created_at="2023-01-01T00:00:00Z",
             file_modified_at="2023-01-01T00:00:00Z",
             filename="upload.bin",
@@ -331,8 +342,6 @@ class TestUploadAsset:
         file_path.write_bytes(b"data")
         asset_id, error = client.upload_asset(
             file_path=str(file_path),
-            device_asset_id="da1",
-            device_id="phone1",
             file_created_at="2023-01-01T00:00:00Z",
             file_modified_at="2023-01-01T00:00:00Z",
         )
@@ -351,8 +360,6 @@ class TestUploadAsset:
         file_path.write_bytes(b"data")
         asset_id, error = client.upload_asset(
             file_path=str(file_path),
-            device_asset_id="da1",
-            device_id="phone1",
             file_created_at="2023-01-01T00:00:00Z",
             file_modified_at="2023-01-01T00:00:00Z",
         )
@@ -371,8 +378,6 @@ class TestUploadAsset:
         file_path.write_bytes(b"data")
         asset_id, error = client.upload_asset(
             file_path=str(file_path),
-            device_asset_id="da1",
-            device_id="phone1",
             file_created_at="2023-01-01T00:00:00Z",
             file_modified_at="2023-01-01T00:00:00Z",
         )
@@ -386,43 +391,58 @@ class TestCopyAssetData:
         responses.add(
             responses.GET,
             "https://example.com/api/assets/src",
-            json={
-                "id": "src",
-                "isFavorite": True,
-                "isArchived": False,
-                "albums": [{"id": "album-1"}],
-            },
+            json={"id": "src", "isFavorite": True, "visibility": "timeline"},
         )
         responses.add(responses.PUT, "https://example.com/api/assets", status=204)
-        responses.add(
-            responses.GET,
-            "https://example.com/api/albums",
-            json=[{"id": "album-1", "albumName": "Test"}],
-        )
-        responses.add(
-            responses.PUT,
-            "https://example.com/api/albums/album-1/assets",
-            status=204,
-        )
+        responses.add(responses.PUT, "https://example.com/api/assets/copy", status=204)
         success, error = client.copy_asset_data("src", "dst")
         assert success is True
         assert error is None
 
+        update_body = json.loads(responses.calls[1].request.body)
+        assert update_body == {
+            "ids": ["dst"],
+            "isFavorite": True,
+            "visibility": "timeline",
+        }
+        copy_body = json.loads(responses.calls[2].request.body)
+        assert copy_body == {
+            "sourceId": "src",
+            "targetId": "dst",
+            "albums": True,
+            "stack": True,
+            "favorite": False,
+            "sharedLinks": False,
+            "sidecar": False,
+        }
+
     @responses.activate
-    def test_no_albums(self, client):
+    def test_rating_zero_sent_as_null(self, client):
         responses.add(
             responses.GET,
             "https://example.com/api/assets/src",
-            json={"id": "src", "isFavorite": False, "isArchived": False, "albums": []},
+            json={"id": "src", "isFavorite": False, "rating": 0},
         )
         responses.add(responses.PUT, "https://example.com/api/assets", status=204)
-        responses.add(
-            responses.GET,
-            "https://example.com/api/albums",
-            json=[],
-        )
+        responses.add(responses.PUT, "https://example.com/api/assets/copy", status=204)
         success, error = client.copy_asset_data("src", "dst")
         assert success is True
+        update_body = json.loads(responses.calls[1].request.body)
+        assert update_body["rating"] is None
+
+    @responses.activate
+    def test_rating_in_range_passed_through(self, client):
+        responses.add(
+            responses.GET,
+            "https://example.com/api/assets/src",
+            json={"id": "src", "isFavorite": False, "rating": 4},
+        )
+        responses.add(responses.PUT, "https://example.com/api/assets", status=204)
+        responses.add(responses.PUT, "https://example.com/api/assets/copy", status=204)
+        success, error = client.copy_asset_data("src", "dst")
+        assert success is True
+        update_body = json.loads(responses.calls[1].request.body)
+        assert update_body["rating"] == 4
 
     @responses.activate
     def test_source_not_found(self, client):
@@ -436,7 +456,7 @@ class TestCopyAssetData:
         responses.add(
             responses.GET,
             "https://example.com/api/assets/src",
-            json={"id": "src", "isFavorite": False, "isArchived": False, "albums": []},
+            json={"id": "src", "isFavorite": False, "visibility": "timeline"},
         )
         responses.add(
             responses.PUT,
@@ -541,8 +561,6 @@ class TestUploadAssetAuthErrors:
         file_path.write_bytes(b"x")
         asset_id, error = client.upload_asset(
             file_path=str(file_path),
-            device_asset_id="d",
-            device_id="p",
             file_created_at="2023-01-01T00:00:00Z",
             file_modified_at="2023-01-01T00:00:00Z",
         )
@@ -556,8 +574,6 @@ class TestUploadAssetAuthErrors:
         file_path.write_bytes(b"x")
         asset_id, error = client.upload_asset(
             file_path=str(file_path),
-            device_asset_id="d",
-            device_id="p",
             file_created_at="2023-01-01T00:00:00Z",
             file_modified_at="2023-01-01T00:00:00Z",
         )
@@ -576,8 +592,6 @@ class TestUploadAssetAuthErrors:
         file_path.write_bytes(b"x")
         asset_id, error = client.upload_asset(
             file_path=str(file_path),
-            device_asset_id="d",
-            device_id="p",
             file_created_at="2023-01-01T00:00:00Z",
             file_modified_at="2023-01-01T00:00:00Z",
         )
@@ -587,42 +601,47 @@ class TestUploadAssetAuthErrors:
 
 class TestCopyAssetDataAlbums:
     @responses.activate
-    def test_album_sync_reports_errors(self, client):
+    def test_copy_endpoint_reports_json_error(self, client):
         responses.add(
             responses.GET,
             "https://example.com/api/assets/src",
-            json={"id": "src", "isFavorite": False, "isArchived": False},
+            json={"id": "src", "isFavorite": False},
         )
         responses.add(responses.PUT, "https://example.com/api/assets", status=204)
         responses.add(
-            responses.GET,
-            "https://example.com/api/albums",
-            json=[
-                {"id": "album-1", "albumName": "A1"},
-                {"id": ""},
-                {"id": "album-2", "albumName": "A2"},
-            ],
-        )
-        responses.add(
             responses.PUT,
-            "https://example.com/api/albums/album-1/assets",
-            status=500,
-        )
-        responses.add(
-            responses.PUT,
-            "https://example.com/api/albums/album-2/assets",
-            status=204,
+            "https://example.com/api/assets/copy",
+            json={"message": "Bad request"},
+            status=400,
         )
         ok, error = client.copy_asset_data("src", "dst")
         assert ok is False
-        assert "album 'A1': HTTP 500" in error
+        assert "Bad request" in error
+
+    @responses.activate
+    def test_copy_endpoint_falls_back_to_text(self, client):
+        responses.add(
+            responses.GET,
+            "https://example.com/api/assets/src",
+            json={"id": "src", "isFavorite": False},
+        )
+        responses.add(responses.PUT, "https://example.com/api/assets", status=204)
+        responses.add(
+            responses.PUT,
+            "https://example.com/api/assets/copy",
+            body="plain text failure",
+            status=500,
+        )
+        ok, error = client.copy_asset_data("src", "dst")
+        assert ok is False
+        assert "plain text failure" in error
 
     @responses.activate
     def test_update_error_falls_back_to_text(self, client):
         responses.add(
             responses.GET,
             "https://example.com/api/assets/src",
-            json={"id": "src", "isFavorite": False, "isArchived": False},
+            json={"id": "src", "isFavorite": False},
         )
         responses.add(
             responses.PUT,
@@ -640,7 +659,7 @@ class TestCopyAssetDataAlbums:
         responses.add(
             responses.GET,
             "https://example.com/api/assets/src",
-            json={"id": "src", "isFavorite": False, "isArchived": False},
+            json={"id": "src", "isFavorite": False},
         )
         responses.add(
             responses.PUT,
@@ -650,6 +669,24 @@ class TestCopyAssetDataAlbums:
         ok, error = client.copy_asset_data("src", "dst")
         assert ok is False
         assert "update-boom" in error or "Request failed" in error
+
+    @responses.activate
+    def test_copy_endpoint_network_exception(self, client, monkeypatch):
+        monkeypatch.setattr("app.immich_api.time.sleep", lambda s: None)
+        responses.add(
+            responses.GET,
+            "https://example.com/api/assets/src",
+            json={"id": "src", "isFavorite": False},
+        )
+        responses.add(responses.PUT, "https://example.com/api/assets", status=204)
+        responses.add(
+            responses.PUT,
+            "https://example.com/api/assets/copy",
+            body=requests.ConnectionError("copy-boom"),
+        )
+        ok, error = client.copy_asset_data("src", "dst")
+        assert ok is False
+        assert "copy-boom" in error or "Album copy failed" in error
 
 
 class TestDownloadOriginalException:
@@ -670,31 +707,67 @@ class TestGetAlbumAssets:
     @responses.activate
     def test_happy_path(self, client):
         responses.add(
-            responses.GET,
-            "https://example.com/api/albums/album-1",
+            responses.POST,
+            "https://example.com/api/search/metadata",
             json={
-                "assets": [
-                    {
-                        "id": "a1",
-                        "originalFileName": "x.jpg",
-                        "originalPath": "/p/x.jpg",
-                        "type": "IMAGE",
-                        "deviceAssetId": "d1",
-                        "deviceId": "p1",
-                        "fileCreatedAt": "2023-01-01T00:00:00Z",
-                        "fileModifiedAt": "2023-01-01T00:00:00Z",
-                    }
-                ]
+                "assets": {
+                    "items": [
+                        {
+                            "id": "a1",
+                            "originalFileName": "x.jpg",
+                            "originalPath": "/p/x.jpg",
+                            "type": "IMAGE",
+                            "fileCreatedAt": "2023-01-01T00:00:00Z",
+                            "fileModifiedAt": "2023-01-01T00:00:00Z",
+                        }
+                    ]
+                }
             },
+        )
+        responses.add(
+            responses.POST,
+            "https://example.com/api/search/metadata",
+            json={"assets": {"items": []}},
         )
         result = client.get_album_assets("album-1")
         assert len(result) == 1
         assert result[0].id == "a1"
+        body = json.loads(responses.calls[0].request.body)
+        assert body["albumIds"] == ["album-1"]
+
+    @responses.activate
+    def test_paginates_until_empty(self, client):
+        responses.add(
+            responses.POST,
+            "https://example.com/api/search/metadata",
+            json={
+                "assets": {
+                    "items": [
+                        {
+                            "id": "a1",
+                            "originalFileName": "x.jpg",
+                            "originalPath": "/p/x.jpg",
+                            "type": "IMAGE",
+                            "fileCreatedAt": "2023-01-01T00:00:00Z",
+                            "fileModifiedAt": "2023-01-01T00:00:00Z",
+                        }
+                    ]
+                }
+            },
+        )
+        responses.add(
+            responses.POST,
+            "https://example.com/api/search/metadata",
+            json={"assets": {"items": []}},
+        )
+        result = client.get_album_assets("album-1")
+        assert len(result) == 1
+        assert len(responses.calls) == 2
 
     @responses.activate
     def test_error_raises(self, client):
         responses.add(
-            responses.GET, "https://example.com/api/albums/album-1", status=404
+            responses.POST, "https://example.com/api/search/metadata", status=404
         )
         with pytest.raises(RuntimeError, match="Failed to get album: HTTP 404"):
             client.get_album_assets("album-1")

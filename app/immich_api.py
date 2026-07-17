@@ -21,8 +21,6 @@ class Asset:
     original_path: str
     original_mime_type: str | None
     type: str
-    device_asset_id: str
-    device_id: str
     file_created_at: str
     file_modified_at: str
 
@@ -34,8 +32,6 @@ class Asset:
             original_path=data["originalPath"],
             original_mime_type=data.get("originalMimeType"),
             type=data["type"],
-            device_asset_id=data["deviceAssetId"],
-            device_id=data["deviceId"],
             file_created_at=data["fileCreatedAt"],
             file_modified_at=data["fileModifiedAt"],
         )
@@ -140,9 +136,14 @@ class ImmichClient:
             "page": page,
             "size": size,
             "order": "asc",
-            "withArchived": with_archived,
             "withDeleted": with_deleted,
         }
+        if not with_archived:
+            # Immich has no "exclude archived" flag; restrict to timeline
+            # visibility instead. Omitting this when with_archived=True
+            # returns everything except locked (pin-protected) assets,
+            # which this tool must never touch.
+            body["visibility"] = "timeline"
 
         if original_filename:
             body["originalFileName"] = original_filename
@@ -246,8 +247,6 @@ class ImmichClient:
     def upload_asset(
         self,
         file_path: str,
-        device_asset_id: str,
-        device_id: str,
         file_created_at: str,
         file_modified_at: str,
         filename: str | None = None,
@@ -256,8 +255,6 @@ class ImmichClient:
         url = urljoin(self.api_base, "assets")
 
         data = {
-            "deviceAssetId": device_asset_id,
-            "deviceId": device_id,
             "fileCreatedAt": file_created_at,
             "fileModifiedAt": file_modified_at,
         }
@@ -324,7 +321,8 @@ class ImmichClient:
         from_asset_id: str,
         to_asset_id: str,
     ) -> tuple[bool, str | None]:
-        """Copy asset metadata (favorite, archive, albums) from one asset to another."""
+        """Copy asset metadata (favorite, visibility, rating, albums, stack)
+        from one asset to another."""
         # 1. Fetch source asset details
         source_url = urljoin(self.api_base, f"assets/{from_asset_id}")
         try:
@@ -337,14 +335,18 @@ class ImmichClient:
         except Exception as e:
             return False, str(e)
 
-        # 2. Bulk-update target asset with favorite / archive status.
+        # 2. Bulk-update target asset with favorite / visibility / rating.
         #    Only include fields that were explicitly present in the source
         #    so we don't reset state when the API omits keys.
         update_url = urljoin(self.api_base, "assets")
         update_body: dict[str, Any] = {"ids": [to_asset_id]}
-        for key in ("isFavorite", "isArchived", "isTrashed", "rating"):
+        for key in ("isFavorite", "visibility"):
             if key in source_data:
                 update_body[key] = source_data[key]
+        if "rating" in source_data:
+            rating = source_data["rating"]
+            # 0 and -1 are no longer valid rating values; unrated is null.
+            update_body["rating"] = rating if rating and 1 <= rating <= 5 else None
 
         if len(update_body) > 1:  # ids is always present
             try:
@@ -363,37 +365,30 @@ class ImmichClient:
             except Exception as e:
                 return False, str(e)
 
-        # 3. Add target asset to each of the source's albums
-        album_errors: list[str] = []
-        albums_url = urljoin(self.api_base, "albums")
+        # 3. Copy album and stack associations from source to target.
+        copy_url = urljoin(self.api_base, "assets/copy")
+        copy_body = {
+            "sourceId": from_asset_id,
+            "targetId": to_asset_id,
+            "albums": True,
+            "stack": True,
+            "favorite": False,
+            "sharedLinks": False,
+            "sidecar": False,
+        }
         try:
-            albums_resp = self._request_with_retry(
-                "GET", albums_url, params={"assetId": from_asset_id}
-            )
-            if albums_resp.status_code == 200:
-                albums = albums_resp.json()
-                for album in albums:
-                    album_id = album.get("id")
-                    if not album_id:
-                        continue
-                    album_url = urljoin(self.api_base, f"albums/{album_id}/assets")
-                    try:
-                        album_resp = self._request_with_retry(
-                            "PUT", album_url, json={"ids": [to_asset_id]}
-                        )
-                        if album_resp.status_code not in (200, 204):
-                            album_name = album.get("albumName", "unknown")
-                            album_errors.append(
-                                f"album '{album_name}': HTTP {album_resp.status_code}"
-                            )
-                    except Exception as e:
-                        album_name = album.get("albumName", "unknown")
-                        album_errors.append(f"album '{album_name}': {e}")
+            copy_resp = self._request_with_retry("PUT", copy_url, json=copy_body)
+            if copy_resp.status_code not in (200, 204):
+                try:
+                    error_detail = copy_resp.json()
+                    error_msg = error_detail.get("message", str(error_detail))
+                except Exception:
+                    error_msg = copy_resp.text or "Unknown error"
+                return False, (
+                    f"Album copy failed: HTTP {copy_resp.status_code} - {error_msg}"
+                )
         except Exception as e:
-            album_errors.append(f"fetch albums: {e}")
-
-        if album_errors:
-            return False, f"Album copy failed: {'; '.join(album_errors)}"
+            return False, f"Album copy failed: {e}"
 
         return True, None
 
@@ -439,11 +434,28 @@ class ImmichClient:
         return albums
 
     def get_album_assets(self, album_id: str) -> list[Asset]:
-        """Get all assets from a specific album."""
-        url = urljoin(self.api_base, f"albums/{album_id}")
-        response = self._request_with_retry("GET", url)
-        if response.status_code != 200:
-            raise RuntimeError(f"Failed to get album: HTTP {response.status_code}")
-        data = response.json()
-        items = data.get("assets", [])
-        return [Asset.from_dict(item) for item in items]
+        """Get all assets from a specific album.
+
+        Immich no longer returns an `assets` array from GET /albums/{id};
+        the album's assets must be fetched via search instead.
+        """
+        url = urljoin(self.api_base, "search/metadata")
+        assets: list[Asset] = []
+        page = 1
+        while True:
+            body = {
+                "albumIds": [album_id],
+                "page": page,
+                "size": 500,
+                "order": "asc",
+                "withDeleted": True,
+            }
+            response = self._request_with_retry("POST", url, json=body)
+            if response.status_code != 200:
+                raise RuntimeError(f"Failed to get album: HTTP {response.status_code}")
+            items = response.json().get("assets", {}).get("items", [])
+            if not items:
+                break
+            assets.extend(Asset.from_dict(item) for item in items)
+            page += 1
+        return assets

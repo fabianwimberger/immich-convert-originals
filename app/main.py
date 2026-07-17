@@ -262,13 +262,10 @@ def process_asset(asset: Asset, client: ImmichClient, config: Config) -> dict:
         # Replace: upload -> copy metadata -> verify -> delete original
         base_name = os.path.splitext(asset.original_file_name)[0]
         new_filename = f"{base_name}.{target_format}"
-        new_device_asset_id = f"{asset.id}-{target_format}"
 
         t = time.monotonic()
         new_asset_id, error = client.upload_asset(
             file_path=output_path,
-            device_asset_id=new_device_asset_id,
-            device_id=asset.device_id,
             file_created_at=asset.file_created_at,
             file_modified_at=asset.file_modified_at,
             filename=new_filename,
