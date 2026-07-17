@@ -1,14 +1,17 @@
 """Run API: start conversion runs, track progress, browse history."""
 
+import csv
+import io
 import json
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import StreamingResponse
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.models.asset_outcome import AssetOutcome
+from app.models.asset_outcome import FINAL_STATUSES, AssetOutcome
 from app.models.run import Run
 from app.models.schemas import (
     AssetOutcomeListResponse,
@@ -156,3 +159,67 @@ async def cancel_run(run_id: int, db: AsyncSession = Depends(get_db)):
             await db.refresh(run)
 
     return RunResponse.from_run(run)
+
+
+@router.post("/{run_id}/retry-failed", response_model=RunResponse)
+async def retry_failed(run_id: int, db: AsyncSession = Depends(get_db)):
+    """Start a new run scoped to this run's non-final-status assets, using
+    the same settings the original run used."""
+    result = await db.execute(select(Run).where(Run.id == run_id))
+    source_run = result.scalar_one_or_none()
+    if source_run is None:
+        raise HTTPException(status_code=404, detail="Run not found")
+
+    outcomes_result = await db.execute(
+        select(AssetOutcome.asset_id)
+        .where(AssetOutcome.run_id == run_id)
+        .where(AssetOutcome.status.not_in(FINAL_STATUSES))
+        .distinct()
+    )
+    failed_ids = [row[0] for row in outcomes_result.all()]
+    if not failed_ids:
+        raise HTTPException(
+            status_code=400, detail="This run has no failed assets to retry"
+        )
+
+    cfg = json.loads(source_run.config_snapshot)
+    cfg["asset_ids"] = failed_ids
+
+    run = Run(status="queued", config_snapshot=json.dumps(cfg), dry_run=cfg["dry_run"])
+    db.add(run)
+    await db.commit()
+    await db.refresh(run)
+
+    await run_queue.add_run(run.id)
+    return RunResponse.from_run(run)
+
+
+@router.get("/{run_id}/export-failures")
+async def export_failures(run_id: int, db: AsyncSession = Depends(get_db)):
+    """CSV of this run's non-final-status asset outcomes."""
+    result = await db.execute(select(Run).where(Run.id == run_id))
+    if result.scalar_one_or_none() is None:
+        raise HTTPException(status_code=404, detail="Run not found")
+
+    outcomes_result = await db.execute(
+        select(AssetOutcome)
+        .where(AssetOutcome.run_id == run_id)
+        .where(AssetOutcome.status.not_in(FINAL_STATUSES))
+        .order_by(AssetOutcome.updated_at.desc())
+    )
+    outcomes = outcomes_result.scalars().all()
+
+    buffer = io.StringIO()
+    writer = csv.writer(buffer)
+    writer.writerow(["asset_id", "filename", "status", "error", "updated_at"])
+    for o in outcomes:
+        writer.writerow([o.asset_id, o.filename, o.status, o.error, o.updated_at])
+    buffer.seek(0)
+
+    return StreamingResponse(
+        buffer,
+        media_type="text/csv",
+        headers={
+            "Content-Disposition": f'attachment; filename="run-{run_id}-failures.csv"'
+        },
+    )

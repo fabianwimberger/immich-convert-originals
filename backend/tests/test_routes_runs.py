@@ -163,3 +163,107 @@ class TestCancelRun:
         resp = await client.delete(f"/api/runs/{run_id}")
         assert resp.status_code == 200
         assert resp.json()["status"] == "completed"
+
+
+class TestRetryFailed:
+    async def test_creates_new_run_with_failed_ids_only(self, client):
+        await _configure_connection(client)
+        created = await client.post(
+            "/api/runs", json={"asset_types": "IMAGE", "video_crf": 33}
+        )
+        run_id = created.json()["id"]
+
+        async with AsyncSessionLocal() as db:
+            db.add(
+                AssetOutcome(
+                    run_id=run_id, asset_id="a1", filename="a.jpg", status="success"
+                )
+            )
+            db.add(
+                AssetOutcome(
+                    run_id=run_id,
+                    asset_id="a2",
+                    filename="b.jpg",
+                    status="failed_upload",
+                    error="boom",
+                )
+            )
+            db.add(
+                AssetOutcome(
+                    run_id=run_id,
+                    asset_id="a3",
+                    filename="c.jpg",
+                    status="failed_transcode",
+                )
+            )
+            await db.commit()
+
+        resp = await client.post(f"/api/runs/{run_id}/retry-failed")
+        assert resp.status_code == 200
+        new_run_id = resp.json()["id"]
+        assert new_run_id != run_id
+
+        async with AsyncSessionLocal() as db:
+            from sqlalchemy import select
+
+            result = await db.execute(select(Run).where(Run.id == new_run_id))
+            new_run = result.scalar_one()
+            cfg = json.loads(new_run.config_snapshot)
+            assert set(cfg["asset_ids"]) == {"a2", "a3"}
+            assert cfg["video_crf"] == 33  # carried over from the source run
+
+    async def test_no_failures_returns_400(self, client):
+        await _configure_connection(client)
+        created = await client.post("/api/runs", json={"asset_types": "IMAGE"})
+        run_id = created.json()["id"]
+        async with AsyncSessionLocal() as db:
+            db.add(
+                AssetOutcome(
+                    run_id=run_id, asset_id="a1", filename="a.jpg", status="success"
+                )
+            )
+            await db.commit()
+
+        resp = await client.post(f"/api/runs/{run_id}/retry-failed")
+        assert resp.status_code == 400
+
+    async def test_missing_run_404(self, client):
+        resp = await client.post("/api/runs/999999/retry-failed")
+        assert resp.status_code == 404
+
+
+class TestExportFailures:
+    async def test_returns_csv_of_non_final_outcomes(self, client):
+        await _configure_connection(client)
+        created = await client.post("/api/runs", json={"asset_types": "IMAGE"})
+        run_id = created.json()["id"]
+
+        async with AsyncSessionLocal() as db:
+            db.add(
+                AssetOutcome(
+                    run_id=run_id, asset_id="a1", filename="a.jpg", status="success"
+                )
+            )
+            db.add(
+                AssetOutcome(
+                    run_id=run_id,
+                    asset_id="a2",
+                    filename="b.jpg",
+                    status="failed_upload",
+                    error="boom",
+                )
+            )
+            await db.commit()
+
+        resp = await client.get(f"/api/runs/{run_id}/export-failures")
+        assert resp.status_code == 200
+        assert "text/csv" in resp.headers["content-type"]
+        body = resp.text
+        assert "a2" in body
+        assert "b.jpg" in body
+        assert "boom" in body
+        assert "a1" not in body
+
+    async def test_missing_run_404(self, client):
+        resp = await client.get("/api/runs/999999/export-failures")
+        assert resp.status_code == 404

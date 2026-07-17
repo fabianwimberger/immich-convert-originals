@@ -267,3 +267,35 @@ button:disabled {
   font-size: 0.85rem;
   margin: 0.5rem 0 1rem;
 }
+
+.table-wrap {
+  overflow-x: auto;
+}
+
+.run-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.run-table th,
+.run-table td {
+  text-align: left;
+  padding: 0.4rem 0.6rem;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.run-table td:nth-child(3) {
+  white-space: normal;
+  max-width: 320px;
+  overflow-wrap: anywhere;
+}
+
+.run-row {
+  cursor: pointer;
+}
+
+.run-row:hover {
+  background: var(--panel-bg);
+}
