@@ -6,7 +6,7 @@ from typing import Any
 
 import requests
 
-from app.immich_api import ImmichClient
+from app.services.immich_client import ImmichClient
 
 SEED_MARKER_ALBUM = "__immich-convert-seed-marker__"
 IMAGE_NAMES = (

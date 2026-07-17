@@ -1,6 +1,6 @@
 """Tests for transcode module."""
 
-from app.transcode import (
+from app.services.transcode import (
     MAGIC_BYTES,
     detect_format,
     validate_output,

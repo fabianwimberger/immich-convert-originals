@@ -11,7 +11,7 @@ from typing import Any
 import pytest
 import requests
 
-from app.immich_api import ImmichClient
+from app.services.immich_client import ImmichClient
 
 
 def _get_free_port() -> int:

@@ -11,3 +11,4 @@ __pycache__/
 /work/
 .coverage
 coverage.xml
+backend/tests/.test-data/

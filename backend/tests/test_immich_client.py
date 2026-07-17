@@ -6,7 +6,7 @@ import pytest
 import requests
 import responses
 
-from app.immich_api import Asset, ImmichClient
+from app.services.immich_client import Asset, ImmichClient
 
 
 @pytest.fixture
@@ -65,7 +65,7 @@ class TestAssetFromDict:
 class TestRequestWithRetry:
     @responses.activate
     def test_retries_on_429_with_backoff(self, client, monkeypatch):
-        monkeypatch.setattr("app.immich_api.time.sleep", lambda s: None)
+        monkeypatch.setattr("app.services.immich_client.time.sleep", lambda s: None)
         responses.add(responses.GET, "https://example.com/api/test", status=429)
         responses.add(responses.GET, "https://example.com/api/test", status=429)
         responses.add(responses.GET, "https://example.com/api/test", json={"ok": True})
@@ -76,7 +76,7 @@ class TestRequestWithRetry:
 
     @responses.activate
     def test_retries_on_500(self, client, monkeypatch):
-        monkeypatch.setattr("app.immich_api.time.sleep", lambda s: None)
+        monkeypatch.setattr("app.services.immich_client.time.sleep", lambda s: None)
         responses.add(responses.GET, "https://example.com/api/test", status=500)
         responses.add(responses.GET, "https://example.com/api/test", json={"ok": True})
 
@@ -105,7 +105,7 @@ class TestRequestWithRetry:
 
     @responses.activate
     def test_request_exception_raises_after_retries(self, client, monkeypatch):
-        monkeypatch.setattr("app.immich_api.time.sleep", lambda s: None)
+        monkeypatch.setattr("app.services.immich_client.time.sleep", lambda s: None)
         responses.add(
             responses.GET,
             "https://example.com/api/test",
@@ -330,7 +330,7 @@ class TestUploadAsset:
 
     @responses.activate
     def test_retries_on_500(self, client, tmp_path, monkeypatch):
-        monkeypatch.setattr("app.immich_api.time.sleep", lambda s: None)
+        monkeypatch.setattr("app.services.immich_client.time.sleep", lambda s: None)
         responses.add(responses.POST, "https://example.com/api/assets", status=500)
         responses.add(
             responses.POST,
@@ -486,7 +486,7 @@ class TestDeleteAssets:
 
     @responses.activate
     def test_network_exception_returns_error(self, client, monkeypatch):
-        monkeypatch.setattr("app.immich_api.time.sleep", lambda s: None)
+        monkeypatch.setattr("app.services.immich_client.time.sleep", lambda s: None)
         responses.add(
             responses.DELETE,
             "https://example.com/api/assets",
@@ -542,7 +542,7 @@ class TestGetAsset:
 
     @responses.activate
     def test_exception(self, client, monkeypatch):
-        monkeypatch.setattr("app.immich_api.time.sleep", lambda s: None)
+        monkeypatch.setattr("app.services.immich_client.time.sleep", lambda s: None)
         responses.add(
             responses.GET,
             "https://example.com/api/assets/a1",
@@ -582,7 +582,7 @@ class TestUploadAssetAuthErrors:
 
     @responses.activate
     def test_network_error_exhausts_retries(self, client, tmp_path, monkeypatch):
-        monkeypatch.setattr("app.immich_api.time.sleep", lambda s: None)
+        monkeypatch.setattr("app.services.immich_client.time.sleep", lambda s: None)
         responses.add(
             responses.POST,
             "https://example.com/api/assets",
@@ -655,7 +655,7 @@ class TestCopyAssetDataAlbums:
 
     @responses.activate
     def test_update_network_exception(self, client, monkeypatch):
-        monkeypatch.setattr("app.immich_api.time.sleep", lambda s: None)
+        monkeypatch.setattr("app.services.immich_client.time.sleep", lambda s: None)
         responses.add(
             responses.GET,
             "https://example.com/api/assets/src",
@@ -672,7 +672,7 @@ class TestCopyAssetDataAlbums:
 
     @responses.activate
     def test_copy_endpoint_network_exception(self, client, monkeypatch):
-        monkeypatch.setattr("app.immich_api.time.sleep", lambda s: None)
+        monkeypatch.setattr("app.services.immich_client.time.sleep", lambda s: None)
         responses.add(
             responses.GET,
             "https://example.com/api/assets/src",
@@ -692,7 +692,7 @@ class TestCopyAssetDataAlbums:
 class TestDownloadOriginalException:
     @responses.activate
     def test_connection_error_returns_tuple(self, client, tmp_path, monkeypatch):
-        monkeypatch.setattr("app.immich_api.time.sleep", lambda s: None)
+        monkeypatch.setattr("app.services.immich_client.time.sleep", lambda s: None)
         responses.add(
             responses.GET,
             "https://example.com/api/assets/a1/original",

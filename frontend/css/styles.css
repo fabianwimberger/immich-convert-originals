@@ -1,0 +1,18 @@
+:root {
+  color-scheme: light dark;
+}
+
+body {
+  margin: 0;
+  font-family: system-ui, sans-serif;
+}
+
+.app-header {
+  padding: 1rem;
+  border-bottom: 1px solid #8884;
+}
+
+.placeholder {
+  padding: 2rem;
+  opacity: 0.6;
+}

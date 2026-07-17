@@ -4,7 +4,7 @@ from unittest.mock import patch
 
 import subprocess
 
-from app.transcode import (
+from app.services.transcode import (
     Timeouts,
     copy_metadata,
     detect_video_codec,
@@ -27,7 +27,7 @@ class TestTranscodeImage:
         input_path.write_bytes(b"\xff\xd8\xff" + b"\x00" * 29)
         output_path = tmp_path / "output.jxl"
 
-        with patch("app.transcode.subprocess.run") as mock_run:
+        with patch("app.services.transcode.subprocess.run") as mock_run:
             mock_run.return_value = FakeCompletedProcess(returncode=0)
             result = transcode(str(input_path), str(output_path), 1.0)
 
@@ -41,7 +41,7 @@ class TestTranscodeImage:
         input_path.write_bytes(b"\xff\xd8\xff" + b"\x00" * 29)
         output_path = tmp_path / "output.jxl"
 
-        with patch("app.transcode.subprocess.run") as mock_run:
+        with patch("app.services.transcode.subprocess.run") as mock_run:
             mock_run.side_effect = [
                 FileNotFoundError("cjxl not found"),
                 FakeCompletedProcess(returncode=0),
@@ -58,7 +58,7 @@ class TestTranscodeImage:
         input_path.write_bytes(b"\xff\xd8\xff" + b"\x00" * 29)
         output_path = tmp_path / "output.jxl"
 
-        with patch("app.transcode.subprocess.run") as mock_run:
+        with patch("app.services.transcode.subprocess.run") as mock_run:
             mock_run.side_effect = [
                 FakeCompletedProcess(returncode=1),
                 FakeCompletedProcess(returncode=0),
@@ -75,7 +75,7 @@ class TestTranscodeImage:
         input_path.write_bytes(b"\x89\x50\x4e\x47\x0d\x0a\x1a\x0a" + b"\x00" * 24)
         output_path = tmp_path / "output.jxl"
 
-        with patch("app.transcode.subprocess.run") as mock_run:
+        with patch("app.services.transcode.subprocess.run") as mock_run:
             mock_run.side_effect = [
                 FakeCompletedProcess(returncode=0),
                 FakeCompletedProcess(returncode=0),
@@ -110,7 +110,7 @@ class TestTranscodeImage:
         output_path = tmp_path / "output.jxl"
 
         timeouts = Timeouts(image=42)
-        with patch("app.transcode.subprocess.run") as mock_run:
+        with patch("app.services.transcode.subprocess.run") as mock_run:
             mock_run.return_value = FakeCompletedProcess(returncode=0)
             transcode(str(input_path), str(output_path), 1.0, timeouts=timeouts)
 
@@ -122,7 +122,7 @@ class TestTranscodeImage:
         input_path.write_bytes(b"\xff\xd8\xff" + b"\x00" * 29)
         output_path = tmp_path / "output.jxl"
 
-        with patch("app.transcode.subprocess.run") as mock_run:
+        with patch("app.services.transcode.subprocess.run") as mock_run:
             mock_run.side_effect = subprocess.TimeoutExpired(cmd="cjxl", timeout=5)
             result = transcode(str(input_path), str(output_path), 1.0)
 
@@ -134,7 +134,7 @@ class TestTranscodeImage:
         input_path.write_bytes(b"\x89\x50\x4e\x47\x0d\x0a\x1a\x0a" + b"\x00" * 24)
         output_path = tmp_path / "output.jxl"
 
-        with patch("app.transcode.subprocess.run") as mock_run:
+        with patch("app.services.transcode.subprocess.run") as mock_run:
             mock_run.side_effect = subprocess.TimeoutExpired(cmd="magick", timeout=5)
             result = transcode(str(input_path), str(output_path), 1.0)
 
@@ -146,7 +146,7 @@ class TestTranscodeImage:
         input_path.write_bytes(b"\x89\x50\x4e\x47\x0d\x0a\x1a\x0a" + b"\x00" * 24)
         output_path = tmp_path / "output.jxl"
 
-        with patch("app.transcode.subprocess.run") as mock_run:
+        with patch("app.services.transcode.subprocess.run") as mock_run:
             mock_run.side_effect = subprocess.CalledProcessError(
                 returncode=1, cmd="magick", stderr=b"bad input"
             )
@@ -161,7 +161,7 @@ class TestTranscodeImage:
         input_path.write_bytes(b"\x89\x50\x4e\x47\x0d\x0a\x1a\x0a" + b"\x00" * 24)
         output_path = tmp_path / "output.jxl"
 
-        with patch("app.transcode.subprocess.run") as mock_run:
+        with patch("app.services.transcode.subprocess.run") as mock_run:
             mock_run.side_effect = FileNotFoundError("nope")
             result = transcode(str(input_path), str(output_path), 1.0)
 
@@ -175,7 +175,7 @@ class TestTranscodeVideo:
         input_path.write_bytes(b"\x00" * 100)
         output_path = tmp_path / "output.mp4"
 
-        with patch("app.transcode.subprocess.run") as mock_run:
+        with patch("app.services.transcode.subprocess.run") as mock_run:
             mock_run.return_value = FakeCompletedProcess(stdout="av1")
             result = transcode_video(
                 str(input_path), str(output_path), 36, "4", 0, "64k"
@@ -189,7 +189,7 @@ class TestTranscodeVideo:
         input_path.write_bytes(b"\x00" * 100)
         output_path = tmp_path / "output.mp4"
 
-        with patch("app.transcode.subprocess.run") as mock_run:
+        with patch("app.services.transcode.subprocess.run") as mock_run:
             mock_run.return_value = FakeCompletedProcess(stdout="h264")
             result = transcode_video(
                 str(input_path), str(output_path), 30, "4", 0, "128k"
@@ -211,7 +211,7 @@ class TestTranscodeVideo:
         input_path.write_bytes(b"\x00" * 100)
         output_path = tmp_path / "output.mp4"
 
-        with patch("app.transcode.subprocess.run") as mock_run:
+        with patch("app.services.transcode.subprocess.run") as mock_run:
             mock_run.return_value = FakeCompletedProcess(stdout="h264")
             result = transcode_video(
                 str(input_path), str(output_path), 36, "4", 1080, "64k"
@@ -228,7 +228,7 @@ class TestTranscodeVideo:
         input_path.write_bytes(b"\x00" * 100)
         output_path = tmp_path / "output.mp4"
 
-        with patch("app.transcode.subprocess.run") as mock_run:
+        with patch("app.services.transcode.subprocess.run") as mock_run:
             mock_run.return_value = FakeCompletedProcess(stdout="h264")
             result = transcode_video(
                 str(input_path), str(output_path), 40, "6", 0, "64k"
@@ -244,7 +244,7 @@ class TestTranscodeVideo:
         input_path.write_bytes(b"\x00" * 100)
         output_path = tmp_path / "output.mp4"
 
-        with patch("app.transcode.subprocess.run") as mock_run:
+        with patch("app.services.transcode.subprocess.run") as mock_run:
             mock_run.return_value = FakeCompletedProcess(returncode=1)
             result = transcode_video(
                 str(input_path), str(output_path), 36, "4", 0, "64k"
@@ -258,7 +258,7 @@ class TestTranscodeVideo:
         input_path.write_bytes(b"\x00" * 100)
         output_path = tmp_path / "output.mp4"
 
-        with patch("app.transcode.subprocess.run") as mock_run:
+        with patch("app.services.transcode.subprocess.run") as mock_run:
             mock_run.side_effect = [
                 FakeCompletedProcess(stdout="h264"),
                 FileNotFoundError("ffmpeg not found"),
@@ -275,7 +275,7 @@ class TestTranscodeVideo:
         input_path.write_bytes(b"\x00" * 100)
         output_path = tmp_path / "output.mp4"
 
-        with patch("app.transcode.subprocess.run") as mock_run:
+        with patch("app.services.transcode.subprocess.run") as mock_run:
             mock_run.side_effect = [
                 FakeCompletedProcess(stdout="h264"),
                 subprocess.TimeoutExpired("ffmpeg", 43200),
@@ -293,7 +293,7 @@ class TestTranscodeVideo:
         output_path = tmp_path / "output.mp4"
 
         timeouts = Timeouts(video=99, probe=11)
-        with patch("app.transcode.subprocess.run") as mock_run:
+        with patch("app.services.transcode.subprocess.run") as mock_run:
             mock_run.side_effect = [
                 FakeCompletedProcess(stdout="h264"),
                 FakeCompletedProcess(returncode=0),
@@ -319,7 +319,7 @@ class TestDetectVideoCodec:
         video = tmp_path / "video.mp4"
         video.write_bytes(b"\x00" * 10)
 
-        with patch("app.transcode.subprocess.run") as mock_run:
+        with patch("app.services.transcode.subprocess.run") as mock_run:
             mock_run.return_value = FakeCompletedProcess(stdout="h264")
             codec = detect_video_codec(str(video))
 
@@ -329,7 +329,7 @@ class TestDetectVideoCodec:
         video = tmp_path / "video.mp4"
         video.write_bytes(b"\x00" * 10)
 
-        with patch("app.transcode.subprocess.run") as mock_run:
+        with patch("app.services.transcode.subprocess.run") as mock_run:
             mock_run.side_effect = subprocess.TimeoutExpired("ffprobe", 60)
             codec = detect_video_codec(str(video))
 
@@ -339,7 +339,7 @@ class TestDetectVideoCodec:
         video = tmp_path / "video.mp4"
         video.write_bytes(b"\x00" * 10)
 
-        with patch("app.transcode.subprocess.run") as mock_run:
+        with patch("app.services.transcode.subprocess.run") as mock_run:
             mock_run.side_effect = FileNotFoundError("ffprobe not found")
             codec = detect_video_codec(str(video))
 
@@ -350,7 +350,7 @@ class TestDetectVideoCodec:
         video.write_bytes(b"\x00" * 10)
 
         timeouts = Timeouts(probe=7)
-        with patch("app.transcode.subprocess.run") as mock_run:
+        with patch("app.services.transcode.subprocess.run") as mock_run:
             mock_run.return_value = FakeCompletedProcess(stdout="hevc")
             detect_video_codec(str(video), timeouts=timeouts)
 
@@ -364,7 +364,7 @@ class TestCopyMetadata:
         src.write_bytes(b"a")
         dst.write_bytes(b"b")
 
-        with patch("app.transcode.subprocess.run") as mock_run:
+        with patch("app.services.transcode.subprocess.run") as mock_run:
             mock_run.return_value = FakeCompletedProcess(returncode=0)
             assert copy_metadata(str(src), str(dst)) is True
 
@@ -374,7 +374,7 @@ class TestCopyMetadata:
         src.write_bytes(b"a")
         dst.write_bytes(b"b")
 
-        with patch("app.transcode.subprocess.run") as mock_run:
+        with patch("app.services.transcode.subprocess.run") as mock_run:
             mock_run.side_effect = subprocess.CalledProcessError(1, "exiftool")
             assert copy_metadata(str(src), str(dst)) is False
 
@@ -384,7 +384,7 @@ class TestCopyMetadata:
         src.write_bytes(b"a")
         dst.write_bytes(b"b")
 
-        with patch("app.transcode.subprocess.run") as mock_run:
+        with patch("app.services.transcode.subprocess.run") as mock_run:
             mock_run.side_effect = subprocess.TimeoutExpired("exiftool", 120)
             assert copy_metadata(str(src), str(dst)) is False
 
@@ -394,7 +394,7 @@ class TestCopyMetadata:
         src.write_bytes(b"a")
         dst.write_bytes(b"b")
 
-        with patch("app.transcode.subprocess.run") as mock_run:
+        with patch("app.services.transcode.subprocess.run") as mock_run:
             mock_run.side_effect = FileNotFoundError("exiftool not found")
             assert copy_metadata(str(src), str(dst)) is False
 
@@ -405,7 +405,7 @@ class TestCopyMetadata:
         dst.write_bytes(b"b")
 
         timeouts = Timeouts(metadata=13)
-        with patch("app.transcode.subprocess.run") as mock_run:
+        with patch("app.services.transcode.subprocess.run") as mock_run:
             mock_run.return_value = FakeCompletedProcess(returncode=0)
             copy_metadata(str(src), str(dst), timeouts=timeouts)
 
@@ -417,7 +417,7 @@ class TestValidateVideoOutput:
         video = tmp_path / "video.mp4"
         video.write_bytes(b"\x00" * 10)
 
-        with patch("app.transcode.subprocess.run") as mock_run:
+        with patch("app.services.transcode.subprocess.run") as mock_run:
             mock_run.return_value = FakeCompletedProcess(stdout="12.5")
             assert validate_video_output(str(video)) is True
 
@@ -433,7 +433,7 @@ class TestValidateVideoOutput:
         video = tmp_path / "video.mp4"
         video.write_bytes(b"\x00" * 10)
 
-        with patch("app.transcode.subprocess.run") as mock_run:
+        with patch("app.services.transcode.subprocess.run") as mock_run:
             mock_run.return_value = FakeCompletedProcess(stdout="N/A")
             assert validate_video_output(str(video)) is False
 
@@ -442,7 +442,7 @@ class TestValidateVideoOutput:
         video.write_bytes(b"\x00" * 10)
 
         timeouts = Timeouts(probe=5)
-        with patch("app.transcode.subprocess.run") as mock_run:
+        with patch("app.services.transcode.subprocess.run") as mock_run:
             mock_run.return_value = FakeCompletedProcess(stdout="1.0")
             validate_video_output(str(video), timeouts=timeouts)
 

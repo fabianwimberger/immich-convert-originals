@@ -4,16 +4,23 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "immich-convert-originals"
-version = "1.2.0"
+version = "2.0.0"
 requires-python = ">=3.13"
 dependencies = [
+    "fastapi>=0.139.0",
+    "uvicorn[standard]>=0.51.0",
+    "sqlalchemy>=2.0.51",
+    "aiosqlite>=0.22.1",
+    "websockets>=16.1",
     "requests>=2.34.2",
 ]
 
 [project.optional-dependencies]
 dev = [
     "pytest>=9.1.1",
+    "pytest-asyncio>=1.4.0",
     "pytest-cov>=7.0.0",
+    "httpx>=0.28.1",
     "responses>=0.26.1",
     "ruff>=0.15.21",
     "mypy>=2.2.0",
@@ -21,14 +28,16 @@ dev = [
 ]
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
-addopts = "-v --cov=app --cov-report=term --cov-report=xml"
+testpaths = ["backend/tests"]
+addopts = "-v --cov=backend/app --cov-report=term --cov-report=xml"
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
 markers = [
     "integration: end-to-end tests against real Immich",
 ]
 
 [tool.coverage.run]
-source = ["app"]
+source = ["backend/app"]
 branch = true
 
 [tool.coverage.report]
@@ -37,9 +46,10 @@ skip_covered = false
 
 [tool.ruff]
 target-version = "py313"
-include = ["app/**/*.py", "tests/**/*.py"]
+include = ["backend/app/**/*.py", "backend/tests/**/*.py"]
 
 [tool.mypy]
 python_version = "3.13"
 ignore_missing_imports = true
 explicit_package_bases = true
+mypy_path = "backend"
