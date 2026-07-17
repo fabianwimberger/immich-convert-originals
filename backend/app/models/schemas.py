@@ -86,3 +86,31 @@ class TestConnectionResponse(BaseModel):
     ok: bool
     error: str | None = None
     server_version: str | None = None
+
+
+class AssetItem(BaseModel):
+    id: str
+    original_file_name: str
+    original_path: str
+    original_mime_type: str | None
+    type: str
+    file_created_at: str
+    file_modified_at: str
+    already_jxl: bool
+
+
+class AssetListResponse(BaseModel):
+    items: list[AssetItem]
+    page: int
+    size: int
+    has_more: bool
+
+
+class AlbumItem(BaseModel):
+    id: str
+    album_name: str
+    asset_count: int
+
+
+class AlbumListResponse(BaseModel):
+    items: list[AlbumItem]

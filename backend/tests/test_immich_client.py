@@ -267,6 +267,46 @@ class TestSearchAssets:
             client.search_assets(page=1, size=10, asset_type="IMAGE")
 
 
+class TestGetThumbnail:
+    @responses.activate
+    def test_happy_path(self, client):
+        responses.add(
+            responses.GET,
+            "https://example.com/api/assets/a1/thumbnail",
+            body=b"\xff\xd8\xff\x00fake-jpeg",
+            status=200,
+            content_type="image/jpeg",
+        )
+        content, content_type, error = client.get_thumbnail("a1")
+        assert content == b"\xff\xd8\xff\x00fake-jpeg"
+        assert content_type == "image/jpeg"
+        assert error is None
+        assert responses.calls[0].request.params["size"] == "thumbnail"
+
+    @responses.activate
+    def test_non_200_returns_error(self, client):
+        responses.add(
+            responses.GET,
+            "https://example.com/api/assets/a1/thumbnail",
+            status=404,
+        )
+        content, content_type, error = client.get_thumbnail("a1")
+        assert content is None
+        assert "HTTP 404" in error
+
+    @responses.activate
+    def test_exception_returns_error(self, client, monkeypatch):
+        monkeypatch.setattr("app.services.immich_client.time.sleep", lambda s: None)
+        responses.add(
+            responses.GET,
+            "https://example.com/api/assets/a1/thumbnail",
+            body=requests.ConnectionError("refused"),
+        )
+        content, content_type, error = client.get_thumbnail("a1")
+        assert content is None
+        assert "refused" in error or "Request failed" in error
+
+
 class TestDownloadOriginal:
     @responses.activate
     def test_streams_bytes_and_returns_size(self, client, tmp_path):

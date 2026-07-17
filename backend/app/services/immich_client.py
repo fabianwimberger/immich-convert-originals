@@ -162,6 +162,23 @@ class ImmichClient:
         items = data.get("assets", {}).get("items", [])
         return [Asset.from_dict(item) for item in items]
 
+    def get_thumbnail(
+        self, asset_id: str, size: str = "thumbnail"
+    ) -> tuple[bytes | None, str | None, str | None]:
+        """Fetch a thumbnail image. Returns (content, content_type, error)."""
+        url = urljoin(self.api_base, f"assets/{asset_id}/thumbnail")
+        try:
+            response = self._request_with_retry("GET", url, params={"size": size})
+            if response.status_code != 200:
+                return None, None, f"Thumbnail failed: HTTP {response.status_code}"
+            return (
+                response.content,
+                response.headers.get("content-type", "image/jpeg"),
+                None,
+            )
+        except Exception as e:
+            return None, None, str(e)
+
     def download_original(
         self, asset_id: str, output_path: str
     ) -> tuple[int, str | None]:

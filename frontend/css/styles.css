@@ -1,18 +1,219 @@
 :root {
   color-scheme: light dark;
+  --accent: #3b82f6;
+  --ok: #16a34a;
+  --error: #dc2626;
+  --border: color-mix(in srgb, currentColor 15%, transparent);
+  --panel-bg: color-mix(in srgb, currentColor 4%, transparent);
+}
+
+* {
+  box-sizing: border-box;
 }
 
 body {
   margin: 0;
-  font-family: system-ui, sans-serif;
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  line-height: 1.5;
 }
 
 .app-header {
-  padding: 1rem;
-  border-bottom: 1px solid #8884;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 1rem;
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.app-header h1 {
+  font-size: 1.25rem;
+  margin: 0;
+}
+
+.tabs {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.tab-btn {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.4rem 0.9rem;
+  cursor: pointer;
+  color: inherit;
+  font-size: 0.9rem;
+}
+
+.tab-btn.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: white;
+}
+
+#app {
+  padding: 1rem 1.5rem 3rem;
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+.tab-panel {
+  display: none;
+}
+
+.tab-panel.active {
+  display: block;
+}
+
+.panel {
+  border: 1px solid var(--border);
+  background: var(--panel-bg);
+  border-radius: 10px;
+  padding: 1.25rem;
+  margin-bottom: 1.25rem;
+}
+
+.panel h2 {
+  margin-top: 0;
+  font-size: 1.05rem;
+}
+
+.panel label {
+  display: block;
+  font-size: 0.85rem;
+  opacity: 0.85;
+  margin-bottom: 0.75rem;
+}
+
+.panel label input[type="text"],
+.panel label input[type="password"],
+.panel label input[type="number"],
+.panel label select {
+  display: block;
+  width: 100%;
+  max-width: 360px;
+  margin-top: 0.25rem;
+  padding: 0.4rem 0.5rem;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: inherit;
+  font-size: 0.9rem;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.row label {
+  margin-bottom: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+button {
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.45rem 0.9rem;
+  cursor: pointer;
+  color: inherit;
+  font-size: 0.85rem;
+}
+
+button.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: white;
+}
+
+button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.status-ok {
+  color: var(--ok);
+  font-size: 0.85rem;
+}
+
+.status-error {
+  color: var(--error);
+  font-size: 0.85rem;
 }
 
 .placeholder {
-  padding: 2rem;
   opacity: 0.6;
+  padding: 1rem 0;
+}
+
+.filters {
+  margin-bottom: 1rem;
+}
+
+.selection-bar {
+  margin-bottom: 0.75rem;
+  font-size: 0.85rem;
+  opacity: 0.9;
+}
+
+.asset-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 0.75rem;
+}
+
+.asset-tile {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.4rem;
+  cursor: pointer;
+  font-size: 0.75rem;
+}
+
+.asset-tile img {
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  border-radius: 4px;
+  background: var(--panel-bg);
+}
+
+.asset-tile input[type="checkbox"] {
+  position: absolute;
+  top: 0.5rem;
+  left: 0.5rem;
+  z-index: 1;
+}
+
+.asset-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.badge {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  background: var(--ok);
+  color: white;
+  font-size: 0.65rem;
+  padding: 0.1rem 0.35rem;
+  border-radius: 4px;
+}
+
+.pager {
+  margin-top: 1rem;
+  justify-content: center;
 }

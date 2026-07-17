@@ -49,9 +49,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+from app.routes import albums, assets  # noqa: E402
 from app.routes import settings as settings_routes  # noqa: E402
 
 app.include_router(settings_routes.router, prefix="/api/settings", tags=["settings"])
+app.include_router(assets.router, prefix="/api/assets", tags=["assets"])
+app.include_router(albums.router, prefix="/api/albums", tags=["albums"])
 
 
 @app.get("/api/health")
