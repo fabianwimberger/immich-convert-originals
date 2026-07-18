@@ -269,25 +269,17 @@ async def _resolve_assets(client: ImmichClient, cfg: dict[str, Any]) -> list[Ass
     return assets
 
 
-async def _record_outcome(run_id: int, asset: Asset, result: dict[str, Any]) -> None:
-    async with AsyncSessionLocal() as db:
-        outcome = AssetOutcome(
-            run_id=run_id,
-            asset_id=asset.id,
-            filename=asset.original_file_name,
-            status=result["status"],
-            error=result.get("error"),
-            new_asset_id=result.get("new_asset_id"),
-            target_format=_get_target_format(asset),
-            input_bytes=result.get("input_bytes", 0),
-            output_bytes=result.get("output_bytes", 0),
-            updated_at=datetime.now(timezone.utc),
-        )
-        db.add(outcome)
-        await db.commit()
+async def _persist_asset_result(
+    run_id: int, asset: Asset, result: dict[str, Any]
+) -> dict[str, int]:
+    """Write the asset's outcome row and bump the run's counters/byte totals
+    in a single transaction, instead of three separate connections/commits.
+    Under fast, I/O-less skips this used to be the bottleneck: three SQLite
+    writers per asset competing for one file lock."""
+    status = result["status"]
+    input_bytes = result.get("input_bytes", 0)
+    output_bytes = result.get("output_bytes", 0)
 
-
-async def _bump_run_counters(run_id: int, status: str) -> dict[str, int]:
     increments: dict[str, Any] = {"processed_count": Run.processed_count + 1}
     if status in ("success", "partial_success", "dry_run_preview"):
         increments["success_count"] = Run.success_count + 1
@@ -295,34 +287,36 @@ async def _bump_run_counters(run_id: int, status: str) -> dict[str, int]:
         increments["skipped_count"] = Run.skipped_count + 1
     else:
         increments["failed_count"] = Run.failed_count + 1
+    if input_bytes or output_bytes:
+        increments["input_bytes"] = Run.input_bytes + input_bytes
+        increments["output_bytes"] = Run.output_bytes + output_bytes
 
     async with AsyncSessionLocal() as db:
+        outcome = AssetOutcome(
+            run_id=run_id,
+            asset_id=asset.id,
+            filename=asset.original_file_name,
+            status=status,
+            error=result.get("error"),
+            new_asset_id=result.get("new_asset_id"),
+            target_format=_get_target_format(asset),
+            input_bytes=input_bytes,
+            output_bytes=output_bytes,
+            updated_at=datetime.now(timezone.utc),
+        )
+        db.add(outcome)
         await db.execute(update(Run).where(Run.id == run_id).values(**increments))
-        await db.commit()
-        result = await db.execute(select(Run).where(Run.id == run_id))
-        run = result.scalar_one()
-        return {
+        result_row = await db.execute(select(Run).where(Run.id == run_id))
+        run = result_row.scalar_one()
+        counters = {
             "processed_count": run.processed_count,
             "success_count": run.success_count,
             "skipped_count": run.skipped_count,
             "failed_count": run.failed_count,
             "total_assets": run.total_assets,
         }
-
-
-async def _add_run_bytes(run_id: int, input_bytes: int, output_bytes: int) -> None:
-    if not input_bytes and not output_bytes:
-        return
-    async with AsyncSessionLocal() as db:
-        await db.execute(
-            update(Run)
-            .where(Run.id == run_id)
-            .values(
-                input_bytes=Run.input_bytes + input_bytes,
-                output_bytes=Run.output_bytes + output_bytes,
-            )
-        )
         await db.commit()
+        return counters
 
 
 async def _run_one_asset(
@@ -347,15 +341,23 @@ async def _run_one_asset(
             }
         )
 
-        result = await asyncio.to_thread(
-            _process_asset_sync, asset, client, cfg, work_dir
-        )
+        try:
+            result = await asyncio.to_thread(
+                _process_asset_sync, asset, client, cfg, work_dir
+            )
+        except Exception as e:
+            # asyncio.gather() doesn't cancel sibling tasks when one of them
+            # raises -- letting this propagate would make execute_run's
+            # except/finally run work_dir cleanup while other assets are
+            # still mid-download into that same directory.
+            logger.exception("Unhandled error processing asset %s", asset.id)
+            result = {"status": "failed_error", "error": str(e)}
 
-        await _record_outcome(run_id, asset, result)
-        await _add_run_bytes(
-            run_id, result.get("input_bytes", 0), result.get("output_bytes", 0)
-        )
-        counters = await _bump_run_counters(run_id, result["status"])
+        try:
+            counters = await _persist_asset_result(run_id, asset, result)
+        except Exception:
+            logger.exception("Failed to persist outcome for asset %s", asset.id)
+            return
 
         await websocket_manager.broadcast(
             {

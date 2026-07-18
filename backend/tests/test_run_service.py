@@ -538,3 +538,76 @@ class TestExecuteRun:
         assert refreshed.success_count == 2
         assert {o.asset_id for o in outcomes} == {"run-a1", "run-a2"}
         assert all(o.status == "success" for o in outcomes)
+
+    async def test_one_asset_exception_does_not_abort_run(self, tmp_path, monkeypatch):
+        """An unexpected error in one asset's pipeline must not blow up the
+        whole gather() -- it should be recorded as a failed outcome and let
+        the rest of the run continue instead of aborting to execute_run's
+        except/finally (which deletes work_dir out from under any sibling
+        assets still using it)."""
+        monkeypatch.setenv("TEMP_DIR", str(tmp_path))
+        await init_db()
+        async with AsyncSessionLocal() as db:
+            await db.execute(delete(AssetOutcome))
+            await db.commit()
+
+        a1 = _make_asset("boom-a1", file_name="one.jpg")
+        a2 = _make_asset("boom-a2", file_name="two.jpg")
+        client = FakeClient(search_pages={"IMAGE": [[a1, a2], []], "VIDEO": [[]]})
+        monkeypatch.setattr(run_service, "ImmichClient", FakeClientFactory(client))
+        monkeypatch.setattr(run_service, "validate_output", lambda path, fmt: True)
+
+        def flaky_transcode(inp, out, distance):
+            if "boom-a1" in inp:
+                raise RuntimeError("disk exploded")
+            return TranscodeResult(
+                success=True,
+                input_path=inp,
+                output_path=out,
+                input_bytes=1000,
+                output_bytes=500,
+                input_format="jpg",
+            )
+
+        monkeypatch.setattr(run_service, "transcode", flaky_transcode)
+
+        cfg = {
+            **BASE_CFG,
+            "immich_api_base": "https://example.com/api/",
+            "immich_api_key": "key",
+            "asset_ids": None,
+            "asset_types": "IMAGE",
+            "album_id": None,
+            "include_archived": False,
+            "include_deleted": False,
+            "taken_after": None,
+            "taken_before": None,
+            "original_filename": None,
+            "max_assets": None,
+            "concurrency": 1,
+        }
+
+        async with AsyncSessionLocal() as db:
+            run = Run(status="queued", config_snapshot=json.dumps(cfg))
+            db.add(run)
+            await db.commit()
+            await db.refresh(run)
+            run_id = run.id
+
+        await run_service.execute_run(run_id)
+
+        async with AsyncSessionLocal() as db:
+            run_result = await db.execute(select(Run).where(Run.id == run_id))
+            refreshed = run_result.scalar_one()
+            outcomes_result = await db.execute(
+                select(AssetOutcome).where(AssetOutcome.run_id == run_id)
+            )
+            outcomes = {o.asset_id: o for o in outcomes_result.scalars().all()}
+
+        assert refreshed.status == "completed"
+        assert refreshed.processed_count == 2
+        assert refreshed.failed_count == 1
+        assert refreshed.success_count == 1
+        assert outcomes["boom-a1"].status == "failed_error"
+        assert "disk exploded" in outcomes["boom-a1"].error
+        assert outcomes["boom-a2"].status == "success"
