@@ -157,7 +157,7 @@ jobs:
             -v "$PWD:/workspace" \
             -e IMMICH_TEST_API_BASE=http://immich-test-server:2283/api/ \
             immich-convert-test-runner \
-            pytest -m integration -v -p no:cov
+            pytest -m integration -v --no-cov
 
       - name: Tear down stack
         if: always()
@@ -222,7 +222,7 @@ jobs:
             -v "$PWD:/workspace" \
             -e IMMICH_TEST_API_BASE=http://immich-test-server:2283/api/ \
             immich-convert-test-runner \
-            pytest -m integration -v -p no:cov
+            pytest -m integration -v --no-cov
 
       - name: Tear down stack
         if: always()
