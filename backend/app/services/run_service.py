@@ -124,6 +124,10 @@ def _process_asset_sync(
             is_valid = validate_output(output_path, "jxl")
 
         if not tx.success:
+            # No output was produced, so input_bytes must not carry a
+            # before/after size comparison -- otherwise the UI reads
+            # "output_bytes stayed 0" as "100% saved by producing nothing".
+            result["input_bytes"] = 0
             if tx.error and tx.error.startswith("Already "):
                 result["status"] = "skipped"
                 return result
@@ -131,6 +135,7 @@ def _process_asset_sync(
             result["error"] = tx.error
             return result
         if not is_valid:
+            result["input_bytes"] = 0
             result["status"] = "failed_transcode"
             result["error"] = "Output validation failed"
             return result

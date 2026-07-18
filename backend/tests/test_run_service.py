@@ -298,6 +298,7 @@ class TestProcessAssetSyncImages:
         )
         result = run_service._process_asset_sync(asset, client, BASE_CFG, str(tmp_path))
         assert result["status"] == "failed_transcode"
+        assert result["input_bytes"] == 0
 
     def test_cleans_up_temp_files(self, tmp_path, monkeypatch):
         asset = _make_asset()
@@ -368,6 +369,7 @@ class TestProcessAssetSyncVideos:
         cfg = {**BASE_CFG, "dry_run": True}
         result = run_service._process_asset_sync(asset, client, cfg, str(tmp_path))
         assert result["status"] == "skipped"
+        assert result["input_bytes"] == 0
 
     def test_video_happy_path(self, tmp_path, monkeypatch):
         asset = _make_asset(
