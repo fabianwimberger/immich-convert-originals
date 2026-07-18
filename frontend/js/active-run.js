@@ -9,6 +9,7 @@ class ActiveRun {
     this.run = null;
     this.log = []; // ordered per-asset entries, updated in place as they resolve
     this._logIndex = new Map(); // asset_id -> index into this.log
+    this._rowEls = new Map(); // asset_id -> rendered <tr>
     this._unsubscribe = null;
     this.onBack = null; // set by RunPanel: return to the config screen
   }
@@ -17,6 +18,7 @@ class ActiveRun {
     this.runId = runId;
     this.log = [];
     this._logIndex.clear();
+    this._rowEls.clear();
     this.run = await api.get(`/runs/${runId}`);
     this._renderShell();
     this._renderSummary();
@@ -31,8 +33,10 @@ class ActiveRun {
 
     if (msg.type === "asset_progress") {
       if (msg.stage === "processing") {
+        const entry = { asset_id: msg.asset_id, filename: msg.filename, status: "processing" };
         this._logIndex.set(msg.asset_id, this.log.length);
-        this.log.push({ asset_id: msg.asset_id, filename: msg.filename, status: "processing" });
+        this.log.push(entry);
+        this._appendRow(entry);
       } else {
         const entry = {
           asset_id: msg.asset_id,
@@ -44,10 +48,15 @@ class ActiveRun {
           output_bytes: msg.output_bytes,
         };
         const idx = this._logIndex.get(msg.asset_id);
-        if (idx !== undefined) this.log[idx] = entry;
-        else this.log.push(entry);
+        if (idx !== undefined) {
+          this.log[idx] = entry;
+          this._updateRow(entry);
+        } else {
+          this._logIndex.set(msg.asset_id, this.log.length);
+          this.log.push(entry);
+          this._appendRow(entry);
+        }
       }
-      this._renderLog();
     } else if (msg.type === "run_progress") {
       Object.assign(this.run, {
         processed_count: msg.processed_count,
@@ -121,32 +130,58 @@ class ActiveRun {
     if (backBtn) backBtn.addEventListener("click", () => this.onBack && this.onBack());
   }
 
+  // Log rows are patched in place instead of re-rendering the whole table
+  // on every message -- with fast, I/O-less skips, messages can arrive in a
+  // burst fast enough that rebuilding the entire (growing) log on each one
+  // freezes the tab.
   _renderLog() {
+    const body = this.root.querySelector("#run-log-body");
+    if (!body) return;
+    body.innerHTML = `<tr><td colspan="6" class="placeholder">Waiting for the first asset&hellip;</td></tr>`;
+  }
+
+  _rowCells(o) {
+    return `
+      <td>${o.filename}</td>
+      <td class="${statusTextClass(o.status)}">${prettyStatus(o.status)}</td>
+      <td>${o.target_format || ""}</td>
+      <td>${o.input_bytes ? `${fmtBytes(o.input_bytes)} &rarr; ${fmtBytes(o.output_bytes)}` : ""}</td>
+      <td>${savedLabel(o.input_bytes, o.output_bytes)}</td>
+      <td>${o.error || ""}</td>
+    `;
+  }
+
+  _appendRow(entry) {
     const scrollEl = this.root.querySelector("#run-log-scroll");
     const body = this.root.querySelector("#run-log-body");
     if (!body) return;
-
     const nearBottom = scrollEl.scrollTop + scrollEl.clientHeight >= scrollEl.scrollHeight - 24;
 
-    if (this.log.length === 0) {
-      body.innerHTML = `<tr><td colspan="6" class="placeholder">Waiting for the first asset&hellip;</td></tr>`;
+    if (this._rowEls.size === 0) {
+      body.innerHTML = "";
+    }
+
+    const tr = document.createElement("tr");
+    tr.innerHTML = this._rowCells(entry);
+    body.appendChild(tr);
+    this._rowEls.set(entry.asset_id, tr);
+
+    if (nearBottom) {
+      scrollEl.scrollTop = scrollEl.scrollHeight;
+    }
+  }
+
+  _updateRow(entry) {
+    const tr = this._rowEls.get(entry.asset_id);
+    if (!tr) {
+      this._appendRow(entry);
       return;
     }
 
-    body.innerHTML = this.log
-      .map(
-        (o) => `
-          <tr>
-            <td>${o.filename}</td>
-            <td class="${statusTextClass(o.status)}">${prettyStatus(o.status)}</td>
-            <td>${o.target_format || ""}</td>
-            <td>${o.input_bytes ? `${fmtBytes(o.input_bytes)} &rarr; ${fmtBytes(o.output_bytes)}` : ""}</td>
-            <td>${savedLabel(o.input_bytes, o.output_bytes)}</td>
-            <td>${o.error || ""}</td>
-          </tr>
-        `
-      )
-      .join("");
+    const scrollEl = this.root.querySelector("#run-log-scroll");
+    const nearBottom = scrollEl.scrollTop + scrollEl.clientHeight >= scrollEl.scrollHeight - 24;
+
+    tr.innerHTML = this._rowCells(entry);
 
     if (nearBottom) {
       scrollEl.scrollTop = scrollEl.scrollHeight;
