@@ -20,16 +20,16 @@ clean:
 
 lint:
 	@echo "Running linters..."
-	@ruff check app/
+	@ruff check backend/
 
 format:
 	@echo "Formatting code..."
-	@ruff format app/
+	@ruff format backend/
 
 test:
 	@echo "Running unit tests..."
-	@pytest tests/ -m "not integration" -v
+	@pytest -m "not integration" -v
 
 integration:
 	@echo "Running integration tests..."
-	@pytest tests/ -m integration -v
+	@pytest -m integration -v

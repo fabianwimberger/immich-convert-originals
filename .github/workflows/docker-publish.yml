@@ -9,8 +9,8 @@ on:
     paths:
       - 'Dockerfile'
       - '.github/workflows/docker-publish.yml'
-      - 'app/**'
-      - 'requirements.txt'
+      - 'backend/**'
+      - 'frontend/**'
 
 env:
   REGISTRY: ghcr.io

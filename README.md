@@ -7,184 +7,179 @@
 
 > **Disclaimer**: This is an independent, community-created project. It is **not affiliated with, endorsed by, or sponsored by Immich**. "Immich" and its associated logos are trademarks of their respective owners. Use of the name is solely for identification and compatibility purposes. Use at your own risk.
 
-Batch-transcode your Immich library to modern efficient formats:
+A self-hosted, web-based tool that batch-transcodes your Immich library to modern, space-efficient formats:
 - **Images** → JPEG XL (JXL)
 - **Videos** → AV1 (MP4 container)
 
-This tool downloads your original assets, transcodes them to space-efficient formats, uploads the new versions, preserves EXIF/GPS data and album membership, and removes the originals.
+Browse your library, pick what to convert (or filter by type/album/date), and watch live progress in the browser. It downloads originals, transcodes them, uploads the new versions, preserves EXIF/GPS data and album membership, and removes the originals only once the upload is verified.
 
 ## Background
 
-JPEG XL shrinks photos by 20-40% and AV1 shrinks videos by 30-50% with no visible quality loss. On a multi-TB Immich library that adds up fast. This scans the library, transcodes in place, preserves EXIF, GPS, and album membership, and removes originals only after the upload succeeds. Dry-run is always available.
+JPEG XL shrinks photos by 20-40% and AV1 shrinks videos by 30-50% with no visible quality loss. On a multi-TB Immich library that adds up fast. This tool used to be a CLI you configured entirely through `.env` files and `docker compose` — it's now a proper web UI: connect once, browse your library with real thumbnails, and start a conversion run with a click. Dry-run is always available before you commit to anything.
 
-<p align="center">
-  <img src="assets/demo.gif" width="100%" alt="Conversion Demo">
-  <br><em>Scans Immich library, transcodes to JXL/AV1, preserves metadata, reports savings</em>
-</p>
+| Desktop | Mobile |
+|---------|--------|
+| <img src="assets/screenshot-desktop.png" alt="Desktop web UI — asset browser" width="480"> | <img src="assets/screenshot-mobile.png" alt="Mobile web UI" width="220"> |
 
 ## Features
 
+- **Asset browser** — filter by type, album, archived/deleted state; real Immich thumbnails proxied through the backend (your API key never reaches the browser)
+- **Flexible run scoping** — convert the whole library, one album, a date range, or an explicit selection from Browse
 - **Image conversion** — JPEG, PNG, WebP, HEIC → JPEG XL
 - **Video conversion** — MP4, MOV, MKV → AV1 (MP4)
-- **Metadata preservation** — EXIF, GPS, favorite/archive/rating state, and albums
-- **Smart retry logic** — automatically retries with higher compression if output is larger
-- **Resumable runs** — SQLite state DB tracks outcomes; interrupted runs skip already-converted assets on restart, handles SIGINT gracefully
-- **Dry-run mode** — preview changes before executing
-- **Interactive wizard** — guided setup via `--interactive`
-- **Date filtering** — process only assets within a date range
-- **Concurrency control** — configurable parallel workers
+- **Live progress** — WebSocket-driven progress bar, running counts, and current-asset status while a run is in flight
+- **Metadata preservation** — EXIF, GPS, favorite state, rating, and albums copied to the replacement asset
+- **Smart retry logic** — automatically retries with higher compression if output is larger than the original
+- **Run history** — every run and its per-asset outcomes are kept; drill into failures, retry just the failed assets, or export a failure CSV
+- **Resumable** — a filtered run automatically skips assets a previous run already converted successfully
+- **Settings in the UI** — connection details and default encoding settings are edited and saved from the Settings page; env vars only seed first-boot defaults
+- **Dry-run mode** — preview what a run would do before committing to it
+- **Concurrency control** — configurable parallel workers per run
 
 ## Pipeline
 
 ```mermaid
 flowchart LR
-    A[Immich API] -->|list + download| B[Original asset]
-    B --> C{Type}
-    C -->|Image| D[JPEG XL encode]
-    C -->|Video| E[AV1 encode]
-    D --> F[Upload new asset]
-    E --> F
-    F --> G[Copy metadata<br/>EXIF, GPS, albums]
-    G --> H[Delete original]
+    A[Browse / filter library] --> B[Start a run]
+    B -->|download| C[Original asset]
+    C --> D{Type}
+    D -->|Image| E[JPEG XL encode]
+    D -->|Video| F[AV1 encode]
+    E --> G[Upload new asset]
+    F --> G
+    G --> H[Copy metadata<br/>EXIF, GPS, albums]
+    H --> I[Delete original]
+    I -.->|live progress| J[Browser via WebSocket]
 ```
 
 ## Quick Start
 
 ### Option 1: Prebuilt Docker Image (Recommended)
 
-The easiest way to run the tool is using the prebuilt image from GitHub Container Registry:
-
 ```bash
 # Create a directory for your configuration
 mkdir immich-converter && cd immich-converter
 
-# Download the example environment file
+# Download the example environment file (optional -- only first-boot
+# defaults; you can also configure everything from the Settings page
+# after the container starts)
 curl -O https://raw.githubusercontent.com/fabianwimberger/immich-convert-originals/main/.env.example
 mv .env.example .env
-
-# Edit .env with your Immich URL and API key
 nano .env
 
-# Create the host-side working directory before the first run.
-# Docker auto-creates missing bind-mount sources as root, which the container
-# (running as uid 1000) cannot write to. Pre-creating it avoids the permission error.
-mkdir -p work
+# Create the host-side data directory before the first run. Docker
+# auto-creates missing bind-mount sources as root, which the container
+# (running as uid 1000) cannot write to. Pre-creating it avoids that.
+mkdir -p data
 
-# Run with dry run first to preview
-docker run --rm --env-file .env -v ./work:/work ghcr.io/fabianwimberger/immich-convert-originals:main
+docker run -d \
+  --name immich-library-converter \
+  --restart unless-stopped \
+  -p 8000:8000 \
+  --env-file .env \
+  -v ./data:/app/data \
+  ghcr.io/fabianwimberger/immich-convert-originals:main
 
-# When ready, disable dry run and run for real
-# Edit .env: set DRY_RUN=false
-# The ./work:/work volume persists state.db so interrupted runs can resume
-docker run --rm --env-file .env -v ./work:/work ghcr.io/fabianwimberger/immich-convert-originals:main
+# Open http://localhost:8000, set your Immich URL/API key on the
+# Settings page if you didn't use .env, and start browsing.
 ```
 
 ### Option 2: Docker Compose (Build Locally)
 
 ```bash
-# Clone the repository
 git clone https://github.com/fabianwimberger/immich-convert-originals.git
 cd immich-convert-originals
 
-# Copy and edit configuration
 cp .env.example .env
-# Edit .env with your Immich URL and API key
+# Edit .env with your Immich URL and API key (optional -- see above)
 
-# Create the host-side working directory before the first run (see Option 1 for why)
-mkdir -p work
+# Create the host-side data directory before the first run (see Option 1 for why)
+mkdir -p data
 
-# Start with dry run to preview
-DRY_RUN=true docker compose up
-
-# When ready, run for real
-docker compose up
+docker compose up -d
+# Open http://localhost:8000
 ```
 
-### Option 3: Local Python
+### Option 3: Local Development
 
 ```bash
-# Clone the repository
 git clone https://github.com/fabianwimberger/immich-convert-originals.git
 cd immich-convert-originals
 
-# Install dependencies
-pip install -r requirements.txt
+python -m venv .venv
+.venv/bin/pip install -r backend/requirements-dev.txt
 
-# See all available options
-python -m app --help
+# ffmpeg, ImageMagick (with JXL delegate), libjxl-tools, and exiftool
+# must be installed on the host for local (non-Docker) runs.
 
-# Run with environment variables.
-# WORKDIR defaults to /work (the in-container path used by Docker). When running
-# locally, point it at a writable host path such as ./work.
-IMMICH_API_BASE=https://photos.example.com/api \
-IMMICH_API_KEY=your_key \
-DRY_RUN=true \
-WORKDIR=./work \
-python -m app
-
-# Or pass options as CLI flags
-python -m app \
-  --api-base https://photos.example.com/api \
-  --api-key your_key \
-  --dry-run \
-  --workdir ./work \
-  --max-assets 10
+FRONTEND_DIR=./frontend \
+DATABASE_PATH=./data/app.db \
+TEMP_DIR=./data/temp \
+.venv/bin/uvicorn app.main:app --app-dir backend --reload --port 8000
 ```
+
+## Web UI
+
+Open `http://localhost:8000` after starting the container.
+
+- **Browse** — filter your library by type, album, or archived/deleted state; thumbnails load lazily; multi-select assets to convert a specific subset, or select-all-on-page for larger batches
+- **Convert** — start a run against the whole library, one album, a date range, or your Browse selection; toggle dry-run and per-run concurrency; watch live progress once it starts
+- **History** — every run with its counts and bytes saved; click a run to see per-asset outcomes, retry just the failed ones, or export a failure CSV
+- **Settings** — Immich connection (with a test-connection check), default encoding values, and retry/safety behavior — all saved to the app's database, no restart required
+
+<p align="center">
+  <img src="assets/screenshot-desktop-convert.png" width="70%" alt="Starting a run scoped to an album">
+  <br><em>Start a run against the whole library, one album, a date range, or a Browse selection</em>
+  <br><br>
+  <img src="assets/screenshot-desktop-history.png" width="70%" alt="Run history">
+  <br><em>Run history with per-run savings; drill in for per-asset outcomes and retry-failed</em>
+</p>
 
 ## How It Works
 
 ```
-Search assets → Download → Transcode → Upload new → Copy metadata → Delete original
+Browse/filter → Download → Transcode → Upload new → Copy metadata → Verify → Delete original
 ```
 
 Each step is verified:
-1. **Download** original to temp directory
-2. **Transcode** based on asset type
-3. **Validate** output format and integrity
+1. **Download** original to a temporary per-run directory
+2. **Transcode** based on asset type (skip if already JPEG XL / AV1)
+3. **Validate** output format and integrity; retry with more compression if the output is larger than the input
 4. **Upload** new asset to Immich
-5. **Copy metadata** (EXIF, GPS, favorite/archive/rating state, and albums)
+5. **Copy metadata** (EXIF, GPS, favorite state, rating, and albums)
 6. **Verify** new asset is accessible
-7. **Delete** original (goes to trash, recoverable for 30 days)
+7. **Delete** original (goes to Immich's trash, recoverable for 30 days)
 
-If any step fails, the new asset is cleaned up and the original is preserved.
+If any step fails, the new asset is cleaned up and the original is preserved. The outcome is recorded either way, so a failed run shows up in History with the exact error.
 
 ## Configuration
 
-### Required Settings
-
-| Variable | Description | Example |
-|----------|-------------|---------|
-| `IMMICH_API_BASE` | Your Immich API URL | `https://photos.example.com/api` |
-| `IMMICH_API_KEY` | API key from Immich | `abc123...` |
-
-**Always start with `DRY_RUN=true` (the default) to test your settings.**
-
-### Encoding Settings
+Environment variables only seed first-boot defaults — after the app starts once, use the **Settings** page to change any of this without a restart.
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `IMAGE_DISTANCE` | JXL distance (0=lossless, 1=visually lossless) | `1.0` |
-| `VIDEO_CRF` | AV1 quality (0-63, lower=better) | `36` |
+| `IMMICH_API_BASE` | Your Immich API URL | — |
+| `IMMICH_API_KEY` | API key from Immich | — |
+| `ASSET_TYPES` | Default asset types: `IMAGE`, `VIDEO`, or `IMAGE,VIDEO` | `IMAGE,VIDEO` |
+| `INCLUDE_ARCHIVED` / `INCLUDE_DELETED` | Default filter state | `false` |
+| `IMAGE_DISTANCE` / `IMAGE_DISTANCE_RETRY` | JXL distance (0=lossless, 1=visually lossless) and retry distance | `1.0` / `2.0` |
+| `VIDEO_CRF` / `VIDEO_CRF_RETRY` | AV1 quality (0-63, lower=better) and retry CRF | `36` / `40` |
 | `VIDEO_PRESET` | AV1 speed/quality tradeoff (0-13, lower=slower) | `4` |
 | `VIDEO_MAX_DIMENSION` | Limit shorter-side resolution, 0=disable | `0` |
 | `VIDEO_AUDIO_BITRATE` | Opus audio bitrate | `64k` |
-
-### Resumable State
-
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `USE_STATE` | Track per-asset outcomes in `state.db` for resumable runs | `true` |
-| `RESET_STATE` | Wipe `state.db` before running | `false` |
-| `ONLY_FAILED` | Re-run only assets whose last recorded status was a failure | `false` |
-| `EXPORT_FAILURES` | Write a failure CSV to this path after the run | — |
+| `ENABLE_RETRY` / `ACCEPT_RETRY_OUTPUT` | Retry with more compression if output is larger; accept it anyway if still larger | `true` / `false` |
+| `ALLOW_LARGER` | Keep output even if larger than input, no retry | `false` |
+| `CONCURRENCY` | Parallel workers per run | `2` |
+| `DATABASE_PATH` | Path to the app's SQLite database (settings + run history) | `/app/data/app.db` |
+| `LOG_LEVEL` | Log verbosity | `INFO` |
 
 ## Security & Safety
 
-**USE AT YOUR OWN RISK.** This tool deletes originals after conversion (recoverable via Immich trash for 30 days). Always backup first and test on a small subset with `MAX_ASSETS`.
+**USE AT YOUR OWN RISK.** This tool deletes originals after conversion (recoverable via Immich trash for 30 days). Always back up first and test on a small selection before converting a whole library. The web UI has no built-in authentication — it's intended for a trusted home network or behind your own reverse-proxy auth; don't expose it directly to the internet.
 
 ## Docker Image Tags
 
-Images are available from `ghcr.io/fabianwimberger/immich-convert-originals`. Use `main` for latest, or pin to a release tag (`v1`, `v1.2`, `v1.2.3`).
+Images are available from `ghcr.io/fabianwimberger/immich-convert-originals`. Use `main` for latest, or pin to a release tag (`v2`, `v2.0`, `v2.0.0`).
 
 ## License
 
@@ -198,5 +193,7 @@ MIT License — see [LICENSE](LICENSE) file.
 | FFmpeg | [LGPL v2.1+](https://www.gnu.org/licenses/old-licenses/lgpl-2.1.html) | https://ffmpeg.org/ |
 | ImageMagick | [Apache-2.0](https://imagemagick.org/script/license.php) | https://imagemagick.org/ |
 | ExifTool | [Artistic/GPL](https://exiftool.org/#license) | https://exiftool.org/ |
+| FastAPI | [MIT](https://github.com/fastapi/fastapi/blob/master/LICENSE) | https://fastapi.tiangolo.com/ |
+| SQLAlchemy | [MIT](https://github.com/sqlalchemy/sqlalchemy/blob/main/LICENSE) | https://www.sqlalchemy.org/ |
 
 See [DOCKER_LICENSES.md](DOCKER_LICENSES.md) for full details.
