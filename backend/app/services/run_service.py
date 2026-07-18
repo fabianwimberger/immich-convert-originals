@@ -14,6 +14,7 @@ import json
 import logging
 import os
 import shutil
+import time
 import uuid
 from datetime import datetime, timezone
 from typing import Any
@@ -35,6 +36,21 @@ from app.services.websocket_manager import websocket_manager
 logger = logging.getLogger(__name__)
 
 _cancelled_runs: set[int] = set()
+
+# Concurrent assets each persist their outcome in their own transaction; SQLite
+# serializes the writes, but that commit order isn't guaranteed to match the
+# order in which each asset's asyncio task resumes afterwards. Without this
+# lock, two assets finishing close together can broadcast run_progress out of
+# commit order, making the displayed counters briefly jump backwards.
+_progress_locks: dict[int, asyncio.Lock] = {}
+
+# run_progress carries the same aggregate counters on every asset -- sending
+# it once per asset is wasted work once a run is processing hundreds of
+# assets a second (fast skips have no I/O to pace them). Throttling it still
+# leaves the live per-asset log (asset_progress) untouched; the true final
+# counters are always attached to run_completed regardless of throttling.
+PROGRESS_BROADCAST_INTERVAL = 0.2
+_last_progress_broadcast: dict[int, float] = {}
 
 
 def request_cancel(run_id: int) -> None:
@@ -353,29 +369,36 @@ async def _run_one_asset(
             logger.exception("Unhandled error processing asset %s", asset.id)
             result = {"status": "failed_error", "error": str(e)}
 
-        try:
-            counters = await _persist_asset_result(run_id, asset, result)
-        except Exception:
-            logger.exception("Failed to persist outcome for asset %s", asset.id)
-            return
+        lock = _progress_locks.setdefault(run_id, asyncio.Lock())
+        async with lock:
+            try:
+                counters = await _persist_asset_result(run_id, asset, result)
+            except Exception:
+                logger.exception("Failed to persist outcome for asset %s", asset.id)
+                return
 
-        await websocket_manager.broadcast(
-            {
-                "type": "asset_progress",
-                "run_id": run_id,
-                "asset_id": asset.id,
-                "filename": asset.original_file_name,
-                "stage": "done",
-                "status": result["status"],
-                "error": result.get("error"),
-                "target_format": _get_target_format(asset),
-                "input_bytes": result.get("input_bytes", 0),
-                "output_bytes": result.get("output_bytes", 0),
-            }
-        )
-        await websocket_manager.broadcast(
-            {"type": "run_progress", "run_id": run_id, **counters}
-        )
+            await websocket_manager.broadcast(
+                {
+                    "type": "asset_progress",
+                    "run_id": run_id,
+                    "asset_id": asset.id,
+                    "filename": asset.original_file_name,
+                    "stage": "done",
+                    "status": result["status"],
+                    "error": result.get("error"),
+                    "target_format": _get_target_format(asset),
+                    "input_bytes": result.get("input_bytes", 0),
+                    "output_bytes": result.get("output_bytes", 0),
+                }
+            )
+
+            now = time.monotonic()
+            last_sent = _last_progress_broadcast.get(run_id, 0.0)
+            if now - last_sent >= PROGRESS_BROADCAST_INTERVAL:
+                _last_progress_broadcast[run_id] = now
+                await websocket_manager.broadcast(
+                    {"type": "run_progress", "run_id": run_id, **counters}
+                )
 
 
 async def execute_run(run_id: int) -> None:
@@ -433,13 +456,17 @@ async def execute_run(run_id: int) -> None:
         logger.exception("Run %s failed", run_id)
         error_message = str(e)
     finally:
+        # Read the cancellation flag before discarding it -- discard first
+        # would always read back False here, so a cancelled run could never
+        # actually end up with final_status == "cancelled".
+        was_cancelled = _is_cancelled(run_id)
         shutil.rmtree(work_dir, ignore_errors=True)
         _cancelled_runs.discard(run_id)
+        _progress_locks.pop(run_id, None)
+        _last_progress_broadcast.pop(run_id, None)
 
     final_status = (
-        "cancelled"
-        if _is_cancelled(run_id)
-        else ("failed" if error_message else "completed")
+        "cancelled" if was_cancelled else ("failed" if error_message else "completed")
     )
     async with AsyncSessionLocal() as db:
         await db.execute(
@@ -451,7 +478,16 @@ async def execute_run(run_id: int) -> None:
                 error_message=error_message,
             )
         )
+        result = await db.execute(select(Run).where(Run.id == run_id))
+        run = result.scalar_one()
+        counters = {
+            "processed_count": run.processed_count,
+            "success_count": run.success_count,
+            "skipped_count": run.skipped_count,
+            "failed_count": run.failed_count,
+            "total_assets": run.total_assets,
+        }
         await db.commit()
     await websocket_manager.broadcast(
-        {"type": "run_completed", "run_id": run_id, "status": final_status}
+        {"type": "run_completed", "run_id": run_id, "status": final_status, **counters}
     )
