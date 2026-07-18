@@ -41,7 +41,7 @@ class RunHistory {
             <td class="status-ok">${r.success_count}</td>
             <td>${r.skipped_count}</td>
             <td class="status-error">${r.failed_count}</td>
-            <td>${this._bytesSaved(r)}</td>
+            <td>${savedLabel(r.input_bytes, r.output_bytes)}</td>
           </tr>
         `;
       })
@@ -74,44 +74,6 @@ class RunHistory {
     });
   }
 
-  _bytesSaved(r) {
-    return this._savedLabel(r.input_bytes, r.output_bytes);
-  }
-
-  _savedLabel(inputBytes, outputBytes) {
-    if (!inputBytes) return "";
-    const saved = inputBytes - outputBytes;
-    const pct = ((saved / inputBytes) * 100).toFixed(0);
-    return `${this._fmtBytes(saved)} (${pct}%)`;
-  }
-
-  _prettyStatus(status) {
-    const labels = {
-      success: "Converted",
-      partial_success: "Converted (cleanup needed)",
-      dry_run_preview: "Would convert",
-      skipped: "Skipped",
-      failed_download: "Failed: download",
-      failed_transcode: "Failed: transcode",
-      failed_upload: "Failed: upload",
-      failed_copy: "Failed: metadata copy",
-      failed_verification: "Failed: verification",
-    };
-    return labels[status] || status.replace(/_/g, " ");
-  }
-
-  _fmtBytes(n) {
-    if (Math.abs(n) < 1024) return `${n} B`;
-    const units = ["KB", "MB", "GB"];
-    let val = n;
-    let i = -1;
-    do {
-      val /= 1024;
-      i++;
-    } while (Math.abs(val) >= 1024 && i < units.length - 1);
-    return `${val.toFixed(1)} ${units[i]}`;
-  }
-
   async openRun(runId) {
     this.openRunId = runId;
     const detail = this.root.querySelector("#run-detail");
@@ -128,10 +90,10 @@ class RunHistory {
         (o) => `
           <tr>
             <td>${o.filename}</td>
-            <td>${this._prettyStatus(o.status)}</td>
+            <td>${prettyStatus(o.status)}</td>
             <td>${o.target_format || ""}</td>
-            <td>${o.input_bytes ? `${this._fmtBytes(o.input_bytes)} &rarr; ${this._fmtBytes(o.output_bytes)}` : ""}</td>
-            <td>${this._savedLabel(o.input_bytes, o.output_bytes)}</td>
+            <td>${o.input_bytes ? `${fmtBytes(o.input_bytes)} &rarr; ${fmtBytes(o.output_bytes)}` : ""}</td>
+            <td>${savedLabel(o.input_bytes, o.output_bytes)}</td>
             <td>${o.error || ""}</td>
           </tr>
         `

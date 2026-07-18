@@ -366,6 +366,9 @@ async def _run_one_asset(
                 "stage": "done",
                 "status": result["status"],
                 "error": result.get("error"),
+                "target_format": _get_target_format(asset),
+                "input_bytes": result.get("input_bytes", 0),
+                "output_bytes": result.get("output_bytes", 0),
             }
         )
         await websocket_manager.broadcast(

@@ -405,6 +405,13 @@ a#btn-export-failures:hover {
   font-family: var(--font-mono);
 }
 
+.status-pending {
+  color: var(--safelight);
+  font-size: 0.85rem;
+  font-family: var(--font-mono);
+  animation: pulse 1.6s ease-in-out infinite;
+}
+
 .placeholder {
   color: var(--ink-faint);
   padding: 1rem 0;
@@ -603,6 +610,17 @@ a#btn-export-failures:hover {
 
 .table-wrap {
   overflow-x: auto;
+}
+
+.log-scroll {
+  max-height: 360px;
+  overflow-y: auto;
+}
+
+.log-scroll thead th {
+  position: sticky;
+  top: 0;
+  background: var(--bg-elevated);
 }
 
 .run-table {
