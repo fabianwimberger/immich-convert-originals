@@ -24,6 +24,7 @@ JPEG XL shrinks photos by 20-40% and AV1 shrinks videos by 30-50% with no visibl
 ## Features
 
 - **Asset browser** — filter by type, album, archived/deleted state; real Immich thumbnails proxied through the backend (your API key never reaches the browser)
+- **Flexible run scoping** — convert the whole library, one album, a date range, or an explicit selection from Browse
 - **Image conversion** — JPEG, PNG, WebP, HEIC → JPEG XL
 - **Video conversion** — MP4, MOV, MKV → AV1 (MP4)
 - **Live progress** — WebSocket-driven progress bar, running counts, and current-asset status while a run is in flight
@@ -122,13 +123,13 @@ TEMP_DIR=./data/temp \
 Open `http://localhost:8000` after starting the container.
 
 - **Browse** — filter your library by type, album, or archived/deleted state; thumbnails load lazily; multi-select assets to convert a specific subset, or select-all-on-page for larger batches
-- **Convert** — start a run either from your Browse selection or from a filter (asset type, max assets); toggle dry-run and per-run concurrency; watch live progress once it starts
+- **Convert** — start a run against the whole library, one album, a date range, or your Browse selection; toggle dry-run and per-run concurrency; watch live progress once it starts
 - **History** — every run with its counts and bytes saved; click a run to see per-asset outcomes, retry just the failed ones, or export a failure CSV
 - **Settings** — Immich connection (with a test-connection check), default encoding values, and retry/safety behavior — all saved to the app's database, no restart required
 
 <p align="center">
-  <img src="assets/screenshot-desktop-convert.png" width="70%" alt="Live conversion progress">
-  <br><em>Live progress over WebSocket: current asset, running counts, cancel</em>
+  <img src="assets/screenshot-desktop-convert.png" width="70%" alt="Starting a run scoped to an album">
+  <br><em>Start a run against the whole library, one album, a date range, or a Browse selection</em>
   <br><br>
   <img src="assets/screenshot-desktop-history.png" width="70%" alt="Run history">
   <br><em>Run history with per-run savings; drill in for per-asset outcomes and retry-failed</em>
