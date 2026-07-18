@@ -229,13 +229,13 @@ body {
   width: 100%;
   max-width: 360px;
   margin-top: 0.3rem;
-  padding: 0.45rem 0.6rem;
+  padding: 0.5rem 0.7rem;
   border-radius: 5px;
   border: 1px solid var(--hairline-strong);
   background: var(--bg-inset);
   color: var(--ink);
   font-family: var(--font-mono);
-  font-size: 0.85rem;
+  font-size: 0.88rem;
 }
 
 .field-pair label input[type="date"] {
@@ -331,12 +331,17 @@ input[type="date"]::-webkit-calendar-picker-indicator {
 }
 
 .row select {
-  padding: 0.4rem 0.55rem;
+  padding: 0.5rem 0.7rem;
   border-radius: 5px;
   border: 1px solid var(--hairline-strong);
   background: var(--bg-inset);
   color: var(--ink);
-  font-size: 0.85rem;
+  font-size: 0.88rem;
+  min-width: 150px;
+}
+
+.filters #filter-album {
+  min-width: 220px;
 }
 
 button {

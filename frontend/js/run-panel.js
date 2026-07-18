@@ -30,8 +30,14 @@ class RunPanel {
 
   /** Called when the Convert tab is (re-)shown, so the selection count and
    * album list stay current without clobbering a mode the user already chose. */
-  refresh() {
+  async refresh() {
     if (this.configEl && this.configEl.style.display !== "none") {
+      try {
+        const resp = await api.get("/albums");
+        this.albums = resp.items;
+      } catch (err) {
+        this.albums = [];
+      }
       this.renderConfig();
     }
   }
@@ -100,6 +106,11 @@ class RunPanel {
       .map((a) => `<option value="${a.id}">${a.album_name} (${a.asset_count})</option>`)
       .join("");
 
+    const defaults = (settingsPanel && settingsPanel.settings) || {};
+    const defaultTypes = defaults.asset_types || "IMAGE,VIDEO";
+    const defaultArchived = !!defaults.include_archived;
+    const defaultDeleted = !!defaults.include_deleted;
+
     return `
       <div id="run-filters">
         ${
@@ -123,13 +134,13 @@ class RunPanel {
         }
         <label>Asset types
           <select id="run-asset-types">
-            <option value="IMAGE,VIDEO">Images + Videos</option>
-            <option value="IMAGE">Images only</option>
-            <option value="VIDEO">Videos only</option>
+            <option value="IMAGE,VIDEO" ${defaultTypes === "IMAGE,VIDEO" ? "selected" : ""}>Images + Videos</option>
+            <option value="IMAGE" ${defaultTypes === "IMAGE" ? "selected" : ""}>Images only</option>
+            <option value="VIDEO" ${defaultTypes === "VIDEO" ? "selected" : ""}>Videos only</option>
           </select>
         </label>
-        <label><input id="run-include-archived" type="checkbox" /> Include archived</label>
-        <label><input id="run-include-deleted" type="checkbox" /> Include deleted</label>
+        <label><input id="run-include-archived" type="checkbox" ${defaultArchived ? "checked" : ""} /> Include archived</label>
+        <label><input id="run-include-deleted" type="checkbox" ${defaultDeleted ? "checked" : ""} /> Include deleted</label>
         <label>Max assets (optional)
           <input id="run-max-assets" type="number" min="1" placeholder="unlimited" />
         </label>

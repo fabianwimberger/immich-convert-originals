@@ -27,6 +27,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       switchTab(btn.dataset.tab);
       if (btn.dataset.tab === "history" && runHistory) runHistory.refresh();
       if (btn.dataset.tab === "convert" && runPanel) runPanel.refresh();
+      if (btn.dataset.tab === "browse" && assetBrowser) assetBrowser.refresh();
     });
   });
 

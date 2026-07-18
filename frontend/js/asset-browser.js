@@ -7,31 +7,46 @@ class AssetBrowser {
     this.hasMore = false;
     this.selected = new Set();
     this.albums = [];
+    this.configured = false;
   }
 
   async init() {
     try {
       const albumResp = await api.get("/albums");
       this.albums = albumResp.items;
+      this.configured = true;
     } catch (err) {
       if (err.status === 424) {
+        this.configured = false;
         this.renderNotConfigured();
         return;
       }
       this.albums = [];
+      this.configured = true;
     }
     this.renderShell();
     await this.search(1);
+  }
+
+  /** Called when the Browse tab is (re-)shown; retries once Immich is configured. */
+  async refresh() {
+    if (!this.configured) {
+      await this.init();
+    }
   }
 
   renderNotConfigured() {
     this.root.innerHTML = `
       <section class="panel">
         <p class="placeholder">
-          Connect to Immich on the Settings tab before browsing your library.
+          Connect to Immich before browsing your library.
         </p>
+        <button id="btn-goto-settings" class="primary">Go to Settings</button>
       </section>
     `;
+    this.root
+      .querySelector("#btn-goto-settings")
+      .addEventListener("click", () => switchTab("settings"));
   }
 
   currentFilters() {
@@ -94,7 +109,7 @@ class AssetBrowser {
     const params = new URLSearchParams({
       asset_type: filters.asset_type,
       page: String(page),
-      size: "40",
+      size: "120",
       include_archived: String(filters.include_archived),
       include_deleted: String(filters.include_deleted),
     });
