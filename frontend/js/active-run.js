@@ -1,7 +1,13 @@
 /** Live progress view for a single run: summary panel plus a scrolling
  * per-asset log, driven by WebSocket events. Each row starts as "processing"
  * and resolves in place once its outcome arrives, so concurrent workers each
- * get their own line instead of a single shared status. */
+ * get their own line instead of a single shared status.
+ *
+ * Row and summary updates are batched into one requestAnimationFrame flush
+ * instead of applied per message: a fast bulk-skip run can emit well over a
+ * thousand messages a second, and doing a DOM write (plus a scroll-position
+ * read, which forces a synchronous layout) on every single one is enough to
+ * lock up the tab. */
 class ActiveRun {
   constructor(root) {
     this.root = root;
@@ -10,6 +16,9 @@ class ActiveRun {
     this.log = []; // ordered per-asset entries, updated in place as they resolve
     this._logIndex = new Map(); // asset_id -> index into this.log
     this._rowEls = new Map(); // asset_id -> rendered <tr>
+    this._dirtyRows = new Set(); // asset_ids awaiting the next flush
+    this._summaryDirty = false;
+    this._flushHandle = null;
     this._unsubscribe = null;
     this.onBack = null; // set by RunPanel: return to the config screen
   }
@@ -19,6 +28,12 @@ class ActiveRun {
     this.log = [];
     this._logIndex.clear();
     this._rowEls.clear();
+    this._dirtyRows.clear();
+    this._summaryDirty = false;
+    if (this._flushHandle !== null) {
+      cancelAnimationFrame(this._flushHandle);
+      this._flushHandle = null;
+    }
     this.run = await api.get(`/runs/${runId}`);
     this._renderShell();
     this._renderSummary();
@@ -36,7 +51,6 @@ class ActiveRun {
         const entry = { asset_id: msg.asset_id, filename: msg.filename, status: "processing" };
         this._logIndex.set(msg.asset_id, this.log.length);
         this.log.push(entry);
-        this._appendRow(entry);
       } else {
         const entry = {
           asset_id: msg.asset_id,
@@ -50,28 +64,51 @@ class ActiveRun {
         const idx = this._logIndex.get(msg.asset_id);
         if (idx !== undefined) {
           this.log[idx] = entry;
-          this._updateRow(entry);
         } else {
           this._logIndex.set(msg.asset_id, this.log.length);
           this.log.push(entry);
-          this._appendRow(entry);
         }
       }
+      this._dirtyRows.add(msg.asset_id);
+      this._scheduleFlush();
     } else if (msg.type === "run_progress") {
-      Object.assign(this.run, {
-        processed_count: msg.processed_count,
-        success_count: msg.success_count,
-        skipped_count: msg.skipped_count,
-        failed_count: msg.failed_count,
-        total_assets: msg.total_assets,
-      });
-      this._renderSummary();
+      this._applyCounters(msg);
+      this._summaryDirty = true;
+      this._scheduleFlush();
     } else if (msg.type === "run_completed") {
+      this._applyCounters(msg);
       this.run.status = msg.status;
       this._renderSummary();
     } else if (msg.type === "run_started") {
       this.run.status = "running";
       this._renderSummary();
+    }
+  }
+
+  _applyCounters(msg) {
+    if (msg.processed_count === undefined) return;
+    Object.assign(this.run, {
+      processed_count: msg.processed_count,
+      success_count: msg.success_count,
+      skipped_count: msg.skipped_count,
+      failed_count: msg.failed_count,
+      total_assets: msg.total_assets,
+    });
+  }
+
+  _scheduleFlush() {
+    if (this._flushHandle !== null) return;
+    this._flushHandle = requestAnimationFrame(() => this._flush());
+  }
+
+  _flush() {
+    this._flushHandle = null;
+    if (this._summaryDirty) {
+      this._summaryDirty = false;
+      this._renderSummary();
+    }
+    if (this._dirtyRows.size > 0) {
+      this._flushRows();
     }
   }
 
@@ -130,10 +167,6 @@ class ActiveRun {
     if (backBtn) backBtn.addEventListener("click", () => this.onBack && this.onBack());
   }
 
-  // Log rows are patched in place instead of re-rendering the whole table
-  // on every message -- with fast, I/O-less skips, messages can arrive in a
-  // burst fast enough that rebuilding the entire (growing) log on each one
-  // freezes the tab.
   _renderLog() {
     const body = this.root.querySelector("#run-log-body");
     if (!body) return;
@@ -151,37 +184,41 @@ class ActiveRun {
     `;
   }
 
-  _appendRow(entry) {
+  // Applies every row queued since the last flush in one batch: a single
+  // scroll-position read/write and a single reflow, no matter how many
+  // messages arrived in between.
+  _flushRows() {
     const scrollEl = this.root.querySelector("#run-log-scroll");
     const body = this.root.querySelector("#run-log-body");
-    if (!body) return;
+    if (!body) {
+      this._dirtyRows.clear();
+      return;
+    }
+
     const nearBottom = scrollEl.scrollTop + scrollEl.clientHeight >= scrollEl.scrollHeight - 24;
 
     if (this._rowEls.size === 0) {
       body.innerHTML = "";
     }
 
-    const tr = document.createElement("tr");
-    tr.innerHTML = this._rowCells(entry);
-    body.appendChild(tr);
-    this._rowEls.set(entry.asset_id, tr);
+    const fragment = document.createDocumentFragment();
+    for (const assetId of this._dirtyRows) {
+      const idx = this._logIndex.get(assetId);
+      if (idx === undefined) continue;
+      const entry = this.log[idx];
 
-    if (nearBottom) {
-      scrollEl.scrollTop = scrollEl.scrollHeight;
+      let tr = this._rowEls.get(assetId);
+      if (!tr) {
+        tr = document.createElement("tr");
+        this._rowEls.set(assetId, tr);
+        fragment.appendChild(tr);
+      }
+      tr.innerHTML = this._rowCells(entry);
     }
-  }
-
-  _updateRow(entry) {
-    const tr = this._rowEls.get(entry.asset_id);
-    if (!tr) {
-      this._appendRow(entry);
-      return;
+    if (fragment.childNodes.length > 0) {
+      body.appendChild(fragment);
     }
-
-    const scrollEl = this.root.querySelector("#run-log-scroll");
-    const nearBottom = scrollEl.scrollTop + scrollEl.clientHeight >= scrollEl.scrollHeight - 24;
-
-    tr.innerHTML = this._rowCells(entry);
+    this._dirtyRows.clear();
 
     if (nearBottom) {
       scrollEl.scrollTop = scrollEl.scrollHeight;

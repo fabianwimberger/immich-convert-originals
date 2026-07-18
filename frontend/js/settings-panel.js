@@ -63,11 +63,11 @@ class SettingsPanel {
 
       <section class="panel">
         <h2>Retry &amp; Safety</h2>
-        <label>Video max dimension (0=disabled)
-          <input id="set-video-max-dimension" type="number" min="0" value="${s.video_max_dimension}" />
+        <label>Video max dimension in pixels, short side (0=disabled)
+          <input id="set-video-max-dimension" type="number" min="0" placeholder="e.g. 1080" value="${s.video_max_dimension}" />
         </label>
-        <label>Video audio bitrate
-          <input id="set-video-audio-bitrate" type="text" value="${s.video_audio_bitrate}" />
+        <label>Video audio bitrate (ffmpeg format, e.g. 64k)
+          <input id="set-video-audio-bitrate" type="text" placeholder="e.g. 64k" value="${s.video_audio_bitrate}" />
         </label>
         <label><input id="set-enable-retry" type="checkbox" ${s.enable_retry ? "checked" : ""} /> Retry with more compression if output is larger</label>
         <label>Image distance on retry

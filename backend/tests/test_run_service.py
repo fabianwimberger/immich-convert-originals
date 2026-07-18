@@ -298,6 +298,7 @@ class TestProcessAssetSyncImages:
         )
         result = run_service._process_asset_sync(asset, client, BASE_CFG, str(tmp_path))
         assert result["status"] == "failed_transcode"
+        assert result["input_bytes"] == 0
 
     def test_cleans_up_temp_files(self, tmp_path, monkeypatch):
         asset = _make_asset()
@@ -368,6 +369,7 @@ class TestProcessAssetSyncVideos:
         cfg = {**BASE_CFG, "dry_run": True}
         result = run_service._process_asset_sync(asset, client, cfg, str(tmp_path))
         assert result["status"] == "skipped"
+        assert result["input_bytes"] == 0
 
     def test_video_happy_path(self, tmp_path, monkeypatch):
         asset = _make_asset(
@@ -611,3 +613,75 @@ class TestExecuteRun:
         assert outcomes["boom-a1"].status == "failed_error"
         assert "disk exploded" in outcomes["boom-a1"].error
         assert outcomes["boom-a2"].status == "success"
+
+    async def test_cancel_during_run_marks_run_cancelled(self, tmp_path, monkeypatch):
+        """A run cancelled while assets are still processing must end up
+        status == "cancelled" -- the flag used to be discarded before it was
+        read, so every cancelled run silently reported "completed" instead."""
+        monkeypatch.setenv("TEMP_DIR", str(tmp_path))
+        await init_db()
+        async with AsyncSessionLocal() as db:
+            await db.execute(delete(AssetOutcome))
+            await db.commit()
+
+        a1 = _make_asset("cancel-a1", file_name="one.jpg")
+        a2 = _make_asset("cancel-a2", file_name="two.jpg")
+        a3 = _make_asset("cancel-a3", file_name="three.jpg")
+        client = FakeClient(search_pages={"IMAGE": [[a1, a2, a3], []], "VIDEO": [[]]})
+        monkeypatch.setattr(run_service, "ImmichClient", FakeClientFactory(client))
+        monkeypatch.setattr(run_service, "validate_output", lambda path, fmt: True)
+
+        run_id_holder: dict[str, int] = {}
+
+        def cancel_on_first_asset(inp, out, distance):
+            if "cancel-a1" in inp:
+                run_service.request_cancel(run_id_holder["id"])
+            return TranscodeResult(
+                success=True,
+                input_path=inp,
+                output_path=out,
+                input_bytes=1000,
+                output_bytes=500,
+                input_format="jpg",
+            )
+
+        monkeypatch.setattr(run_service, "transcode", cancel_on_first_asset)
+
+        cfg = {
+            **BASE_CFG,
+            "immich_api_base": "https://example.com/api/",
+            "immich_api_key": "key",
+            "asset_ids": None,
+            "asset_types": "IMAGE",
+            "album_id": None,
+            "include_archived": False,
+            "include_deleted": False,
+            "taken_after": None,
+            "taken_before": None,
+            "original_filename": None,
+            "max_assets": None,
+            "concurrency": 1,
+        }
+
+        async with AsyncSessionLocal() as db:
+            run = Run(status="queued", config_snapshot=json.dumps(cfg))
+            db.add(run)
+            await db.commit()
+            await db.refresh(run)
+            run_id_holder["id"] = run.id
+
+        await run_service.execute_run(run_id_holder["id"])
+
+        async with AsyncSessionLocal() as db:
+            run_result = await db.execute(
+                select(Run).where(Run.id == run_id_holder["id"])
+            )
+            refreshed = run_result.scalar_one()
+            outcomes_result = await db.execute(
+                select(AssetOutcome).where(AssetOutcome.run_id == run_id_holder["id"])
+            )
+            outcomes = outcomes_result.scalars().all()
+
+        assert refreshed.status == "cancelled"
+        assert refreshed.processed_count == 1
+        assert {o.asset_id for o in outcomes} == {"cancel-a1"}

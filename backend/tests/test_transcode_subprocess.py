@@ -366,7 +366,7 @@ class TestCopyMetadata:
 
         with patch("app.services.transcode.subprocess.run") as mock_run:
             mock_run.return_value = FakeCompletedProcess(returncode=0)
-            assert copy_metadata(str(src), str(dst)) is True
+            assert copy_metadata(str(src), str(dst)) == (True, None)
 
     def test_returns_false_on_called_process_error(self, tmp_path):
         src = tmp_path / "src.jpg"
@@ -375,8 +375,12 @@ class TestCopyMetadata:
         dst.write_bytes(b"b")
 
         with patch("app.services.transcode.subprocess.run") as mock_run:
-            mock_run.side_effect = subprocess.CalledProcessError(1, "exiftool")
-            assert copy_metadata(str(src), str(dst)) is False
+            mock_run.side_effect = subprocess.CalledProcessError(
+                1, "exiftool", stderr=b"Error: Unknown file type"
+            )
+            ok, error = copy_metadata(str(src), str(dst))
+            assert ok is False
+            assert "Unknown file type" in error
 
     def test_returns_false_on_timeout(self, tmp_path):
         src = tmp_path / "src.jpg"
@@ -386,7 +390,9 @@ class TestCopyMetadata:
 
         with patch("app.services.transcode.subprocess.run") as mock_run:
             mock_run.side_effect = subprocess.TimeoutExpired("exiftool", 120)
-            assert copy_metadata(str(src), str(dst)) is False
+            ok, error = copy_metadata(str(src), str(dst))
+            assert ok is False
+            assert "timed out" in error
 
     def test_returns_false_on_missing_binary(self, tmp_path):
         src = tmp_path / "src.jpg"
@@ -396,7 +402,9 @@ class TestCopyMetadata:
 
         with patch("app.services.transcode.subprocess.run") as mock_run:
             mock_run.side_effect = FileNotFoundError("exiftool not found")
-            assert copy_metadata(str(src), str(dst)) is False
+            ok, error = copy_metadata(str(src), str(dst))
+            assert ok is False
+            assert "not found" in error
 
     def test_custom_metadata_timeout(self, tmp_path):
         src = tmp_path / "src.jpg"

@@ -132,17 +132,24 @@ def validate_output(path: str, expected_format: str) -> bool:
 
 def copy_metadata(
     source_path: str, dest_path: str, timeouts: Timeouts = DEFAULT_TIMEOUTS
-) -> bool:
+) -> tuple[bool, str | None]:
     """Copy EXIF/XMP metadata from source to dest using exiftool.
 
     Strips any existing metadata from the destination first so that malformed
     tags (e.g. bogus IFD0 dimensions or StripOffsets from camera JPEGs) are
     not carried over by cjxl or ImageMagick.
+
+    -m ignores exiftool's "minor errors", e.g. wrapping a bare JXL codestream
+    (ImageMagick's default JXL output) in an ISO BMFF container so it has
+    somewhere to hold the EXIF/XMP boxes being written -- exactly what we
+    want here, but exiftool refuses to do it unless told the restructuring
+    is acceptable.
     """
     try:
         subprocess.run(
             [
                 "exiftool",
+                "-m",
                 "-overwrite_original",
                 "-all=",
                 "-tagsFromFile",
@@ -153,12 +160,14 @@ def copy_metadata(
             check=True,
             timeout=timeouts.metadata,
         )
-        return True
+        return True, None
     except subprocess.TimeoutExpired:
-        logger.warning("exiftool timed out copying metadata from %s", source_path)
-        return False
-    except (subprocess.CalledProcessError, FileNotFoundError):
-        return False
+        return False, f"exiftool timed out after {timeouts.metadata}s"
+    except subprocess.CalledProcessError as e:
+        stderr = e.stderr.decode(errors="replace") if e.stderr else ""
+        return False, f"exiftool failed: {stderr}"
+    except FileNotFoundError:
+        return False, "exiftool not found"
 
 
 def _transcode_with_magick(
@@ -181,7 +190,10 @@ def _transcode_with_magick(
         ]
         try:
             subprocess.run(cmd, check=True, capture_output=True, timeout=timeouts.image)
-            if not copy_metadata(input_path, output_path, timeouts=timeouts):
+            metadata_ok, metadata_error = copy_metadata(
+                input_path, output_path, timeouts=timeouts
+            )
+            if not metadata_ok:
                 return TranscodeResult(
                     success=False,
                     input_path=input_path,
@@ -189,7 +201,7 @@ def _transcode_with_magick(
                     input_bytes=input_bytes,
                     output_bytes=0,
                     input_format=input_format or "unknown",
-                    error=f"Metadata copy failed for {input_path}",
+                    error=metadata_error or f"Metadata copy failed for {input_path}",
                 )
 
             output_bytes = (
