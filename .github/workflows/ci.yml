@@ -145,6 +145,11 @@ jobs:
           docker compose -f backend/tests/integration/upload-fault-compose.yml \
             -p immich-convert-test-faults up -d
 
+      - name: Prepare writable test-data dir for the non-root runner container
+        run: |
+          mkdir -p backend/tests/.test-data
+          chmod 777 backend/tests/.test-data
+
       - name: Run integration tests
         run: |
           docker run --rm \
@@ -204,6 +209,11 @@ jobs:
         run: |
           docker compose -f backend/tests/integration/upload-fault-compose.yml \
             -p immich-convert-test-faults up -d
+
+      - name: Prepare writable test-data dir for the non-root runner container
+        run: |
+          mkdir -p backend/tests/.test-data
+          chmod 777 backend/tests/.test-data
 
       - name: Run integration tests
         run: |

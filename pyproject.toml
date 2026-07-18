@@ -39,6 +39,10 @@ markers = [
 [tool.coverage.run]
 source = ["backend/app"]
 branch = true
+# SQLAlchemy's async engine bridges sync DBAPI calls through greenlet;
+# without this, coverage under CPython 3.13 loses line tracking on
+# whatever runs right after each await, undercounting real coverage.
+concurrency = ["greenlet", "thread"]
 
 [tool.coverage.report]
 show_missing = true
