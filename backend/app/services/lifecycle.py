@@ -1,11 +1,13 @@
 """Startup tasks: run once when the app boots."""
 
 import logging
+from datetime import datetime, timezone
 
 from sqlalchemy import select
 
 from app.config import seed_settings_from_env
 from app.database import AsyncSessionLocal
+from app.models.run import Run
 from app.models.settings import SETTINGS_ROW_ID, Settings
 
 logger = logging.getLogger(__name__)
@@ -29,3 +31,32 @@ async def seed_settings() -> None:
         db.add(row)
         await db.commit()
         logger.info("Seeded settings from environment variables")
+
+
+async def reconcile_interrupted_runs() -> None:
+    """Fail any run left "queued"/"running" by a previous process.
+
+    Nothing re-enqueues a pending run into run_queue on boot, and nothing
+    else ever moves a run out of "running" once its process is gone -- a
+    kill/crash/OOM mid-run otherwise leaves it stuck in that state forever,
+    permanently blocking retry-failed for it.
+    """
+    async with AsyncSessionLocal() as db:
+        result = await db.execute(
+            select(Run).where(Run.status.in_(("queued", "running")))
+        )
+        stale_runs = result.scalars().all()
+        if not stale_runs:
+            return
+
+        now = datetime.now(timezone.utc)
+        for run in stale_runs:
+            run.status = "failed"
+            run.completed_at = now
+            run.error_message = "Interrupted by application restart"
+        await db.commit()
+        logger.warning(
+            "Marked %d interrupted run(s) as failed on startup: %s",
+            len(stale_runs),
+            [r.id for r in stale_runs],
+        )

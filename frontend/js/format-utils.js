@@ -12,6 +12,7 @@ const STATUS_LABELS = {
   failed_upload: "Failed: upload",
   failed_copy: "Failed: metadata copy",
   failed_verification: "Failed: verification",
+  failed_error: "Failed: unexpected error",
 };
 
 function prettyStatus(status) {

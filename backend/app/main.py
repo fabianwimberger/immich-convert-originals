@@ -23,11 +23,12 @@ async def lifespan(app: FastAPI):
     settings.ensure_directories()
 
     from app.database import init_db
-    from app.services.lifecycle import seed_settings
+    from app.services.lifecycle import reconcile_interrupted_runs, seed_settings
     from app.services.run_queue import run_queue
 
     await init_db()
     await seed_settings()
+    await reconcile_interrupted_runs()
     await run_queue.start()
 
     yield
