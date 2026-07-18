@@ -11,6 +11,13 @@ from app.database import Base
 # Everything else (failed_*, error, unknown) is retryable.
 FINAL_STATUSES = frozenset({"success", "partial_success", "skipped"})
 
+# Statuses that aren't a failure, for "retry failed" / "export failures".
+# dry_run_preview is deliberately excluded from FINAL_STATUSES above (a
+# dry run must never make a later real run skip an asset as already done),
+# but it's still not a failure -- a successful preview shouldn't show up as
+# something to retry or export.
+NON_FAILURE_STATUSES = FINAL_STATUSES | {"dry_run_preview"}
+
 
 class AssetOutcome(Base):
     """Result of processing one asset during one run."""

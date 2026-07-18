@@ -25,7 +25,6 @@ from app.models.asset_outcome import FINAL_STATUSES, AssetOutcome
 from app.models.run import Run
 from app.services.immich_client import Asset, ImmichClient
 from app.services.transcode import (
-    detect_video_codec,
     transcode,
     transcode_video,
     validate_output,
@@ -83,10 +82,6 @@ def _process_asset_sync(
         input_path = os.path.join(work_dir, f"{asset.id}.bin")
         output_path = os.path.join(work_dir, f"{asset.id}.{target_format}")
 
-        if dry_run and not is_video:
-            result["status"] = "dry_run_skip"
-            return result
-
         input_bytes, error = client.download_original(asset.id, input_path)
         if error:
             result["status"] = "failed_download"
@@ -97,11 +92,6 @@ def _process_asset_sync(
             result["error"] = "Downloaded file is empty"
             return result
         result["input_bytes"] = input_bytes
-
-        if dry_run and is_video:
-            codec = detect_video_codec(input_path)
-            result["status"] = "skipped" if codec == "av1" else "dry_run_skip"
-            return result
 
         if is_video:
             tx = transcode_video(
@@ -163,6 +153,13 @@ def _process_asset_sync(
             else:
                 result["status"] = "skipped"
                 return result
+
+        if dry_run:
+            # Real download + transcode already ran above, so this reflects
+            # the actual size a real run would produce -- just stop short of
+            # touching the user's Immich library.
+            result["status"] = "dry_run_preview"
+            return result
 
         base_name = os.path.splitext(asset.original_file_name)[0]
         new_filename = f"{base_name}.{target_format}"
@@ -292,9 +289,9 @@ async def _record_outcome(run_id: int, asset: Asset, result: dict[str, Any]) -> 
 
 async def _bump_run_counters(run_id: int, status: str) -> dict[str, int]:
     increments: dict[str, Any] = {"processed_count": Run.processed_count + 1}
-    if status in ("success", "partial_success"):
+    if status in ("success", "partial_success", "dry_run_preview"):
         increments["success_count"] = Run.success_count + 1
-    elif status in ("skipped", "dry_run_skip"):
+    elif status == "skipped":
         increments["skipped_count"] = Run.skipped_count + 1
     else:
         increments["failed_count"] = Run.failed_count + 1
@@ -354,8 +351,7 @@ async def _run_one_asset(
             _process_asset_sync, asset, client, cfg, work_dir
         )
 
-        if result["status"] != "dry_run_skip" or not cfg["dry_run"]:
-            await _record_outcome(run_id, asset, result)
+        await _record_outcome(run_id, asset, result)
         await _add_run_bytes(
             run_id, result.get("input_bytes", 0), result.get("output_bytes", 0)
         )

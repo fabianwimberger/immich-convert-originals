@@ -97,12 +97,32 @@ class TestProcessAssetSyncImages:
         result = run_service._process_asset_sync(asset, client, BASE_CFG, str(tmp_path))
         assert result["status"] == "skipped"
 
-    def test_dry_run_image_skips_without_download(self, tmp_path):
+    def test_dry_run_image_previews_real_size_without_upload(
+        self, tmp_path, monkeypatch
+    ):
         asset = _make_asset()
         client = FakeClient()
         cfg = {**BASE_CFG, "dry_run": True}
+
+        monkeypatch.setattr(
+            run_service,
+            "transcode",
+            lambda inp, out, distance: TranscodeResult(
+                success=True,
+                input_path=inp,
+                output_path=out,
+                input_bytes=1000,
+                output_bytes=500,
+                input_format="jpg",
+            ),
+        )
+        monkeypatch.setattr(run_service, "validate_output", lambda path, fmt: True)
+
         result = run_service._process_asset_sync(asset, client, cfg, str(tmp_path))
-        assert result["status"] == "dry_run_skip"
+        assert result["status"] == "dry_run_preview"
+        assert result["input_bytes"] == 1000
+        assert result["output_bytes"] == 500
+        assert client.deleted_ids == []
 
     def test_download_failure(self, tmp_path):
         asset = _make_asset()
@@ -300,22 +320,51 @@ class TestProcessAssetSyncImages:
 
 
 class TestProcessAssetSyncVideos:
-    def test_dry_run_video_downloads_for_codec_detection(self, tmp_path, monkeypatch):
+    def test_dry_run_video_previews_real_size_without_upload(
+        self, tmp_path, monkeypatch
+    ):
         asset = _make_asset(
             asset_type="VIDEO", file_name="clip.mp4", mime_type="video/mp4"
         )
         client = FakeClient()
-        monkeypatch.setattr(run_service, "detect_video_codec", lambda path: "h264")
+        monkeypatch.setattr(
+            run_service,
+            "transcode_video",
+            lambda inp, out, crf, preset, max_dimension, audio_bitrate: TranscodeResult(
+                success=True,
+                input_path=inp,
+                output_path=out,
+                input_bytes=1000,
+                output_bytes=600,
+                input_format="h264",
+            ),
+        )
+        monkeypatch.setattr(run_service, "validate_video_output", lambda path: True)
         cfg = {**BASE_CFG, "dry_run": True}
         result = run_service._process_asset_sync(asset, client, cfg, str(tmp_path))
-        assert result["status"] == "dry_run_skip"
+        assert result["status"] == "dry_run_preview"
+        assert result["input_bytes"] == 1000
+        assert result["output_bytes"] == 600
+        assert client.deleted_ids == []
 
     def test_dry_run_video_already_av1_is_skipped(self, tmp_path, monkeypatch):
         asset = _make_asset(
             asset_type="VIDEO", file_name="clip.mp4", mime_type="video/mp4"
         )
         client = FakeClient()
-        monkeypatch.setattr(run_service, "detect_video_codec", lambda path: "av1")
+        monkeypatch.setattr(
+            run_service,
+            "transcode_video",
+            lambda inp, out, crf, preset, max_dimension, audio_bitrate: TranscodeResult(
+                success=False,
+                input_path=inp,
+                output_path=out,
+                input_bytes=1000,
+                output_bytes=1000,
+                input_format="av1",
+                error="Already AV1",
+            ),
+        )
         cfg = {**BASE_CFG, "dry_run": True}
         result = run_service._process_asset_sync(asset, client, cfg, str(tmp_path))
         assert result["status"] == "skipped"

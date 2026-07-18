@@ -11,7 +11,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.models.asset_outcome import FINAL_STATUSES, AssetOutcome
+from app.models.asset_outcome import NON_FAILURE_STATUSES, AssetOutcome
 from app.models.run import Run
 from app.models.schemas import (
     AssetOutcomeListResponse,
@@ -173,7 +173,7 @@ async def retry_failed(run_id: int, db: AsyncSession = Depends(get_db)):
     outcomes_result = await db.execute(
         select(AssetOutcome.asset_id)
         .where(AssetOutcome.run_id == run_id)
-        .where(AssetOutcome.status.not_in(FINAL_STATUSES))
+        .where(AssetOutcome.status.not_in(NON_FAILURE_STATUSES))
         .distinct()
     )
     failed_ids = [row[0] for row in outcomes_result.all()]
@@ -204,7 +204,7 @@ async def export_failures(run_id: int, db: AsyncSession = Depends(get_db)):
     outcomes_result = await db.execute(
         select(AssetOutcome)
         .where(AssetOutcome.run_id == run_id)
-        .where(AssetOutcome.status.not_in(FINAL_STATUSES))
+        .where(AssetOutcome.status.not_in(NON_FAILURE_STATUSES))
         .order_by(AssetOutcome.updated_at.desc())
     )
     outcomes = outcomes_result.scalars().all()
