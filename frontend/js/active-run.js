@@ -6,6 +6,7 @@ class ActiveRun {
     this.run = null;
     this.currentAssets = new Map(); // asset_id -> filename, while "processing"
     this._unsubscribe = null;
+    this.onBack = null; // set by RunPanel: return to the config screen
   }
 
   async show(runId) {
@@ -77,12 +78,18 @@ class ActiveRun {
         }
         ${r.error_message ? `<p class="status-error">${r.error_message}</p>` : ""}
         <div class="row">
-          <button id="btn-cancel-run" ${canCancel ? "" : "disabled"}>Cancel</button>
+          ${
+            canCancel
+              ? '<button id="btn-cancel-run">Cancel</button>'
+              : '<button id="btn-back-to-config" class="primary">Start Another Run</button>'
+          }
         </div>
       </section>
     `;
 
     const cancelBtn = this.root.querySelector("#btn-cancel-run");
     if (cancelBtn) cancelBtn.addEventListener("click", () => this.cancel());
+    const backBtn = this.root.querySelector("#btn-back-to-config");
+    if (backBtn) backBtn.addEventListener("click", () => this.onBack && this.onBack());
   }
 }

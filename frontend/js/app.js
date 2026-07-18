@@ -26,6 +26,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     btn.addEventListener("click", () => {
       switchTab(btn.dataset.tab);
       if (btn.dataset.tab === "history" && runHistory) runHistory.refresh();
+      if (btn.dataset.tab === "convert" && runPanel) runPanel.refresh();
     });
   });
 
