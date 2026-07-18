@@ -75,10 +75,29 @@ class RunHistory {
   }
 
   _bytesSaved(r) {
-    if (!r.input_bytes) return "";
-    const saved = r.input_bytes - r.output_bytes;
-    const pct = ((saved / r.input_bytes) * 100).toFixed(0);
+    return this._savedLabel(r.input_bytes, r.output_bytes);
+  }
+
+  _savedLabel(inputBytes, outputBytes) {
+    if (!inputBytes) return "";
+    const saved = inputBytes - outputBytes;
+    const pct = ((saved / inputBytes) * 100).toFixed(0);
     return `${this._fmtBytes(saved)} (${pct}%)`;
+  }
+
+  _prettyStatus(status) {
+    const labels = {
+      success: "Converted",
+      partial_success: "Converted (cleanup needed)",
+      dry_run_preview: "Would convert",
+      skipped: "Skipped",
+      failed_download: "Failed: download",
+      failed_transcode: "Failed: transcode",
+      failed_upload: "Failed: upload",
+      failed_copy: "Failed: metadata copy",
+      failed_verification: "Failed: verification",
+    };
+    return labels[status] || status.replace(/_/g, " ");
   }
 
   _fmtBytes(n) {
@@ -109,7 +128,10 @@ class RunHistory {
         (o) => `
           <tr>
             <td>${o.filename}</td>
-            <td>${o.status}</td>
+            <td>${this._prettyStatus(o.status)}</td>
+            <td>${o.target_format || ""}</td>
+            <td>${o.input_bytes ? `${this._fmtBytes(o.input_bytes)} &rarr; ${this._fmtBytes(o.output_bytes)}` : ""}</td>
+            <td>${this._savedLabel(o.input_bytes, o.output_bytes)}</td>
             <td>${o.error || ""}</td>
           </tr>
         `
@@ -124,8 +146,8 @@ class RunHistory {
       </div>
       <div class="table-wrap">
         <table class="run-table">
-          <thead><tr><th>Filename</th><th>Status</th><th>Error</th></tr></thead>
-          <tbody>${rows || '<tr><td colspan="3" class="placeholder">No outcomes recorded.</td></tr>'}</tbody>
+          <thead><tr><th>Filename</th><th>Status</th><th>Format</th><th>Size</th><th>Saved</th><th>Error</th></tr></thead>
+          <tbody>${rows || '<tr><td colspan="6" class="placeholder">No outcomes recorded.</td></tr>'}</tbody>
         </table>
       </div>
     `;
