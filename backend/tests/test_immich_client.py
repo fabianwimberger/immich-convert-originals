@@ -140,7 +140,7 @@ class TestSearchAssets:
             "type": "IMAGE",
             "page": 2,
             "size": 100,
-            "order": "asc",
+            "order": "desc",
             "withDeleted": False,
             "visibility": "timeline",
         }

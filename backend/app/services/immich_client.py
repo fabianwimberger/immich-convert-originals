@@ -135,7 +135,7 @@ class ImmichClient:
             "type": asset_type,
             "page": page,
             "size": size,
-            "order": "asc",
+            "order": "desc",
             "withDeleted": with_deleted,
         }
         if not with_archived:
@@ -475,7 +475,7 @@ class ImmichClient:
                 "albumIds": [album_id],
                 "page": page,
                 "size": 500,
-                "order": "asc",
+                "order": "desc",
                 "withDeleted": True,
             }
             response = self._request_with_retry("POST", url, json=body)
