@@ -61,17 +61,120 @@ def _is_cancelled(run_id: int) -> bool:
     return run_id in _cancelled_runs
 
 
-def _get_target_format(asset: Asset) -> str:
-    return "mp4" if asset.type == "VIDEO" else "jxl"
+def _get_target_format(asset: Asset, cfg: dict[str, Any]) -> str:
+    if asset.type == "VIDEO":
+        return "mp4"
+    return cfg.get("image_target_format", "jxl")
 
 
-def _should_skip_by_mime_type(asset: Asset) -> bool:
-    if asset.type != "IMAGE":
-        return False
+def _get_image_quality(
+    cfg: dict[str, Any], target_format: str, *, retry: bool
+) -> float:
+    """Resolves the quality/distance value for the given target format.
+
+    JXL uses distance (0-25, lower=better); HEIC/AVIF use ImageMagick
+    -quality (0-100, higher=better) -- not the same scale, so each format
+    keeps its own setting rather than sharing one field.
+    """
+    if target_format == "heic":
+        key = "image_quality_heic_retry" if retry else "image_quality_heic"
+        return cfg.get(key, 60 if retry else 80)
+    if target_format == "avif":
+        key = "image_quality_avif_retry" if retry else "image_quality_avif"
+        return cfg.get(key, 55 if retry else 75)
+    key = "image_distance_retry" if retry else "image_distance"
+    return cfg.get(key, 2.0 if retry else 1.0)
+
+
+def _local_output_dir_for_asset(local_output_dir: str, asset: Asset) -> str:
+    """<local_output_dir>/<year>/<month>, from the asset's capture date --
+    approximates how Immich itself organizes its own upload folder, without
+    trying to read or replicate a specific instance's storage template."""
+    created = datetime.fromisoformat(asset.file_created_at)
+    return os.path.join(local_output_dir, f"{created.year:04d}", f"{created.month:02d}")
+
+
+def _local_output_path(local_output_dir: str, asset: Asset, target_format: str) -> str:
+    base_name = os.path.splitext(asset.original_file_name)[0]
+    return os.path.join(
+        _local_output_dir_for_asset(local_output_dir, asset),
+        f"{base_name}.{target_format}",
+    )
+
+
+def _local_original_path(local_output_dir: str, asset: Asset) -> str:
+    return os.path.join(
+        _local_output_dir_for_asset(local_output_dir, asset),
+        "originals",
+        asset.original_file_name,
+    )
+
+
+# Best-effort format guess from Immich metadata alone (mime type, then
+# filename extension), so an excluded format can be skipped before spending
+# any bandwidth downloading it. Mirrors transcode.detect_format()'s magic-byte
+# detection, just working off what the Immich API already told us instead of
+# file contents.
+_FORMAT_MIME_MAP = {
+    "image/jpeg": "jpg",
+    "image/png": "png",
+    "image/webp": "webp",
+    "image/heic": "heic",
+    "image/heif": "heic",
+    "image/avif": "avif",
+    "image/tiff": "tiff",
+    "image/gif": "gif",
+    "image/bmp": "bmp",
+}
+_FORMAT_EXTENSION_MAP = {
+    ".jpg": "jpg",
+    ".jpeg": "jpg",
+    ".png": "png",
+    ".webp": "webp",
+    ".heic": "heic",
+    ".heif": "heic",
+    ".avif": "avif",
+    ".tiff": "tiff",
+    ".tif": "tiff",
+    ".gif": "gif",
+    ".bmp": "bmp",
+}
+
+# Matches Settings.convert_image_formats' default (models/settings.py) -- used
+# as the fallback here too, so a config_snapshot persisted before this setting
+# existed (e.g. retry-failed on an old run) still converts every format
+# instead of KeyError-ing or skipping everything.
+ALL_IMAGE_FORMATS = "jpg,png,webp,heic,avif,tiff,gif,bmp"
+
+
+def _detect_image_format_from_metadata(asset: Asset) -> str | None:
     mime_type = asset.original_mime_type.lower() if asset.original_mime_type else None
-    if mime_type == "image/jxl":
-        return True
-    return asset.original_file_name.lower().endswith(".jxl")
+    if mime_type in _FORMAT_MIME_MAP:
+        return _FORMAT_MIME_MAP[mime_type]
+    _, ext = os.path.splitext(asset.original_file_name.lower())
+    return _FORMAT_EXTENSION_MAP.get(ext)
+
+
+def _should_skip_by_mime_type(asset: Asset, cfg: dict[str, Any]) -> str | None:
+    """Returns a skip reason if this image shouldn't be processed, else None."""
+    if asset.type != "IMAGE":
+        return None
+
+    mime_type = asset.original_mime_type.lower() if asset.original_mime_type else None
+    is_jxl = mime_type == "image/jxl" or asset.original_file_name.lower().endswith(
+        ".jxl"
+    )
+    if is_jxl:
+        return "Already JPEG XL"
+
+    detected = _detect_image_format_from_metadata(asset)
+    allowed_formats = set(
+        cfg.get("convert_image_formats", ALL_IMAGE_FORMATS).split(",")
+    )
+    if detected is not None and detected not in allowed_formats:
+        return "Format excluded by settings"
+
+    return None
 
 
 def _process_asset_sync(
@@ -87,12 +190,16 @@ def _process_asset_sync(
     }
 
     is_video = asset.type == "VIDEO"
-    target_format = _get_target_format(asset)
+    target_format = _get_target_format(asset, cfg)
+    result["target_format"] = target_format
     dry_run = cfg["dry_run"]
 
-    if not is_video and _should_skip_by_mime_type(asset):
-        result["status"] = "skipped"
-        return result
+    if not is_video:
+        skip_reason = _should_skip_by_mime_type(asset, cfg)
+        if skip_reason:
+            result["status"] = "skipped"
+            result["error"] = skip_reason
+            return result
 
     try:
         input_path = os.path.join(work_dir, f"{asset.id}.bin")
@@ -120,8 +227,13 @@ def _process_asset_sync(
             )
             is_valid = validate_video_output(output_path)
         else:
-            tx = transcode(input_path, output_path, cfg["image_distance"])
-            is_valid = validate_output(output_path, "jxl")
+            tx = transcode(
+                input_path,
+                output_path,
+                target_format,
+                _get_image_quality(cfg, target_format, retry=False),
+            )
+            is_valid = validate_output(output_path, target_format)
 
         if not tx.success:
             # No output was produced, so input_bytes must not carry a
@@ -158,8 +270,13 @@ def _process_asset_sync(
                     )
                     is_valid = validate_video_output(output_path)
                 else:
-                    tx = transcode(input_path, output_path, cfg["image_distance_retry"])
-                    is_valid = validate_output(output_path, "jxl")
+                    tx = transcode(
+                        input_path,
+                        output_path,
+                        target_format,
+                        _get_image_quality(cfg, target_format, retry=True),
+                    )
+                    is_valid = validate_output(output_path, target_format)
 
                 if not tx.success or not is_valid:
                     result["status"] = "skipped"
@@ -180,6 +297,23 @@ def _process_asset_sync(
             # the actual size a real run would produce -- just stop short of
             # touching the user's Immich library.
             result["status"] = "dry_run_preview"
+            return result
+
+        if cfg.get("output_mode", "upload") == "local":
+            # Convert-only: write to disk instead of touching Immich at all
+            # -- no upload, no delete, original stays exactly as it was.
+            dest_path = _local_output_path(
+                cfg["local_output_dir"], asset, target_format
+            )
+            os.makedirs(os.path.dirname(dest_path), exist_ok=True)
+            shutil.move(output_path, dest_path)
+
+            if cfg.get("local_keep_originals"):
+                original_dest = _local_original_path(cfg["local_output_dir"], asset)
+                os.makedirs(os.path.dirname(original_dest), exist_ok=True)
+                shutil.copy2(input_path, original_dest)
+
+            result["status"] = "saved_local"
             return result
 
         base_name = os.path.splitext(asset.original_file_name)[0]
@@ -302,7 +436,7 @@ async def _persist_asset_result(
     output_bytes = result.get("output_bytes", 0)
 
     increments: dict[str, Any] = {"processed_count": Run.processed_count + 1}
-    if status in ("success", "partial_success", "dry_run_preview"):
+    if status in ("success", "partial_success", "dry_run_preview", "saved_local"):
         increments["success_count"] = Run.success_count + 1
     elif status == "skipped":
         increments["skipped_count"] = Run.skipped_count + 1
@@ -320,7 +454,7 @@ async def _persist_asset_result(
             status=status,
             error=result.get("error"),
             new_asset_id=result.get("new_asset_id"),
-            target_format=_get_target_format(asset),
+            target_format=result.get("target_format"),
             input_bytes=input_bytes,
             output_bytes=output_bytes,
             updated_at=datetime.now(timezone.utc),
@@ -372,7 +506,11 @@ async def _run_one_asset(
             # except/finally run work_dir cleanup while other assets are
             # still mid-download into that same directory.
             logger.exception("Unhandled error processing asset %s", asset.id)
-            result = {"status": "failed_error", "error": str(e)}
+            result = {
+                "status": "failed_error",
+                "error": str(e),
+                "target_format": _get_target_format(asset, cfg),
+            }
 
         lock = _progress_locks.setdefault(run_id, asyncio.Lock())
         async with lock:
@@ -391,7 +529,7 @@ async def _run_one_asset(
                     "stage": "done",
                     "status": result["status"],
                     "error": result.get("error"),
-                    "target_format": _get_target_format(asset),
+                    "target_format": result.get("target_format"),
                     "input_bytes": result.get("input_bytes", 0),
                     "output_bytes": result.get("output_bytes", 0),
                 }

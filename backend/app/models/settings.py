@@ -10,9 +10,9 @@ SETTINGS_ROW_ID = 1
 class Settings(Base):
     """Immich connection and default encoding settings.
 
-    A singleton row (id always SETTINGS_ROW_ID). Seeded from environment
-    variables on first boot (see app.config.seed_settings_from_env); after
-    that, the Settings page in the UI is the only way to change it.
+    A singleton row (id always SETTINGS_ROW_ID), seeded with these column
+    defaults on first boot; after that, the Settings page in the UI is the
+    only way to change it.
     """
 
     __tablename__ = "settings"
@@ -26,8 +26,21 @@ class Settings(Base):
     include_archived: Mapped[bool] = mapped_column(default=False)
     include_deleted: Mapped[bool] = mapped_column(default=False)
 
+    # Which image formats a run will touch at all; anything else is skipped
+    # before download. Comma-separated subset of jpg,png,webp,heic,avif,tiff,gif,bmp.
+    convert_image_formats: Mapped[str] = mapped_column(
+        default="jpg,png,webp,heic,avif,tiff,gif,bmp"
+    )
+
+    # Target image container. HEIC/AVIF use image_quality_* (0-100,
+    # ImageMagick -quality) instead of distance -- not the same scale.
+    image_target_format: Mapped[str] = mapped_column(default="jxl")
     image_distance: Mapped[float] = mapped_column(default=1.0)
     image_distance_retry: Mapped[float] = mapped_column(default=2.0)
+    image_quality_heic: Mapped[int] = mapped_column(default=80)
+    image_quality_heic_retry: Mapped[int] = mapped_column(default=60)
+    image_quality_avif: Mapped[int] = mapped_column(default=75)
+    image_quality_avif_retry: Mapped[int] = mapped_column(default=55)
 
     video_crf: Mapped[int] = mapped_column(default=36)
     video_preset: Mapped[int] = mapped_column(default=4)
@@ -40,3 +53,10 @@ class Settings(Base):
     allow_larger: Mapped[bool] = mapped_column(default=False)
 
     concurrency: Mapped[int] = mapped_column(default=2)
+
+    # "local" writes the converted file to local_output_dir instead of
+    # uploading to Immich -- the original is never touched (no upload, no
+    # delete) either way.
+    output_mode: Mapped[str] = mapped_column(default="upload")
+    local_output_dir: Mapped[str] = mapped_column(default="/app/output")
+    local_keep_originals: Mapped[bool] = mapped_column(default=False)

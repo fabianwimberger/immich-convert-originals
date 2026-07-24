@@ -1,4 +1,4 @@
-"""Transcoding pipeline for JPEG XL and video conversion."""
+"""Transcoding pipeline for image (JPEG XL/HEIC/AVIF) and video conversion."""
 
 import logging
 import os
@@ -173,21 +173,28 @@ def copy_metadata(
 def _transcode_with_magick(
     input_path: str,
     output_path: str,
-    distance: float,
+    target_format: str,
+    quality: float,
     timeouts: Timeouts = DEFAULT_TIMEOUTS,
 ) -> TranscodeResult:
-    """Transcode using ImageMagick with specified JXL distance."""
+    """Transcode using ImageMagick.
+
+    `quality` is JXL distance (0-25) when target_format == "jxl", otherwise
+    a 0-100 ImageMagick -quality value (HEIC/AVIF). Output container is
+    whatever output_path's extension is -- ImageMagick picks the delegate
+    from it, same as it always has.
+    """
     input_bytes = os.path.getsize(input_path)
     input_format = detect_format(input_path)
 
+    quality_args = (
+        ["-define", f"jxl:distance={quality}"]
+        if target_format == "jxl"
+        else ["-quality", str(quality)]
+    )
+
     for magick_cmd in ("magick", "convert"):
-        cmd = [
-            magick_cmd,
-            input_path,
-            "-define",
-            f"jxl:distance={distance}",
-            output_path,
-        ]
+        cmd = [magick_cmd, input_path, *quality_args, output_path]
         try:
             subprocess.run(cmd, check=True, capture_output=True, timeout=timeouts.image)
             metadata_ok, metadata_error = copy_metadata(
@@ -253,13 +260,18 @@ def _transcode_with_magick(
 def transcode(
     input_path: str,
     output_path: str,
-    distance: float,
+    target_format: str,
+    quality: float,
     timeouts: Timeouts = DEFAULT_TIMEOUTS,
 ) -> TranscodeResult:
-    """Transcode an image to JPEG XL.
+    """Transcode an image to the given target format.
 
-    JPEG: cjxl lossless repack (distance ignored - always lossless).
-    Other formats: ImageMagick with configured distance.
+    JPEG source + JXL target: cjxl lossless repack (quality ignored - always
+    lossless). This is JXL's unique ability to bit-exactly re-house a JPEG
+    codestream; HEIC/AVIF have no equivalent, so a JPEG source targeting
+    those falls through to the normal ImageMagick re-encode below.
+    Everything else: ImageMagick with the given quality (JXL distance 0-25,
+    or HEIC/AVIF -quality 0-100).
     """
     input_bytes = os.path.getsize(input_path)
     input_format = detect_format(input_path)
@@ -275,7 +287,7 @@ def transcode(
             error="Could not detect input format",
         )
 
-    if input_format == "jxl":
+    if input_format == target_format:
         return TranscodeResult(
             success=False,
             input_path=input_path,
@@ -283,13 +295,13 @@ def transcode(
             input_bytes=input_bytes,
             output_bytes=input_bytes,
             input_format=input_format,
-            error="Already JXL",
+            error=f"Already {target_format.upper()}",
         )
 
-    is_jpeg = input_format == "jpg"
+    is_jpeg_to_jxl = input_format == "jpg" and target_format == "jxl"
 
-    if is_jpeg:
-        # JPEG: Use cjxl for lossless repack (no distance parameter).
+    if is_jpeg_to_jxl:
+        # JPEG->JXL: Use cjxl for lossless repack (no quality parameter).
         # cjxl preserves EXIF APP markers natively; running exiftool afterwards
         # is unnecessary and can accidentally downgrade metadata.
         try:
@@ -311,7 +323,7 @@ def transcode(
         except FileNotFoundError:
             # cjxl not installed - fall back to ImageMagick
             return _transcode_with_magick(
-                input_path, output_path, distance, timeouts=timeouts
+                input_path, output_path, target_format, quality, timeouts=timeouts
             )
 
         if result.returncode == 0:
@@ -329,12 +341,11 @@ def transcode(
         else:
             # cjxl failed (e.g., progressive JPEG) - fall back to ImageMagick
             return _transcode_with_magick(
-                input_path, output_path, distance, timeouts=timeouts
+                input_path, output_path, target_format, quality, timeouts=timeouts
             )
     else:
-        # Non-JPEG: Use ImageMagick directly with configured distance
         return _transcode_with_magick(
-            input_path, output_path, distance, timeouts=timeouts
+            input_path, output_path, target_format, quality, timeouts=timeouts
         )
 
 

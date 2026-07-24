@@ -47,14 +47,32 @@ async def _build_config_snapshot(data: RunCreate, db: AsyncSession) -> dict[str,
         "album_id": data.album_id,
         "include_archived": _pick(data.include_archived, settings.include_archived),
         "include_deleted": _pick(data.include_deleted, settings.include_deleted),
+        "convert_image_formats": _pick(
+            data.convert_image_formats, settings.convert_image_formats
+        ),
         "taken_after": data.taken_after,
         "taken_before": data.taken_before,
         "original_filename": data.original_filename,
         "max_assets": data.max_assets,
         "dry_run": data.dry_run,
+        "image_target_format": _pick(
+            data.image_target_format, settings.image_target_format
+        ),
         "image_distance": _pick(data.image_distance, settings.image_distance),
         "image_distance_retry": _pick(
             data.image_distance_retry, settings.image_distance_retry
+        ),
+        "image_quality_heic": _pick(
+            data.image_quality_heic, settings.image_quality_heic
+        ),
+        "image_quality_heic_retry": _pick(
+            data.image_quality_heic_retry, settings.image_quality_heic_retry
+        ),
+        "image_quality_avif": _pick(
+            data.image_quality_avif, settings.image_quality_avif
+        ),
+        "image_quality_avif_retry": _pick(
+            data.image_quality_avif_retry, settings.image_quality_avif_retry
         ),
         "video_crf": _pick(data.video_crf, settings.video_crf),
         "video_preset": _pick(data.video_preset, settings.video_preset),
@@ -71,6 +89,11 @@ async def _build_config_snapshot(data: RunCreate, db: AsyncSession) -> dict[str,
         ),
         "allow_larger": _pick(data.allow_larger, settings.allow_larger),
         "concurrency": _pick(data.concurrency, settings.concurrency),
+        "output_mode": _pick(data.output_mode, settings.output_mode),
+        "local_output_dir": _pick(data.local_output_dir, settings.local_output_dir),
+        "local_keep_originals": _pick(
+            data.local_keep_originals, settings.local_keep_originals
+        ),
     }
 
 
