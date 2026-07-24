@@ -97,6 +97,22 @@ const SETTINGS_FIELDS = {
     default: "2",
     example: "e.g. 4-8 if your Immich server and disk can keep up",
   },
+  output_mode: {
+    description:
+      "Upload replaces the original in Immich as usual. Local writes the converted file to disk instead -- nothing is ever uploaded or deleted from Immich.",
+    default: "Upload to Immich",
+  },
+  local_output_dir: {
+    description:
+      "Where converted files land in local mode, under <year>/<month> subfolders by capture date. Must be a path inside the container -- mount it as a volume to reach it from the host.",
+    default: "/app/output",
+    example: "e.g. /app/output",
+  },
+  local_keep_originals: {
+    description:
+      "Also copy the untouched original alongside the converted file, under an originals/ subfolder.",
+    default: "off",
+  },
 };
 
 /** "Default: X -- description (example)" hint markup for a field, or "" if

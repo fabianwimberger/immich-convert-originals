@@ -36,6 +36,9 @@ class SettingsResponse(BaseModel):
     accept_retry_output: bool
     allow_larger: bool
     concurrency: int
+    output_mode: str
+    local_output_dir: str
+    local_keep_originals: bool
 
     @classmethod
     def from_settings(cls, settings: SettingsRow) -> "SettingsResponse":
@@ -62,6 +65,9 @@ class SettingsResponse(BaseModel):
             accept_retry_output=settings.accept_retry_output,
             allow_larger=settings.allow_larger,
             concurrency=settings.concurrency,
+            output_mode=settings.output_mode,
+            local_output_dir=settings.local_output_dir,
+            local_keep_originals=settings.local_keep_originals,
         )
 
 
@@ -95,6 +101,9 @@ class SettingsUpdate(BaseModel):
     accept_retry_output: bool | None = None
     allow_larger: bool | None = None
     concurrency: int | None = Field(default=None, ge=1, le=32)
+    output_mode: str | None = None
+    local_output_dir: str | None = None
+    local_keep_originals: bool | None = None
 
 
 class TestConnectionRequest(BaseModel):
@@ -171,6 +180,9 @@ class RunCreate(BaseModel):
     accept_retry_output: bool | None = None
     allow_larger: bool | None = None
     concurrency: int | None = Field(default=None, ge=1, le=32)
+    output_mode: str | None = None
+    local_output_dir: str | None = None
+    local_keep_originals: bool | None = None
 
 
 class RunResponse(BaseModel):

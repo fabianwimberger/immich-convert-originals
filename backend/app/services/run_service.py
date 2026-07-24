@@ -86,6 +86,30 @@ def _get_image_quality(
     return cfg.get(key, 2.0 if retry else 1.0)
 
 
+def _local_output_dir_for_asset(local_output_dir: str, asset: Asset) -> str:
+    """<local_output_dir>/<year>/<month>, from the asset's capture date --
+    approximates how Immich itself organizes its own upload folder, without
+    trying to read or replicate a specific instance's storage template."""
+    created = datetime.fromisoformat(asset.file_created_at)
+    return os.path.join(local_output_dir, f"{created.year:04d}", f"{created.month:02d}")
+
+
+def _local_output_path(local_output_dir: str, asset: Asset, target_format: str) -> str:
+    base_name = os.path.splitext(asset.original_file_name)[0]
+    return os.path.join(
+        _local_output_dir_for_asset(local_output_dir, asset),
+        f"{base_name}.{target_format}",
+    )
+
+
+def _local_original_path(local_output_dir: str, asset: Asset) -> str:
+    return os.path.join(
+        _local_output_dir_for_asset(local_output_dir, asset),
+        "originals",
+        asset.original_file_name,
+    )
+
+
 # Best-effort format guess from Immich metadata alone (mime type, then
 # filename extension), so an excluded format can be skipped before spending
 # any bandwidth downloading it. Mirrors transcode.detect_format()'s magic-byte
@@ -275,6 +299,23 @@ def _process_asset_sync(
             result["status"] = "dry_run_preview"
             return result
 
+        if cfg.get("output_mode", "upload") == "local":
+            # Convert-only: write to disk instead of touching Immich at all
+            # -- no upload, no delete, original stays exactly as it was.
+            dest_path = _local_output_path(
+                cfg["local_output_dir"], asset, target_format
+            )
+            os.makedirs(os.path.dirname(dest_path), exist_ok=True)
+            shutil.move(output_path, dest_path)
+
+            if cfg.get("local_keep_originals"):
+                original_dest = _local_original_path(cfg["local_output_dir"], asset)
+                os.makedirs(os.path.dirname(original_dest), exist_ok=True)
+                shutil.copy2(input_path, original_dest)
+
+            result["status"] = "saved_local"
+            return result
+
         base_name = os.path.splitext(asset.original_file_name)[0]
         new_filename = f"{base_name}.{target_format}"
 
@@ -395,7 +436,7 @@ async def _persist_asset_result(
     output_bytes = result.get("output_bytes", 0)
 
     increments: dict[str, Any] = {"processed_count": Run.processed_count + 1}
-    if status in ("success", "partial_success", "dry_run_preview"):
+    if status in ("success", "partial_success", "dry_run_preview", "saved_local"):
         increments["success_count"] = Run.success_count + 1
     elif status == "skipped":
         increments["skipped_count"] = Run.skipped_count + 1

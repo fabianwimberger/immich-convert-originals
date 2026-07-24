@@ -23,6 +23,9 @@ class TestReadSettings:
         assert data["image_target_format"] == "jxl"
         assert data["image_quality_heic"] == 80
         assert data["image_quality_avif"] == 75
+        assert data["output_mode"] == "upload"
+        assert data["local_output_dir"] == "/app/output"
+        assert data["local_keep_originals"] is False
 
 
 class TestUpdateSettings:
@@ -70,6 +73,20 @@ class TestUpdateSettings:
     async def test_out_of_range_image_quality_rejected(self, client):
         resp = await client.put("/api/settings", json={"image_quality_heic": 150})
         assert resp.status_code == 422
+
+    async def test_output_mode_and_local_dir_persist(self, client):
+        resp = await client.put(
+            "/api/settings",
+            json={
+                "output_mode": "local",
+                "local_output_dir": "/data/converted",
+                "local_keep_originals": True,
+            },
+        )
+        data = resp.json()
+        assert data["output_mode"] == "local"
+        assert data["local_output_dir"] == "/data/converted"
+        assert data["local_keep_originals"] is True
 
 
 class TestConnectionCheck:

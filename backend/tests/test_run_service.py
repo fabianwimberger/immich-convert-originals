@@ -27,6 +27,7 @@ class FakeClient:
     album_assets: list[Asset] = field(default_factory=list)
     by_id: dict[str, Asset] = field(default_factory=dict)
     download_calls: int = 0
+    upload_calls: int = 0
 
     def download_original(self, asset_id: str, output_path: str):
         self.download_calls += 1
@@ -36,6 +37,7 @@ class FakeClient:
         return self.download_result
 
     def upload_asset(self, **kwargs: Any):
+        self.upload_calls += 1
         return self.upload_result
 
     def copy_asset_data(self, from_asset_id: str, to_asset_id: str):
@@ -95,6 +97,9 @@ BASE_CFG = {
     "enable_retry": True,
     "accept_retry_output": False,
     "allow_larger": False,
+    "output_mode": "upload",
+    "local_output_dir": "/app/output",
+    "local_keep_originals": False,
 }
 
 
@@ -137,6 +142,18 @@ class TestGetImageQuality:
         assert run_service._get_image_quality({}, "jxl", retry=False) == 1.0
         assert run_service._get_image_quality({}, "heic", retry=True) == 60
         assert run_service._get_image_quality({}, "avif", retry=False) == 75
+
+
+class TestLocalOutputPaths:
+    def test_output_path_is_dated_by_capture_year_month(self):
+        asset = _make_asset(file_name="photo.jpg", created_at="2024-03-09T12:00:00Z")
+        path = run_service._local_output_path("/out", asset, "avif")
+        assert path == "/out/2024/03/photo.avif"
+
+    def test_original_path_is_dated_and_under_originals_subdir(self):
+        asset = _make_asset(file_name="photo.jpg", created_at="2024-03-09T12:00:00Z")
+        path = run_service._local_original_path("/out", asset)
+        assert path == "/out/2024/03/originals/photo.jpg"
 
 
 class TestProcessAssetSyncImages:
@@ -439,6 +456,101 @@ class TestProcessAssetSyncImages:
         monkeypatch.setattr(run_service, "validate_output", lambda path, fmt: True)
         run_service._process_asset_sync(asset, client, BASE_CFG, str(tmp_path))
         assert list(tmp_path.iterdir()) == []
+
+
+class TestProcessAssetSyncLocalMode:
+    def _patch_transcode(self, monkeypatch, input_format="jpg"):
+        def fake_transcode(inp, out, fmt, quality):
+            # shutil.move/copy2 in the local-save path need a real file --
+            # unlike upload_asset (which just reads kwargs), this is the
+            # first path that actually touches output_path on disk.
+            with open(out, "wb") as f:
+                f.write(b"x" * 500)
+            return TranscodeResult(
+                success=True,
+                input_path=inp,
+                output_path=out,
+                input_bytes=1000,
+                output_bytes=500,
+                input_format=input_format,
+            )
+
+        monkeypatch.setattr(run_service, "transcode", fake_transcode)
+        monkeypatch.setattr(run_service, "validate_output", lambda path, fmt: True)
+
+    def test_saves_to_dated_local_path_without_touching_immich(
+        self, tmp_path, monkeypatch
+    ):
+        local_dir = tmp_path / "output"
+        work_dir = tmp_path / "work"
+        work_dir.mkdir()
+        asset = _make_asset(file_name="photo.jpg", created_at="2023-06-15T00:00:00Z")
+        client = FakeClient()
+        cfg = {**BASE_CFG, "output_mode": "local", "local_output_dir": str(local_dir)}
+        self._patch_transcode(monkeypatch)
+
+        result = run_service._process_asset_sync(asset, client, cfg, str(work_dir))
+
+        assert result["status"] == "saved_local"
+        assert result.get("new_asset_id") is None
+        assert client.upload_calls == 0
+        assert client.deleted_ids == []
+
+        dest = local_dir / "2023" / "06" / "photo.jxl"
+        assert dest.exists()
+        assert dest.read_bytes() == b"x" * 500
+
+    def test_keep_originals_copies_source_alongside(self, tmp_path, monkeypatch):
+        local_dir = tmp_path / "output"
+        work_dir = tmp_path / "work"
+        work_dir.mkdir()
+        asset = _make_asset(file_name="photo.jpg", created_at="2023-06-15T00:00:00Z")
+        client = FakeClient()
+        cfg = {
+            **BASE_CFG,
+            "output_mode": "local",
+            "local_output_dir": str(local_dir),
+            "local_keep_originals": True,
+        }
+        self._patch_transcode(monkeypatch)
+
+        result = run_service._process_asset_sync(asset, client, cfg, str(work_dir))
+
+        assert result["status"] == "saved_local"
+        original_dest = local_dir / "2023" / "06" / "originals" / "photo.jpg"
+        assert original_dest.exists()
+
+    def test_keep_originals_off_does_not_copy_source(self, tmp_path, monkeypatch):
+        local_dir = tmp_path / "output"
+        work_dir = tmp_path / "work"
+        work_dir.mkdir()
+        asset = _make_asset(file_name="photo.jpg", created_at="2023-06-15T00:00:00Z")
+        client = FakeClient()
+        cfg = {**BASE_CFG, "output_mode": "local", "local_output_dir": str(local_dir)}
+        self._patch_transcode(monkeypatch)
+
+        run_service._process_asset_sync(asset, client, cfg, str(work_dir))
+
+        assert not (local_dir / "2023" / "06" / "originals").exists()
+
+    def test_dry_run_previews_without_writing_local_files(self, tmp_path, monkeypatch):
+        local_dir = tmp_path / "output"
+        work_dir = tmp_path / "work"
+        work_dir.mkdir()
+        asset = _make_asset()
+        client = FakeClient()
+        cfg = {
+            **BASE_CFG,
+            "output_mode": "local",
+            "local_output_dir": str(local_dir),
+            "dry_run": True,
+        }
+        self._patch_transcode(monkeypatch)
+
+        result = run_service._process_asset_sync(asset, client, cfg, str(work_dir))
+
+        assert result["status"] == "dry_run_preview"
+        assert not local_dir.exists()
 
 
 class TestProcessAssetSyncVideos:

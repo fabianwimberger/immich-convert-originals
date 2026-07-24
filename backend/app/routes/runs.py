@@ -89,6 +89,11 @@ async def _build_config_snapshot(data: RunCreate, db: AsyncSession) -> dict[str,
         ),
         "allow_larger": _pick(data.allow_larger, settings.allow_larger),
         "concurrency": _pick(data.concurrency, settings.concurrency),
+        "output_mode": _pick(data.output_mode, settings.output_mode),
+        "local_output_dir": _pick(data.local_output_dir, settings.local_output_dir),
+        "local_keep_originals": _pick(
+            data.local_keep_originals, settings.local_keep_originals
+        ),
     }
 
 

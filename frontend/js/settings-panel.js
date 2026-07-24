@@ -132,6 +132,29 @@ class SettingsPanel {
       </section>
 
       <section class="panel">
+        <h2>Output</h2>
+        <label>Mode
+          <select id="set-output-mode">
+            <option value="upload" ${s.output_mode === "upload" ? "selected" : ""}>Upload to Immich</option>
+            <option value="local" ${s.output_mode === "local" ? "selected" : ""}>Save locally (no upload)</option>
+          </select>
+          ${fieldHint("output_mode")}
+        </label>
+        <div class="output-local-fields" style="${s.output_mode === "local" ? "" : "display:none"}">
+          <label>Local output directory
+            <input id="set-local-output-dir" type="text" placeholder="/app/output" value="${s.local_output_dir}" />
+            ${fieldHint("local_output_dir")}
+          </label>
+          <label><input id="set-local-keep-originals" type="checkbox" ${s.local_keep_originals ? "checked" : ""} /> Keep a copy of the original alongside</label>
+          ${fieldHint("local_keep_originals")}
+        </div>
+        <div class="row">
+          <button id="btn-save-output" class="primary">Save</button>
+          <span id="output-status"></span>
+        </div>
+      </section>
+
+      <section class="panel">
         <h2>Safety &amp; Retry</h2>
         <label><input id="set-enable-retry" type="checkbox" ${s.enable_retry ? "checked" : ""} /> Retry with more compression if output is larger</label>
         ${fieldHint("enable_retry")}
@@ -172,6 +195,13 @@ class SettingsPanel {
     this.root.querySelector("#btn-save-videos").addEventListener("click", () =>
       this.saveVideos()
     );
+    this.root.querySelector("#btn-save-output").addEventListener("click", () =>
+      this.saveOutput()
+    );
+    this.root.querySelector("#set-output-mode").addEventListener("change", (e) => {
+      this.root.querySelector(".output-local-fields").style.display =
+        e.target.value === "local" ? "" : "none";
+    });
     this.root.querySelector("#btn-save-retry").addEventListener("click", () =>
       this.saveRetry()
     );
@@ -270,6 +300,15 @@ class SettingsPanel {
       video_audio_bitrate: this.root
         .querySelector("#set-video-audio-bitrate")
         .value.trim(),
+    });
+  }
+
+  async saveOutput() {
+    await this._save("output-status", {
+      output_mode: this.root.querySelector("#set-output-mode").value,
+      local_output_dir: this.root.querySelector("#set-local-output-dir").value.trim(),
+      local_keep_originals: this.root.querySelector("#set-local-keep-originals")
+        .checked,
     });
   }
 

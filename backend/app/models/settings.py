@@ -10,9 +10,9 @@ SETTINGS_ROW_ID = 1
 class Settings(Base):
     """Immich connection and default encoding settings.
 
-    A singleton row (id always SETTINGS_ROW_ID). Seeded from environment
-    variables on first boot (see app.config.seed_settings_from_env); after
-    that, the Settings page in the UI is the only way to change it.
+    A singleton row (id always SETTINGS_ROW_ID), seeded with these column
+    defaults on first boot; after that, the Settings page in the UI is the
+    only way to change it.
     """
 
     __tablename__ = "settings"
@@ -53,3 +53,10 @@ class Settings(Base):
     allow_larger: Mapped[bool] = mapped_column(default=False)
 
     concurrency: Mapped[int] = mapped_column(default=2)
+
+    # "local" writes the converted file to local_output_dir instead of
+    # uploading to Immich -- the original is never touched (no upload, no
+    # delete) either way.
+    output_mode: Mapped[str] = mapped_column(default="upload")
+    local_output_dir: Mapped[str] = mapped_column(default="/app/output")
+    local_keep_originals: Mapped[bool] = mapped_column(default=False)

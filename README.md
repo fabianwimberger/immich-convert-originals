@@ -33,6 +33,7 @@ JPEG XL shrinks photos by 20-40% and AV1 shrinks videos by 30-50% with no visibl
 - **Smart retry logic** — automatically retries with higher compression if output is larger than the original
 - **Run history** — every run and its per-asset outcomes are kept; drill into failures, retry just the failed assets, or export a failure CSV
 - **Resumable** — a filtered run automatically skips assets a previous run already converted successfully
+- **Local-only conversion** — write converted files to disk instead of uploading, so you can review before committing to Immich; the original is never touched either way. Files land under `<year>/<month>` folders by capture date, with an option to keep a copy of the original alongside
 - **Settings in the UI** — connection details, default encoding, and output mode are all edited and saved from the Settings page, no restart or `.env` file required
 - **Dry-run mode** — preview what a run would do before committing to it
 - **Concurrency control** — configurable parallel workers per run
@@ -46,11 +47,14 @@ flowchart LR
     C --> D{Type}
     D -->|Image| E[Image encode<br/>JXL / HEIC / AVIF]
     D -->|Video| F[AV1 encode]
-    E --> G[Upload new asset]
-    F --> G
+    E --> K{Output mode}
+    F --> K
+    K -->|Upload| G[Upload new asset]
+    K -->|Local| L[Write to local disk]
     G --> H[Copy metadata<br/>EXIF, GPS, albums]
     H --> I[Delete original]
     I -.->|live progress| J[Browser via WebSocket]
+    L -.->|live progress| J
 ```
 
 ## Quick Start
@@ -115,7 +119,7 @@ Open `http://localhost:8000` after starting the container.
 - **Browse** — filter your library by type, album, or archived/deleted state; thumbnails load lazily; multi-select assets to convert a specific subset, or select-all-on-page for larger batches
 - **Convert** — start a run against the whole library, one album, a date range, or your Browse selection; toggle dry-run and per-run concurrency; watch live progress once it starts
 - **History** — every run with its counts and bytes saved; click a run to see per-asset outcomes, retry just the failed ones, or export a failure CSV
-- **Settings** — Immich connection (with a test-connection check), default encoding values, and retry/safety behavior — all saved to the app's database, no restart required
+- **Settings** — Immich connection (with a test-connection check), format allow-list, target format and quality, output mode, and retry/safety behavior — all saved to the app's database, no restart required
 
 <p align="center">
   <img src="assets/screenshot-desktop-convert.png" width="70%" alt="Starting a run scoped to an album">
@@ -135,12 +139,12 @@ Each step is verified:
 1. **Download** original to a temporary per-run directory
 2. **Transcode** based on asset type and configured target format (skip if already in the target format)
 3. **Validate** output format and integrity; retry with more compression if the output is larger than the input
-4. **Upload** new asset to Immich
+4. **Upload** new asset to Immich (or, in local output mode, write it to `<local output dir>/<year>/<month>/` instead — the original is never touched)
 5. **Copy metadata** (EXIF, GPS, favorite state, rating, and albums)
 6. **Verify** new asset is accessible
 7. **Delete** original (goes to Immich's trash, recoverable for 30 days)
 
-If any step fails, the new asset is cleaned up and the original is preserved. The outcome is recorded either way, so a failed run shows up in History with the exact error.
+Steps 4-7 only apply in the default upload mode. If any step fails, the new asset is cleaned up and the original is preserved. The outcome is recorded either way, so a failed run shows up in History with the exact error.
 
 ## Configuration
 

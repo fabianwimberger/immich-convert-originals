@@ -89,6 +89,28 @@ class TestCreateRun:
             # Unset overrides fall back to the saved Settings defaults.
             assert cfg["image_quality_avif"] == 75
 
+    async def test_output_mode_override_stored_in_snapshot(self, client):
+        await _configure_connection(client)
+        resp = await client.post(
+            "/api/runs",
+            json={
+                "asset_types": "IMAGE",
+                "output_mode": "local",
+                "local_output_dir": "/data/converted",
+                "local_keep_originals": True,
+            },
+        )
+        data = resp.json()
+        async with AsyncSessionLocal() as db:
+            from sqlalchemy import select
+
+            result = await db.execute(select(Run).where(Run.id == data["id"]))
+            run = result.scalar_one()
+            cfg = json.loads(run.config_snapshot)
+            assert cfg["output_mode"] == "local"
+            assert cfg["local_output_dir"] == "/data/converted"
+            assert cfg["local_keep_originals"] is True
+
     async def test_explicit_asset_ids_stored_in_snapshot(self, client):
         await _configure_connection(client)
         resp = await client.post(

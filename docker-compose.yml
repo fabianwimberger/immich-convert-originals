@@ -27,3 +27,10 @@ services:
       # across restarts. Not required, but you'll lose the Settings page
       # config and run history without it.
       - ./data:/app/data
+
+      # Only needed if Output mode is set to "local" on the Settings page --
+      # mount it at whatever path you set as the local output directory
+      # there (default /app/output). Run `mkdir -p output` first, same as
+      # for ./data above, or Docker creates it as root and the container
+      # (uid 1000) can't write to it.
+      # - ./output:/app/output
