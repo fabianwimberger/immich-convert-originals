@@ -61,8 +61,29 @@ def _is_cancelled(run_id: int) -> bool:
     return run_id in _cancelled_runs
 
 
-def _get_target_format(asset: Asset) -> str:
-    return "mp4" if asset.type == "VIDEO" else "jxl"
+def _get_target_format(asset: Asset, cfg: dict[str, Any]) -> str:
+    if asset.type == "VIDEO":
+        return "mp4"
+    return cfg.get("image_target_format", "jxl")
+
+
+def _get_image_quality(
+    cfg: dict[str, Any], target_format: str, *, retry: bool
+) -> float:
+    """Resolves the quality/distance value for the given target format.
+
+    JXL uses distance (0-25, lower=better); HEIC/AVIF use ImageMagick
+    -quality (0-100, higher=better) -- not the same scale, so each format
+    keeps its own setting rather than sharing one field.
+    """
+    if target_format == "heic":
+        key = "image_quality_heic_retry" if retry else "image_quality_heic"
+        return cfg.get(key, 60 if retry else 80)
+    if target_format == "avif":
+        key = "image_quality_avif_retry" if retry else "image_quality_avif"
+        return cfg.get(key, 55 if retry else 75)
+    key = "image_distance_retry" if retry else "image_distance"
+    return cfg.get(key, 2.0 if retry else 1.0)
 
 
 # Best-effort format guess from Immich metadata alone (mime type, then
@@ -145,7 +166,8 @@ def _process_asset_sync(
     }
 
     is_video = asset.type == "VIDEO"
-    target_format = _get_target_format(asset)
+    target_format = _get_target_format(asset, cfg)
+    result["target_format"] = target_format
     dry_run = cfg["dry_run"]
 
     if not is_video:
@@ -181,8 +203,13 @@ def _process_asset_sync(
             )
             is_valid = validate_video_output(output_path)
         else:
-            tx = transcode(input_path, output_path, cfg["image_distance"])
-            is_valid = validate_output(output_path, "jxl")
+            tx = transcode(
+                input_path,
+                output_path,
+                target_format,
+                _get_image_quality(cfg, target_format, retry=False),
+            )
+            is_valid = validate_output(output_path, target_format)
 
         if not tx.success:
             # No output was produced, so input_bytes must not carry a
@@ -219,8 +246,13 @@ def _process_asset_sync(
                     )
                     is_valid = validate_video_output(output_path)
                 else:
-                    tx = transcode(input_path, output_path, cfg["image_distance_retry"])
-                    is_valid = validate_output(output_path, "jxl")
+                    tx = transcode(
+                        input_path,
+                        output_path,
+                        target_format,
+                        _get_image_quality(cfg, target_format, retry=True),
+                    )
+                    is_valid = validate_output(output_path, target_format)
 
                 if not tx.success or not is_valid:
                     result["status"] = "skipped"
@@ -381,7 +413,7 @@ async def _persist_asset_result(
             status=status,
             error=result.get("error"),
             new_asset_id=result.get("new_asset_id"),
-            target_format=_get_target_format(asset),
+            target_format=result.get("target_format"),
             input_bytes=input_bytes,
             output_bytes=output_bytes,
             updated_at=datetime.now(timezone.utc),
@@ -433,7 +465,11 @@ async def _run_one_asset(
             # except/finally run work_dir cleanup while other assets are
             # still mid-download into that same directory.
             logger.exception("Unhandled error processing asset %s", asset.id)
-            result = {"status": "failed_error", "error": str(e)}
+            result = {
+                "status": "failed_error",
+                "error": str(e),
+                "target_format": _get_target_format(asset, cfg),
+            }
 
         lock = _progress_locks.setdefault(run_id, asyncio.Lock())
         async with lock:
@@ -452,7 +488,7 @@ async def _run_one_asset(
                     "stage": "done",
                     "status": result["status"],
                     "error": result.get("error"),
-                    "target_format": _get_target_format(asset),
+                    "target_format": result.get("target_format"),
                     "input_bytes": result.get("input_bytes", 0),
                     "output_bytes": result.get("output_bytes", 0),
                 }

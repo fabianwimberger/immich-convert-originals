@@ -55,9 +55,24 @@ async def _build_config_snapshot(data: RunCreate, db: AsyncSession) -> dict[str,
         "original_filename": data.original_filename,
         "max_assets": data.max_assets,
         "dry_run": data.dry_run,
+        "image_target_format": _pick(
+            data.image_target_format, settings.image_target_format
+        ),
         "image_distance": _pick(data.image_distance, settings.image_distance),
         "image_distance_retry": _pick(
             data.image_distance_retry, settings.image_distance_retry
+        ),
+        "image_quality_heic": _pick(
+            data.image_quality_heic, settings.image_quality_heic
+        ),
+        "image_quality_heic_retry": _pick(
+            data.image_quality_heic_retry, settings.image_quality_heic_retry
+        ),
+        "image_quality_avif": _pick(
+            data.image_quality_avif, settings.image_quality_avif
+        ),
+        "image_quality_avif_retry": _pick(
+            data.image_quality_avif_retry, settings.image_quality_avif_retry
         ),
         "video_crf": _pick(data.video_crf, settings.video_crf),
         "video_preset": _pick(data.video_preset, settings.video_preset),

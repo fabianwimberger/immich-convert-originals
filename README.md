@@ -8,7 +8,7 @@
 > **Disclaimer**: This is an independent, community-created project. It is **not affiliated with, endorsed by, or sponsored by Immich**. "Immich" and its associated logos are trademarks of their respective owners. Use of the name is solely for identification and compatibility purposes. Use at your own risk.
 
 A self-hosted, web-based tool that batch-transcodes your Immich library to modern, space-efficient formats:
-- **Images** → JPEG XL (JXL)
+- **Images** → JPEG XL, HEIC, or AVIF (your choice)
 - **Videos** → AV1 (MP4 container)
 
 Browse your library, pick what to convert (or filter by type/album/date), and watch live progress in the browser. It downloads originals, transcodes them, uploads the new versions, preserves EXIF/GPS data and album membership, and removes the originals only once the upload is verified.
@@ -25,7 +25,8 @@ JPEG XL shrinks photos by 20-40% and AV1 shrinks videos by 30-50% with no visibl
 
 - **Asset browser** — filter by type, album, archived/deleted state; real Immich thumbnails proxied through the backend (your API key never reaches the browser)
 - **Flexible run scoping** — convert the whole library, one album, a date range, or an explicit selection from Browse
-- **Image conversion** — JPEG, PNG, WebP, HEIC → JPEG XL
+- **Image conversion** — JPEG, PNG, WebP, HEIC, AVIF, TIFF, GIF, BMP → JPEG XL, HEIC, or AVIF, selectable per target format; JPEG sources get a lossless bit-exact repack only when targeting JXL
+- **Format allow-list** — exclude specific input formats from a run (e.g. leave HEIC untouched, only convert JPEG)
 - **Video conversion** — MP4, MOV, MKV → AV1 (MP4)
 - **Live progress** — WebSocket-driven progress bar, running counts, and current-asset status while a run is in flight
 - **Metadata preservation** — EXIF, GPS, favorite state, rating, and albums copied to the replacement asset
@@ -43,7 +44,7 @@ flowchart LR
     A[Browse / filter library] --> B[Start a run]
     B -->|download| C[Original asset]
     C --> D{Type}
-    D -->|Image| E[JPEG XL encode]
+    D -->|Image| E[Image encode<br/>JXL / HEIC / AVIF]
     D -->|Video| F[AV1 encode]
     E --> G[Upload new asset]
     F --> G
@@ -98,8 +99,8 @@ cd immich-convert-originals
 python -m venv .venv
 .venv/bin/pip install -r backend/requirements-dev.txt
 
-# ffmpeg, ImageMagick (with JXL delegate), libjxl-tools, and exiftool
-# must be installed on the host for local (non-Docker) runs.
+# ffmpeg, ImageMagick (with JXL and HEIC/AVIF delegates), libjxl-tools, and
+# exiftool must be installed on the host for local (non-Docker) runs.
 
 FRONTEND_DIR=./frontend \
 DATABASE_PATH=./data/app.db \
@@ -132,7 +133,7 @@ Browse/filter → Download → Transcode → Upload new → Copy metadata → Ve
 
 Each step is verified:
 1. **Download** original to a temporary per-run directory
-2. **Transcode** based on asset type (skip if already JPEG XL / AV1)
+2. **Transcode** based on asset type and configured target format (skip if already in the target format)
 3. **Validate** output format and integrity; retry with more compression if the output is larger than the input
 4. **Upload** new asset to Immich
 5. **Copy metadata** (EXIF, GPS, favorite state, rating, and albums)

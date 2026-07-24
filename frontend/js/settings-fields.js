@@ -20,6 +20,11 @@ const SETTINGS_FIELDS = {
       "Image formats a run will touch at all -- anything unchecked is left untouched and skipped before download.",
     default: "all of the below",
   },
+  image_target_format: {
+    description:
+      "Output image container. JPEG sources get a lossless bit-exact repack only when targeting JXL -- HEIC/AVIF have no equivalent, so JPEG sources targeting those go through a normal re-encode instead.",
+    default: "JPEG XL (JXL)",
+  },
   image_distance: {
     description:
       "JPEG XL distance: 0 = mathematically lossless, 1 = visually lossless, higher = smaller files with more quality loss. JPEG sources always use a lossless repack regardless of this value.",
@@ -29,6 +34,22 @@ const SETTINGS_FIELDS = {
   image_distance_retry: {
     description: "Distance used if the first pass came out larger than the original.",
     default: "2.0",
+  },
+  image_quality_heic: {
+    description: "HEIC quality (ImageMagick -quality) -- higher is better and larger.",
+    default: "80",
+  },
+  image_quality_heic_retry: {
+    description: "Quality used if the first pass came out larger than the original.",
+    default: "60",
+  },
+  image_quality_avif: {
+    description: "AVIF quality (ImageMagick -quality) -- higher is better and larger.",
+    default: "75",
+  },
+  image_quality_avif_retry: {
+    description: "Quality used if the first pass came out larger than the original.",
+    default: "55",
   },
   video_crf: {
     description: "AV1 quality via SVT-AV1 -- lower is better quality and larger files.",

@@ -29,7 +29,7 @@ class TestTranscodeImage:
 
         with patch("app.services.transcode.subprocess.run") as mock_run:
             mock_run.return_value = FakeCompletedProcess(returncode=0)
-            result = transcode(str(input_path), str(output_path), 1.0)
+            result = transcode(str(input_path), str(output_path), "jxl", 1.0)
 
         assert result.success is True
         # cjxl only — EXIF is preserved natively by lossless repack
@@ -47,7 +47,7 @@ class TestTranscodeImage:
                 FakeCompletedProcess(returncode=0),
                 FakeCompletedProcess(returncode=0),
             ]
-            result = transcode(str(input_path), str(output_path), 1.0)
+            result = transcode(str(input_path), str(output_path), "jxl", 1.0)
 
         assert result.success is True
         assert mock_run.call_count == 3
@@ -64,7 +64,7 @@ class TestTranscodeImage:
                 FakeCompletedProcess(returncode=0),
                 FakeCompletedProcess(returncode=0),
             ]
-            result = transcode(str(input_path), str(output_path), 1.0)
+            result = transcode(str(input_path), str(output_path), "jxl", 1.0)
 
         assert result.success is True
         assert mock_run.call_count == 3
@@ -80,7 +80,7 @@ class TestTranscodeImage:
                 FakeCompletedProcess(returncode=0),
                 FakeCompletedProcess(returncode=0),
             ]
-            result = transcode(str(input_path), str(output_path), 1.0)
+            result = transcode(str(input_path), str(output_path), "jxl", 1.0)
 
         assert result.success is True
         assert mock_run.call_count >= 1
@@ -91,7 +91,7 @@ class TestTranscodeImage:
         input_path.write_bytes(b"\xff\x0a" + b"\x00" * 30)
         output_path = tmp_path / "output.jxl"
 
-        result = transcode(str(input_path), str(output_path), 1.0)
+        result = transcode(str(input_path), str(output_path), "jxl", 1.0)
         assert result.success is False
         assert "Already JXL" in result.error
 
@@ -100,7 +100,7 @@ class TestTranscodeImage:
         input_path.write_bytes(b"UNKNOWN")
         output_path = tmp_path / "output.jxl"
 
-        result = transcode(str(input_path), str(output_path), 1.0)
+        result = transcode(str(input_path), str(output_path), "jxl", 1.0)
         assert result.success is False
         assert "Could not detect input format" in result.error
 
@@ -112,7 +112,7 @@ class TestTranscodeImage:
         timeouts = Timeouts(image=42)
         with patch("app.services.transcode.subprocess.run") as mock_run:
             mock_run.return_value = FakeCompletedProcess(returncode=0)
-            transcode(str(input_path), str(output_path), 1.0, timeouts=timeouts)
+            transcode(str(input_path), str(output_path), "jxl", 1.0, timeouts=timeouts)
 
         # cjxl call uses the image timeout.
         assert mock_run.call_args_list[0][1]["timeout"] == 42
@@ -124,7 +124,7 @@ class TestTranscodeImage:
 
         with patch("app.services.transcode.subprocess.run") as mock_run:
             mock_run.side_effect = subprocess.TimeoutExpired(cmd="cjxl", timeout=5)
-            result = transcode(str(input_path), str(output_path), 1.0)
+            result = transcode(str(input_path), str(output_path), "jxl", 1.0)
 
         assert result.success is False
         assert "cjxl timed out" in result.error
@@ -136,7 +136,7 @@ class TestTranscodeImage:
 
         with patch("app.services.transcode.subprocess.run") as mock_run:
             mock_run.side_effect = subprocess.TimeoutExpired(cmd="magick", timeout=5)
-            result = transcode(str(input_path), str(output_path), 1.0)
+            result = transcode(str(input_path), str(output_path), "jxl", 1.0)
 
         assert result.success is False
         assert "ImageMagick timed out" in result.error
@@ -150,7 +150,7 @@ class TestTranscodeImage:
             mock_run.side_effect = subprocess.CalledProcessError(
                 returncode=1, cmd="magick", stderr=b"bad input"
             )
-            result = transcode(str(input_path), str(output_path), 1.0)
+            result = transcode(str(input_path), str(output_path), "jxl", 1.0)
 
         assert result.success is False
         assert "ImageMagick failed" in result.error
@@ -163,10 +163,71 @@ class TestTranscodeImage:
 
         with patch("app.services.transcode.subprocess.run") as mock_run:
             mock_run.side_effect = FileNotFoundError("nope")
-            result = transcode(str(input_path), str(output_path), 1.0)
+            result = transcode(str(input_path), str(output_path), "jxl", 1.0)
 
         assert result.success is False
         assert "ImageMagick not found" in result.error
+
+    def test_heic_target_uses_quality_not_distance(self, tmp_path):
+        input_path = tmp_path / "input.png"
+        input_path.write_bytes(b"\x89\x50\x4e\x47\x0d\x0a\x1a\x0a" + b"\x00" * 24)
+        output_path = tmp_path / "output.heic"
+
+        with patch("app.services.transcode.subprocess.run") as mock_run:
+            mock_run.return_value = FakeCompletedProcess(returncode=0)
+            result = transcode(str(input_path), str(output_path), "heic", 80)
+
+        assert result.success is True
+        args = mock_run.call_args_list[0][0][0]
+        assert "-quality" in args
+        assert args[args.index("-quality") + 1] == "80"
+        assert "-define" not in args
+
+    def test_avif_target_uses_quality(self, tmp_path):
+        input_path = tmp_path / "input.png"
+        input_path.write_bytes(b"\x89\x50\x4e\x47\x0d\x0a\x1a\x0a" + b"\x00" * 24)
+        output_path = tmp_path / "output.avif"
+
+        with patch("app.services.transcode.subprocess.run") as mock_run:
+            mock_run.return_value = FakeCompletedProcess(returncode=0)
+            result = transcode(str(input_path), str(output_path), "avif", 75)
+
+        assert result.success is True
+        args = mock_run.call_args_list[0][0][0]
+        assert "-quality" in args
+        assert args[args.index("-quality") + 1] == "75"
+
+    def test_jpeg_to_heic_skips_cjxl_lossless_path(self, tmp_path):
+        """JPEG->HEIC has no lossless-repack equivalent to JPEG->JXL -- it
+        must go straight to ImageMagick instead of trying cjxl first."""
+        input_path = tmp_path / "input.jpg"
+        input_path.write_bytes(b"\xff\xd8\xff" + b"\x00" * 29)
+        output_path = tmp_path / "output.heic"
+
+        with patch("app.services.transcode.subprocess.run") as mock_run:
+            mock_run.return_value = FakeCompletedProcess(returncode=0)
+            result = transcode(str(input_path), str(output_path), "heic", 80)
+
+        assert result.success is True
+        assert mock_run.call_args_list[0][0][0][0] == "magick"
+
+    def test_refuses_heic_input_targeting_heic(self, tmp_path):
+        input_path = tmp_path / "input.heic"
+        input_path.write_bytes(b"\x00\x00\x00\x18ftypheic" + b"\x00" * 20)
+        output_path = tmp_path / "output.heic"
+
+        result = transcode(str(input_path), str(output_path), "heic", 80)
+        assert result.success is False
+        assert "Already HEIC" in result.error
+
+    def test_refuses_avif_input_targeting_avif(self, tmp_path):
+        input_path = tmp_path / "input.avif"
+        input_path.write_bytes(b"\x00\x00\x00\x18ftypavif" + b"\x00" * 20)
+        output_path = tmp_path / "output.avif"
+
+        result = transcode(str(input_path), str(output_path), "avif", 75)
+        assert result.success is False
+        assert "Already AVIF" in result.error
 
 
 class TestTranscodeVideo:

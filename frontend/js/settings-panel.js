@@ -59,14 +59,44 @@ class SettingsPanel {
 
       <section class="panel">
         <h2>Images</h2>
-        <label>Distance (JXL, 0-25)
-          <input id="set-image-distance" type="number" step="0.1" min="0" max="25" value="${s.image_distance}" />
-          ${fieldHint("image_distance")}
+        <label>Target format
+          <select id="set-image-target-format">
+            <option value="jxl" ${s.image_target_format === "jxl" ? "selected" : ""}>JPEG XL (JXL)</option>
+            <option value="heic" ${s.image_target_format === "heic" ? "selected" : ""}>HEIC</option>
+            <option value="avif" ${s.image_target_format === "avif" ? "selected" : ""}>AVIF</option>
+          </select>
+          ${fieldHint("image_target_format")}
         </label>
-        <label>Distance on retry
-          <input id="set-image-distance-retry" type="number" step="0.1" min="0" max="25" value="${s.image_distance_retry}" />
-          ${fieldHint("image_distance_retry")}
-        </label>
+        <div class="format-fields" data-format="jxl" style="${s.image_target_format === "jxl" ? "" : "display:none"}">
+          <label>Distance (0-25)
+            <input id="set-image-distance" type="number" step="0.1" min="0" max="25" value="${s.image_distance}" />
+            ${fieldHint("image_distance")}
+          </label>
+          <label>Distance on retry
+            <input id="set-image-distance-retry" type="number" step="0.1" min="0" max="25" value="${s.image_distance_retry}" />
+            ${fieldHint("image_distance_retry")}
+          </label>
+        </div>
+        <div class="format-fields" data-format="heic" style="${s.image_target_format === "heic" ? "" : "display:none"}">
+          <label>Quality (0-100)
+            <input id="set-image-quality-heic" type="number" min="0" max="100" value="${s.image_quality_heic}" />
+            ${fieldHint("image_quality_heic")}
+          </label>
+          <label>Quality on retry
+            <input id="set-image-quality-heic-retry" type="number" min="0" max="100" value="${s.image_quality_heic_retry}" />
+            ${fieldHint("image_quality_heic_retry")}
+          </label>
+        </div>
+        <div class="format-fields" data-format="avif" style="${s.image_target_format === "avif" ? "" : "display:none"}">
+          <label>Quality (0-100)
+            <input id="set-image-quality-avif" type="number" min="0" max="100" value="${s.image_quality_avif}" />
+            ${fieldHint("image_quality_avif")}
+          </label>
+          <label>Quality on retry
+            <input id="set-image-quality-avif-retry" type="number" min="0" max="100" value="${s.image_quality_avif_retry}" />
+            ${fieldHint("image_quality_avif_retry")}
+          </label>
+        </div>
         <div class="row">
           <button id="btn-save-images" class="primary">Save</button>
           <span id="images-status"></span>
@@ -132,6 +162,13 @@ class SettingsPanel {
     this.root.querySelector("#btn-save-images").addEventListener("click", () =>
       this.saveImages()
     );
+    this.root
+      .querySelector("#set-image-target-format")
+      .addEventListener("change", (e) => {
+        this.root.querySelectorAll(".format-fields").forEach((el) => {
+          el.style.display = el.dataset.format === e.target.value ? "" : "none";
+        });
+      });
     this.root.querySelector("#btn-save-videos").addEventListener("click", () =>
       this.saveVideos()
     );
@@ -194,9 +231,26 @@ class SettingsPanel {
 
   async saveImages() {
     await this._save("images-status", {
+      image_target_format: this.root.querySelector("#set-image-target-format").value,
       image_distance: parseFloat(this.root.querySelector("#set-image-distance").value),
       image_distance_retry: parseFloat(
         this.root.querySelector("#set-image-distance-retry").value
+      ),
+      image_quality_heic: parseInt(
+        this.root.querySelector("#set-image-quality-heic").value,
+        10
+      ),
+      image_quality_heic_retry: parseInt(
+        this.root.querySelector("#set-image-quality-heic-retry").value,
+        10
+      ),
+      image_quality_avif: parseInt(
+        this.root.querySelector("#set-image-quality-avif").value,
+        10
+      ),
+      image_quality_avif_retry: parseInt(
+        this.root.querySelector("#set-image-quality-avif-retry").value,
+        10
       ),
     });
   }

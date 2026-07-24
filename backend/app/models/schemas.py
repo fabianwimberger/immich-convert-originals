@@ -20,8 +20,13 @@ class SettingsResponse(BaseModel):
     include_archived: bool
     include_deleted: bool
     convert_image_formats: str
+    image_target_format: str
     image_distance: float
     image_distance_retry: float
+    image_quality_heic: int
+    image_quality_heic_retry: int
+    image_quality_avif: int
+    image_quality_avif_retry: int
     video_crf: int
     video_preset: int
     video_max_dimension: int
@@ -41,8 +46,13 @@ class SettingsResponse(BaseModel):
             include_archived=settings.include_archived,
             include_deleted=settings.include_deleted,
             convert_image_formats=settings.convert_image_formats,
+            image_target_format=settings.image_target_format,
             image_distance=settings.image_distance,
             image_distance_retry=settings.image_distance_retry,
+            image_quality_heic=settings.image_quality_heic,
+            image_quality_heic_retry=settings.image_quality_heic_retry,
+            image_quality_avif=settings.image_quality_avif,
+            image_quality_avif_retry=settings.image_quality_avif_retry,
             video_crf=settings.video_crf,
             video_preset=settings.video_preset,
             video_max_dimension=settings.video_max_dimension,
@@ -69,8 +79,13 @@ class SettingsUpdate(BaseModel):
     include_archived: bool | None = None
     include_deleted: bool | None = None
     convert_image_formats: str | None = None
+    image_target_format: str | None = None
     image_distance: float | None = Field(default=None, ge=0, le=25)
     image_distance_retry: float | None = Field(default=None, ge=0, le=25)
+    image_quality_heic: int | None = Field(default=None, ge=0, le=100)
+    image_quality_heic_retry: int | None = Field(default=None, ge=0, le=100)
+    image_quality_avif: int | None = Field(default=None, ge=0, le=100)
+    image_quality_avif_retry: int | None = Field(default=None, ge=0, le=100)
     video_crf: int | None = Field(default=None, ge=0, le=63)
     video_preset: int | None = Field(default=None, ge=0, le=13)
     video_max_dimension: int | None = Field(default=None, ge=0)
@@ -140,8 +155,13 @@ class RunCreate(BaseModel):
     dry_run: bool = True
 
     convert_image_formats: str | None = None
+    image_target_format: str | None = None
     image_distance: float | None = Field(default=None, ge=0, le=25)
     image_distance_retry: float | None = Field(default=None, ge=0, le=25)
+    image_quality_heic: int | None = Field(default=None, ge=0, le=100)
+    image_quality_heic_retry: int | None = Field(default=None, ge=0, le=100)
+    image_quality_avif: int | None = Field(default=None, ge=0, le=100)
+    image_quality_avif_retry: int | None = Field(default=None, ge=0, le=100)
     video_crf: int | None = Field(default=None, ge=0, le=63)
     video_preset: int | None = Field(default=None, ge=0, le=13)
     video_max_dimension: int | None = Field(default=None, ge=0)
