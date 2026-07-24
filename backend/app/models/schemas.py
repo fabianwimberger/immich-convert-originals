@@ -19,8 +19,14 @@ class SettingsResponse(BaseModel):
     asset_types: str
     include_archived: bool
     include_deleted: bool
+    convert_image_formats: str
+    image_target_format: str
     image_distance: float
     image_distance_retry: float
+    image_quality_heic: int
+    image_quality_heic_retry: int
+    image_quality_avif: int
+    image_quality_avif_retry: int
     video_crf: int
     video_preset: int
     video_max_dimension: int
@@ -30,6 +36,9 @@ class SettingsResponse(BaseModel):
     accept_retry_output: bool
     allow_larger: bool
     concurrency: int
+    output_mode: str
+    local_output_dir: str
+    local_keep_originals: bool
 
     @classmethod
     def from_settings(cls, settings: SettingsRow) -> "SettingsResponse":
@@ -39,8 +48,14 @@ class SettingsResponse(BaseModel):
             asset_types=settings.asset_types,
             include_archived=settings.include_archived,
             include_deleted=settings.include_deleted,
+            convert_image_formats=settings.convert_image_formats,
+            image_target_format=settings.image_target_format,
             image_distance=settings.image_distance,
             image_distance_retry=settings.image_distance_retry,
+            image_quality_heic=settings.image_quality_heic,
+            image_quality_heic_retry=settings.image_quality_heic_retry,
+            image_quality_avif=settings.image_quality_avif,
+            image_quality_avif_retry=settings.image_quality_avif_retry,
             video_crf=settings.video_crf,
             video_preset=settings.video_preset,
             video_max_dimension=settings.video_max_dimension,
@@ -50,6 +65,9 @@ class SettingsResponse(BaseModel):
             accept_retry_output=settings.accept_retry_output,
             allow_larger=settings.allow_larger,
             concurrency=settings.concurrency,
+            output_mode=settings.output_mode,
+            local_output_dir=settings.local_output_dir,
+            local_keep_originals=settings.local_keep_originals,
         )
 
 
@@ -66,8 +84,14 @@ class SettingsUpdate(BaseModel):
     asset_types: str | None = None
     include_archived: bool | None = None
     include_deleted: bool | None = None
+    convert_image_formats: str | None = None
+    image_target_format: str | None = None
     image_distance: float | None = Field(default=None, ge=0, le=25)
     image_distance_retry: float | None = Field(default=None, ge=0, le=25)
+    image_quality_heic: int | None = Field(default=None, ge=0, le=100)
+    image_quality_heic_retry: int | None = Field(default=None, ge=0, le=100)
+    image_quality_avif: int | None = Field(default=None, ge=0, le=100)
+    image_quality_avif_retry: int | None = Field(default=None, ge=0, le=100)
     video_crf: int | None = Field(default=None, ge=0, le=63)
     video_preset: int | None = Field(default=None, ge=0, le=13)
     video_max_dimension: int | None = Field(default=None, ge=0)
@@ -77,6 +101,9 @@ class SettingsUpdate(BaseModel):
     accept_retry_output: bool | None = None
     allow_larger: bool | None = None
     concurrency: int | None = Field(default=None, ge=1, le=32)
+    output_mode: str | None = None
+    local_output_dir: str | None = None
+    local_keep_originals: bool | None = None
 
 
 class TestConnectionRequest(BaseModel):
@@ -136,8 +163,14 @@ class RunCreate(BaseModel):
 
     dry_run: bool = True
 
+    convert_image_formats: str | None = None
+    image_target_format: str | None = None
     image_distance: float | None = Field(default=None, ge=0, le=25)
     image_distance_retry: float | None = Field(default=None, ge=0, le=25)
+    image_quality_heic: int | None = Field(default=None, ge=0, le=100)
+    image_quality_heic_retry: int | None = Field(default=None, ge=0, le=100)
+    image_quality_avif: int | None = Field(default=None, ge=0, le=100)
+    image_quality_avif_retry: int | None = Field(default=None, ge=0, le=100)
     video_crf: int | None = Field(default=None, ge=0, le=63)
     video_preset: int | None = Field(default=None, ge=0, le=13)
     video_max_dimension: int | None = Field(default=None, ge=0)
@@ -147,6 +180,9 @@ class RunCreate(BaseModel):
     accept_retry_output: bool | None = None
     allow_larger: bool | None = None
     concurrency: int | None = Field(default=None, ge=1, le=32)
+    output_mode: str | None = None
+    local_output_dir: str | None = None
+    local_keep_originals: bool | None = None
 
 
 class RunResponse(BaseModel):

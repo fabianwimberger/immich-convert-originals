@@ -5,6 +5,7 @@ const STATUS_LABELS = {
   processing: "Processing…",
   success: "Converted",
   partial_success: "Converted (cleanup needed)",
+  saved_local: "Saved locally",
   dry_run_preview: "Would convert",
   skipped: "Skipped",
   failed_download: "Failed: download",
@@ -21,7 +22,12 @@ function prettyStatus(status) {
 
 function statusTextClass(status) {
   if (status === "processing") return "status-pending";
-  if (status === "success" || status === "partial_success" || status === "dry_run_preview") {
+  if (
+    status === "success" ||
+    status === "partial_success" ||
+    status === "saved_local" ||
+    status === "dry_run_preview"
+  ) {
     return "status-ok";
   }
   if (status && status.startsWith("failed")) return "status-error";

@@ -19,6 +19,13 @@ class TestReadSettings:
         assert data["immich_api_key_set"] is False
         assert data["asset_types"] == "IMAGE,VIDEO"
         assert data["concurrency"] == 2
+        assert data["convert_image_formats"] == "jpg,png,webp,heic,avif,tiff,gif,bmp"
+        assert data["image_target_format"] == "jxl"
+        assert data["image_quality_heic"] == 80
+        assert data["image_quality_avif"] == 75
+        assert data["output_mode"] == "upload"
+        assert data["local_output_dir"] == "/app/output"
+        assert data["local_keep_originals"] is False
 
 
 class TestUpdateSettings:
@@ -42,6 +49,44 @@ class TestUpdateSettings:
     async def test_out_of_range_video_crf_rejected(self, client):
         resp = await client.put("/api/settings", json={"video_crf": 999})
         assert resp.status_code == 422
+
+    async def test_convert_image_formats_persists(self, client):
+        resp = await client.put(
+            "/api/settings", json={"convert_image_formats": "jpg,heic"}
+        )
+        assert resp.json()["convert_image_formats"] == "jpg,heic"
+
+    async def test_image_target_format_and_quality_persist(self, client):
+        resp = await client.put(
+            "/api/settings",
+            json={
+                "image_target_format": "avif",
+                "image_quality_avif": 65,
+                "image_quality_avif_retry": 50,
+            },
+        )
+        data = resp.json()
+        assert data["image_target_format"] == "avif"
+        assert data["image_quality_avif"] == 65
+        assert data["image_quality_avif_retry"] == 50
+
+    async def test_out_of_range_image_quality_rejected(self, client):
+        resp = await client.put("/api/settings", json={"image_quality_heic": 150})
+        assert resp.status_code == 422
+
+    async def test_output_mode_and_local_dir_persist(self, client):
+        resp = await client.put(
+            "/api/settings",
+            json={
+                "output_mode": "local",
+                "local_output_dir": "/data/converted",
+                "local_keep_originals": True,
+            },
+        )
+        data = resp.json()
+        assert data["output_mode"] == "local"
+        assert data["local_output_dir"] == "/data/converted"
+        assert data["local_keep_originals"] is True
 
 
 class TestConnectionCheck:

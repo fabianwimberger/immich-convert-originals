@@ -242,6 +242,33 @@ body {
   width: auto;
 }
 
+.field-hint {
+  display: block;
+  margin-top: 0.35rem;
+  color: var(--ink-faint);
+  font-size: 0.74rem;
+  line-height: 1.45;
+  font-weight: 400;
+  max-width: 480px;
+}
+
+.checkbox-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.15rem;
+  margin: 0.4rem 0 0.2rem;
+}
+
+.checkbox-group .checkbox-inline {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-bottom: 0;
+  width: auto;
+  font-size: 0.82rem;
+  color: var(--ink-dim);
+}
+
 .panel label input:focus-visible,
 .panel label select:focus-visible {
   outline-offset: 1px;
