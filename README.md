@@ -158,10 +158,11 @@ MIT License — see [LICENSE](LICENSE) file.
 | Component | License | Source |
 |-----------|---------|--------|
 | libjxl | [BSD-3-Clause](https://github.com/libjxl/libjxl/blob/main/LICENSE) | https://github.com/libjxl/libjxl |
-| FFmpeg | [LGPL v2.1+](https://www.gnu.org/licenses/old-licenses/lgpl-2.1.html) | https://ffmpeg.org/ |
+| FFmpeg | [GPL-2.0+](https://www.gnu.org/licenses/old-licenses/gpl-2.0.html) (Alpine build links x264/x265) | https://ffmpeg.org/ |
+| libheif | [LGPL-3.0+](https://github.com/strukturag/libheif/blob/master/COPYING) | https://github.com/strukturag/libheif |
 | ImageMagick | [Apache-2.0](https://imagemagick.org/script/license.php) | https://imagemagick.org/ |
 | ExifTool | [Artistic/GPL](https://exiftool.org/#license) | https://exiftool.org/ |
 | FastAPI | [MIT](https://github.com/fastapi/fastapi/blob/master/LICENSE) | https://fastapi.tiangolo.com/ |
 | SQLAlchemy | [MIT](https://github.com/sqlalchemy/sqlalchemy/blob/main/LICENSE) | https://www.sqlalchemy.org/ |
 
-See [DOCKER_LICENSES.md](DOCKER_LICENSES.md) for full details.
+This app invokes these as separate subprocesses and never links against them, so none of the above affects this project's own MIT license. See [DOCKER_LICENSES.md](DOCKER_LICENSES.md) for the full codec library breakdown (x264, x265, libaom, dav1d, rav1e, SVT-AV1) and what GPL/LGPL requires of anyone distributing the image.
