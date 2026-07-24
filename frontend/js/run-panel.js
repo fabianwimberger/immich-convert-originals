@@ -75,6 +75,7 @@ class RunPanel {
         <label><input id="run-dry-run" type="checkbox" checked /> Dry run (preview only, no changes)</label>
         <label>Concurrency
           <input id="run-concurrency" type="number" min="1" max="32" placeholder="use default" />
+          ${fieldHint("concurrency")}
         </label>
         <div class="row">
           <button id="btn-start-run" class="primary">Start Run</button>
@@ -140,7 +141,9 @@ class RunPanel {
           </select>
         </label>
         <label><input id="run-include-archived" type="checkbox" ${defaultArchived ? "checked" : ""} /> Include archived</label>
+        ${fieldHint("include_archived")}
         <label><input id="run-include-deleted" type="checkbox" ${defaultDeleted ? "checked" : ""} /> Include deleted</label>
+        ${fieldHint("include_deleted")}
         <label>Max assets (optional)
           <input id="run-max-assets" type="number" min="1" placeholder="unlimited" />
         </label>

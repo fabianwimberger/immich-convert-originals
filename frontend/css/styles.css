@@ -242,6 +242,16 @@ body {
   width: auto;
 }
 
+.field-hint {
+  display: block;
+  margin-top: 0.35rem;
+  color: var(--ink-faint);
+  font-size: 0.74rem;
+  line-height: 1.45;
+  font-weight: 400;
+  max-width: 480px;
+}
+
 .panel label input:focus-visible,
 .panel label select:focus-visible {
   outline-offset: 1px;
