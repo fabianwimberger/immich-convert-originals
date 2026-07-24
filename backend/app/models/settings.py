@@ -26,6 +26,12 @@ class Settings(Base):
     include_archived: Mapped[bool] = mapped_column(default=False)
     include_deleted: Mapped[bool] = mapped_column(default=False)
 
+    # Which image formats a run will touch at all; anything else is skipped
+    # before download. Comma-separated subset of jpg,png,webp,heic,avif,tiff,gif,bmp.
+    convert_image_formats: Mapped[str] = mapped_column(
+        default="jpg,png,webp,heic,avif,tiff,gif,bmp"
+    )
+
     image_distance: Mapped[float] = mapped_column(default=1.0)
     image_distance_retry: Mapped[float] = mapped_column(default=2.0)
 

@@ -65,13 +65,71 @@ def _get_target_format(asset: Asset) -> str:
     return "mp4" if asset.type == "VIDEO" else "jxl"
 
 
-def _should_skip_by_mime_type(asset: Asset) -> bool:
-    if asset.type != "IMAGE":
-        return False
+# Best-effort format guess from Immich metadata alone (mime type, then
+# filename extension), so an excluded format can be skipped before spending
+# any bandwidth downloading it. Mirrors transcode.detect_format()'s magic-byte
+# detection, just working off what the Immich API already told us instead of
+# file contents.
+_FORMAT_MIME_MAP = {
+    "image/jpeg": "jpg",
+    "image/png": "png",
+    "image/webp": "webp",
+    "image/heic": "heic",
+    "image/heif": "heic",
+    "image/avif": "avif",
+    "image/tiff": "tiff",
+    "image/gif": "gif",
+    "image/bmp": "bmp",
+}
+_FORMAT_EXTENSION_MAP = {
+    ".jpg": "jpg",
+    ".jpeg": "jpg",
+    ".png": "png",
+    ".webp": "webp",
+    ".heic": "heic",
+    ".heif": "heic",
+    ".avif": "avif",
+    ".tiff": "tiff",
+    ".tif": "tiff",
+    ".gif": "gif",
+    ".bmp": "bmp",
+}
+
+# Matches Settings.convert_image_formats' default (models/settings.py) -- used
+# as the fallback here too, so a config_snapshot persisted before this setting
+# existed (e.g. retry-failed on an old run) still converts every format
+# instead of KeyError-ing or skipping everything.
+ALL_IMAGE_FORMATS = "jpg,png,webp,heic,avif,tiff,gif,bmp"
+
+
+def _detect_image_format_from_metadata(asset: Asset) -> str | None:
     mime_type = asset.original_mime_type.lower() if asset.original_mime_type else None
-    if mime_type == "image/jxl":
-        return True
-    return asset.original_file_name.lower().endswith(".jxl")
+    if mime_type in _FORMAT_MIME_MAP:
+        return _FORMAT_MIME_MAP[mime_type]
+    _, ext = os.path.splitext(asset.original_file_name.lower())
+    return _FORMAT_EXTENSION_MAP.get(ext)
+
+
+def _should_skip_by_mime_type(asset: Asset, cfg: dict[str, Any]) -> str | None:
+    """Returns a skip reason if this image shouldn't be processed, else None."""
+    if asset.type != "IMAGE":
+        return None
+
+    mime_type = asset.original_mime_type.lower() if asset.original_mime_type else None
+    is_jxl = mime_type == "image/jxl" or asset.original_file_name.lower().endswith(
+        ".jxl"
+    )
+    if is_jxl:
+        return "Already JPEG XL"
+
+    detected = _detect_image_format_from_metadata(asset)
+    allowed_formats = set(
+        cfg.get("convert_image_formats", ALL_IMAGE_FORMATS).split(",")
+    )
+    if detected is not None and detected not in allowed_formats:
+        return "Format excluded by settings"
+
+    return None
 
 
 def _process_asset_sync(
@@ -90,9 +148,12 @@ def _process_asset_sync(
     target_format = _get_target_format(asset)
     dry_run = cfg["dry_run"]
 
-    if not is_video and _should_skip_by_mime_type(asset):
-        result["status"] = "skipped"
-        return result
+    if not is_video:
+        skip_reason = _should_skip_by_mime_type(asset, cfg)
+        if skip_reason:
+            result["status"] = "skipped"
+            result["error"] = skip_reason
+            return result
 
     try:
         input_path = os.path.join(work_dir, f"{asset.id}.bin")

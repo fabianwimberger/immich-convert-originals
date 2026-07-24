@@ -34,13 +34,18 @@ class TestSyncSettingsColumns:
                 columns = {row[1] for row in result.fetchall()}
                 assert "concurrency" in columns
                 assert "image_distance" in columns
+                assert "convert_image_formats" in columns
 
                 row = await conn.execute(
-                    text("SELECT concurrency, image_distance FROM settings WHERE id=1")
+                    text(
+                        "SELECT concurrency, image_distance, convert_image_formats "
+                        "FROM settings WHERE id=1"
+                    )
                 )
-                concurrency, image_distance = row.fetchone()
+                concurrency, image_distance, convert_image_formats = row.fetchone()
                 assert concurrency == 2
                 assert image_distance == 1.0
+                assert convert_image_formats == "jpg,png,webp,heic,avif,tiff,gif,bmp"
         finally:
             await engine.dispose()
 

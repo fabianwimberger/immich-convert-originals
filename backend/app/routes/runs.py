@@ -47,6 +47,9 @@ async def _build_config_snapshot(data: RunCreate, db: AsyncSession) -> dict[str,
         "album_id": data.album_id,
         "include_archived": _pick(data.include_archived, settings.include_archived),
         "include_deleted": _pick(data.include_deleted, settings.include_deleted),
+        "convert_image_formats": _pick(
+            data.convert_image_formats, settings.convert_image_formats
+        ),
         "taken_after": data.taken_after,
         "taken_before": data.taken_before,
         "original_filename": data.original_filename,

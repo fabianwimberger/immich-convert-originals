@@ -26,8 +26,10 @@ class FakeClient:
     search_pages: dict[str, list[list[Asset]]] = field(default_factory=dict)
     album_assets: list[Asset] = field(default_factory=list)
     by_id: dict[str, Asset] = field(default_factory=dict)
+    download_calls: int = 0
 
     def download_original(self, asset_id: str, output_path: str):
+        self.download_calls += 1
         if self.download_result[1] is None:
             with open(output_path, "wb") as f:
                 f.write(b"x" * self.download_result[0])
@@ -77,6 +79,7 @@ def _make_asset(
 
 BASE_CFG = {
     "dry_run": False,
+    "convert_image_formats": "jpg,png,webp,heic,avif,tiff,gif,bmp",
     "image_distance": 1.0,
     "image_distance_retry": 2.0,
     "video_crf": 36,
@@ -96,6 +99,49 @@ class TestProcessAssetSyncImages:
         client = FakeClient()
         result = run_service._process_asset_sync(asset, client, BASE_CFG, str(tmp_path))
         assert result["status"] == "skipped"
+        assert result["error"] == "Already JPEG XL"
+        assert client.download_calls == 0
+
+    def test_excluded_format_skipped_without_download(self, tmp_path):
+        asset = _make_asset(file_name="photo.heic", mime_type="image/heic")
+        client = FakeClient()
+        cfg = {**BASE_CFG, "convert_image_formats": "jpg,png"}
+        result = run_service._process_asset_sync(asset, client, cfg, str(tmp_path))
+        assert result["status"] == "skipped"
+        assert result["error"] == "Format excluded by settings"
+        assert client.download_calls == 0
+
+    def test_allowed_format_not_skipped(self, tmp_path, monkeypatch):
+        asset = _make_asset(file_name="photo.heic", mime_type="image/heic")
+        client = FakeClient()
+        cfg = {**BASE_CFG, "convert_image_formats": "jpg,heic", "dry_run": True}
+        monkeypatch.setattr(
+            run_service,
+            "transcode",
+            lambda inp, out, distance: TranscodeResult(
+                success=True,
+                input_path=inp,
+                output_path=out,
+                input_bytes=1000,
+                output_bytes=500,
+                input_format="heic",
+            ),
+        )
+        monkeypatch.setattr(run_service, "validate_output", lambda path, fmt: True)
+        result = run_service._process_asset_sync(asset, client, cfg, str(tmp_path))
+        assert result["status"] == "dry_run_preview"
+        assert client.download_calls == 1
+
+    def test_missing_convert_image_formats_key_defaults_to_all(self, tmp_path):
+        """A config_snapshot persisted before this setting existed (e.g. a
+        retry-failed run started from an old run row) has no
+        convert_image_formats key at all -- it must still convert everything
+        instead of KeyError-ing or skipping every asset."""
+        asset = _make_asset(file_name="photo.heic", mime_type="image/heic")
+        cfg = {k: v for k, v in BASE_CFG.items() if k != "convert_image_formats"}
+        assert "convert_image_formats" not in cfg
+        reason = run_service._should_skip_by_mime_type(asset, cfg)
+        assert reason is None
 
     def test_dry_run_image_previews_real_size_without_upload(
         self, tmp_path, monkeypatch

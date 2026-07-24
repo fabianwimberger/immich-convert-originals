@@ -15,6 +15,11 @@ const SETTINGS_FIELDS = {
     description: "Include assets already in Immich's trash.",
     default: "off",
   },
+  convert_image_formats: {
+    description:
+      "Image formats a run will touch at all -- anything unchecked is left untouched and skipped before download.",
+    default: "all of the below",
+  },
   image_distance: {
     description:
       "JPEG XL distance: 0 = mathematically lossless, 1 = visually lossless, higher = smaller files with more quality loss. JPEG sources always use a lossless repack regardless of this value.",
@@ -81,4 +86,35 @@ function fieldHint(name) {
   const parts = [`Default: ${f.default}`, f.description];
   if (f.example) parts.push(f.example);
   return `<small class="field-hint">${parts.join(" -- ")}</small>`;
+}
+
+/** [value, label] pairs for the image-format allow-list checkbox group. */
+const IMAGE_FORMAT_OPTIONS = [
+  ["jpg", "JPEG"],
+  ["png", "PNG"],
+  ["webp", "WebP"],
+  ["heic", "HEIC"],
+  ["avif", "AVIF"],
+  ["tiff", "TIFF"],
+  ["gif", "GIF"],
+  ["bmp", "BMP"],
+];
+
+/** Renders the image-format allow-list as a checkbox group; selectedCsv is
+ * the current comma-separated value (e.g. "jpg,png,heic"). */
+function renderFormatCheckboxes(idPrefix, selectedCsv) {
+  const selected = new Set(selectedCsv.split(","));
+  return IMAGE_FORMAT_OPTIONS.map(
+    ([value, label]) =>
+      `<label class="checkbox-inline"><input type="checkbox" data-format="${value}" id="${idPrefix}-${value}" ${selected.has(value) ? "checked" : ""} /> ${label}</label>`
+  ).join("");
+}
+
+/** Reads a format checkbox group back into a comma-separated string. */
+function readFormatCheckboxes(root, idPrefix) {
+  return IMAGE_FORMAT_OPTIONS.filter(([value]) =>
+    root.querySelector(`#${idPrefix}-${value}`).checked
+  )
+    .map(([value]) => value)
+    .join(",");
 }

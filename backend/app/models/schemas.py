@@ -19,6 +19,7 @@ class SettingsResponse(BaseModel):
     asset_types: str
     include_archived: bool
     include_deleted: bool
+    convert_image_formats: str
     image_distance: float
     image_distance_retry: float
     video_crf: int
@@ -39,6 +40,7 @@ class SettingsResponse(BaseModel):
             asset_types=settings.asset_types,
             include_archived=settings.include_archived,
             include_deleted=settings.include_deleted,
+            convert_image_formats=settings.convert_image_formats,
             image_distance=settings.image_distance,
             image_distance_retry=settings.image_distance_retry,
             video_crf=settings.video_crf,
@@ -66,6 +68,7 @@ class SettingsUpdate(BaseModel):
     asset_types: str | None = None
     include_archived: bool | None = None
     include_deleted: bool | None = None
+    convert_image_formats: str | None = None
     image_distance: float | None = Field(default=None, ge=0, le=25)
     image_distance_retry: float | None = Field(default=None, ge=0, le=25)
     video_crf: int | None = Field(default=None, ge=0, le=63)
@@ -136,6 +139,7 @@ class RunCreate(BaseModel):
 
     dry_run: bool = True
 
+    convert_image_formats: str | None = None
     image_distance: float | None = Field(default=None, ge=0, le=25)
     image_distance_retry: float | None = Field(default=None, ge=0, le=25)
     video_crf: int | None = Field(default=None, ge=0, le=63)

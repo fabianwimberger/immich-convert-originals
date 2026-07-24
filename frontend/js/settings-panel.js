@@ -46,6 +46,11 @@ class SettingsPanel {
         ${fieldHint("include_archived")}
         <label><input id="set-include-deleted" type="checkbox" ${s.include_deleted ? "checked" : ""} /> Include deleted assets</label>
         ${fieldHint("include_deleted")}
+        <label>Image formats to convert</label>
+        <div class="checkbox-group" id="set-convert-formats">
+          ${renderFormatCheckboxes("set-fmt", s.convert_image_formats)}
+        </div>
+        ${fieldHint("convert_image_formats")}
         <div class="row">
           <button id="btn-save-filters" class="primary">Save</button>
           <span id="filters-status"></span>
@@ -183,6 +188,7 @@ class SettingsPanel {
       asset_types: this.root.querySelector("#set-asset-types").value,
       include_archived: this.root.querySelector("#set-include-archived").checked,
       include_deleted: this.root.querySelector("#set-include-deleted").checked,
+      convert_image_formats: readFormatCheckboxes(this.root, "set-fmt"),
     });
   }
 

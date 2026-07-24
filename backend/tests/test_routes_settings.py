@@ -19,6 +19,7 @@ class TestReadSettings:
         assert data["immich_api_key_set"] is False
         assert data["asset_types"] == "IMAGE,VIDEO"
         assert data["concurrency"] == 2
+        assert data["convert_image_formats"] == "jpg,png,webp,heic,avif,tiff,gif,bmp"
 
 
 class TestUpdateSettings:
@@ -42,6 +43,12 @@ class TestUpdateSettings:
     async def test_out_of_range_video_crf_rejected(self, client):
         resp = await client.put("/api/settings", json={"video_crf": 999})
         assert resp.status_code == 422
+
+    async def test_convert_image_formats_persists(self, client):
+        resp = await client.put(
+            "/api/settings", json={"convert_image_formats": "jpg,heic"}
+        )
+        assert resp.json()["convert_image_formats"] == "jpg,heic"
 
 
 class TestConnectionCheck:
