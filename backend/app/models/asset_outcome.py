@@ -9,7 +9,7 @@ from app.database import Base
 
 # A status we consider "done" -- resumable filter-based runs skip these.
 # Everything else (failed_*, error, unknown) is retryable.
-FINAL_STATUSES = frozenset({"success", "partial_success", "skipped"})
+FINAL_STATUSES = frozenset({"success", "partial_success", "skipped", "saved_local"})
 
 # Statuses that aren't a failure, for "retry failed" / "export failures".
 # dry_run_preview is deliberately excluded from FINAL_STATUSES above (a

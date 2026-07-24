@@ -8,14 +8,14 @@
 > **Disclaimer**: This is an independent, community-created project. It is **not affiliated with, endorsed by, or sponsored by Immich**. "Immich" and its associated logos are trademarks of their respective owners. Use of the name is solely for identification and compatibility purposes. Use at your own risk.
 
 A self-hosted, web-based tool that batch-transcodes your Immich library to modern, space-efficient formats:
-- **Images** → JPEG XL (JXL)
+- **Images** → JPEG XL, HEIC, or AVIF (your choice)
 - **Videos** → AV1 (MP4 container)
 
-Browse your library, pick what to convert (or filter by type/album/date), and watch live progress in the browser. It downloads originals, transcodes them, uploads the new versions, preserves EXIF/GPS data and album membership, and removes the originals only once the upload is verified.
+Browse your library, pick what to convert, and watch live progress in the browser — download, transcode, upload (or save locally instead), and remove the original only once the upload is verified.
 
 ## Background
 
-JPEG XL shrinks photos by 20-40% and AV1 shrinks videos by 30-50% with no visible quality loss. On a multi-TB Immich library that adds up fast. This tool used to be a CLI you configured entirely through `.env` files and `docker compose` — it's now a proper web UI: connect once, browse your library with real thumbnails, and start a conversion run with a click. Dry-run is always available before you commit to anything.
+JPEG XL shrinks photos by 20-40% and AV1 shrinks videos by 30-50% with no visible quality loss. On a multi-TB Immich library that adds up fast. Connect once, browse your library with real thumbnails, and start a run with a click. Dry-run is always available before you commit to anything.
 
 | Desktop | Mobile |
 |---------|--------|
@@ -24,33 +24,26 @@ JPEG XL shrinks photos by 20-40% and AV1 shrinks videos by 30-50% with no visibl
 ## Features
 
 - **Asset browser** — filter by type, album, archived/deleted state; real Immich thumbnails proxied through the backend (your API key never reaches the browser)
-- **Flexible run scoping** — convert the whole library, one album, a date range, or an explicit selection from Browse
-- **Image conversion** — JPEG, PNG, WebP, HEIC → JPEG XL
+- **Flexible run scoping** — whole library, one album, a date range, or an explicit selection from Browse
+- **Image conversion** — JPEG, PNG, WebP, HEIC, AVIF, TIFF, GIF, BMP → JPEG XL, HEIC, or AVIF; JPEG sources get a lossless bit-exact repack only when targeting JXL; exclude specific input formats from a run entirely
 - **Video conversion** — MP4, MOV, MKV → AV1 (MP4)
-- **Live progress** — WebSocket-driven progress bar, running counts, and current-asset status while a run is in flight
+- **Local-only mode** — write converted files to disk under `<year>/<month>` folders instead of uploading, with an option to keep the original alongside; Immich is never touched either way
 - **Metadata preservation** — EXIF, GPS, favorite state, rating, and albums copied to the replacement asset
-- **Smart retry logic** — automatically retries with higher compression if output is larger than the original
-- **Run history** — every run and its per-asset outcomes are kept; drill into failures, retry just the failed assets, or export a failure CSV
-- **Resumable** — a filtered run automatically skips assets a previous run already converted successfully
-- **Settings in the UI** — connection details and default encoding settings are edited and saved from the Settings page; env vars only seed first-boot defaults
-- **Dry-run mode** — preview what a run would do before committing to it
-- **Concurrency control** — configurable parallel workers per run
+- **Smart retry & resumable** — retries with more compression if output is larger than the original; a filtered run automatically skips assets a previous run already converted
+- **Run history** — every run and its per-asset outcomes are kept; retry just the failures or export a failure CSV
+- **Live progress & dry-run** — WebSocket-driven progress while a run is in flight; preview what a run would do before committing to it
+- **Settings in the UI** — connection, formats, quality, output mode, and retry/safety behavior all live on the Settings page, no restart or `.env` file required
 
-## Pipeline
-
-```mermaid
-flowchart LR
-    A[Browse / filter library] --> B[Start a run]
-    B -->|download| C[Original asset]
-    C --> D{Type}
-    D -->|Image| E[JPEG XL encode]
-    D -->|Video| F[AV1 encode]
-    E --> G[Upload new asset]
-    F --> G
-    G --> H[Copy metadata<br/>EXIF, GPS, albums]
-    H --> I[Delete original]
-    I -.->|live progress| J[Browser via WebSocket]
-```
+<p align="center">
+  <img src="assets/screenshot-desktop-convert.png" width="70%" alt="Starting a run scoped to an album">
+  <br><em>Start a run against the whole library, one album, a date range, or a Browse selection</em>
+  <br><br>
+  <img src="assets/screenshot-desktop-settings.png" width="70%" alt="Settings: target format and output mode">
+  <br><em>Pick your output format and quality, or switch to local-only conversion</em>
+  <br><br>
+  <img src="assets/screenshot-desktop-history.png" width="70%" alt="Run history">
+  <br><em>Run history with per-run savings; drill in for per-asset outcomes and retry-failed</em>
+</p>
 
 ## Quick Start
 
@@ -59,13 +52,6 @@ flowchart LR
 ```bash
 # Create a directory for your configuration
 mkdir immich-converter && cd immich-converter
-
-# Download the example environment file (optional -- only first-boot
-# defaults; you can also configure everything from the Settings page
-# after the container starts)
-curl -O https://raw.githubusercontent.com/fabianwimberger/immich-convert-originals/main/.env.example
-mv .env.example .env
-nano .env
 
 # Create the host-side data directory before the first run. Docker
 # auto-creates missing bind-mount sources as root, which the container
@@ -76,12 +62,11 @@ docker run -d \
   --name immich-library-converter \
   --restart unless-stopped \
   -p 8000:8000 \
-  --env-file .env \
   -v ./data:/app/data \
   ghcr.io/fabianwimberger/immich-convert-originals:main
 
 # Open http://localhost:8000, set your Immich URL/API key on the
-# Settings page if you didn't use .env, and start browsing.
+# Settings page, and start browsing.
 ```
 
 ### Option 2: Docker Compose (Build Locally)
@@ -90,14 +75,11 @@ docker run -d \
 git clone https://github.com/fabianwimberger/immich-convert-originals.git
 cd immich-convert-originals
 
-cp .env.example .env
-# Edit .env with your Immich URL and API key (optional -- see above)
-
 # Create the host-side data directory before the first run (see Option 1 for why)
 mkdir -p data
 
 docker compose up -d
-# Open http://localhost:8000
+# Open http://localhost:8000, then set your Immich URL/API key on the Settings page
 ```
 
 ### Option 3: Local Development
@@ -109,8 +91,8 @@ cd immich-convert-originals
 python -m venv .venv
 .venv/bin/pip install -r backend/requirements-dev.txt
 
-# ffmpeg, ImageMagick (with JXL delegate), libjxl-tools, and exiftool
-# must be installed on the host for local (non-Docker) runs.
+# ffmpeg, ImageMagick (with JXL and HEIC/AVIF delegates), libjxl-tools, and
+# exiftool must be installed on the host for local (non-Docker) runs.
 
 FRONTEND_DIR=./frontend \
 DATABASE_PATH=./data/app.db \
@@ -118,64 +100,50 @@ TEMP_DIR=./data/temp \
 .venv/bin/uvicorn app.main:app --app-dir backend --reload --port 8000
 ```
 
-## Web UI
-
-Open `http://localhost:8000` after starting the container.
-
-- **Browse** — filter your library by type, album, or archived/deleted state; thumbnails load lazily; multi-select assets to convert a specific subset, or select-all-on-page for larger batches
-- **Convert** — start a run against the whole library, one album, a date range, or your Browse selection; toggle dry-run and per-run concurrency; watch live progress once it starts
-- **History** — every run with its counts and bytes saved; click a run to see per-asset outcomes, retry just the failed ones, or export a failure CSV
-- **Settings** — Immich connection (with a test-connection check), default encoding values, and retry/safety behavior — all saved to the app's database, no restart required
-
-<p align="center">
-  <img src="assets/screenshot-desktop-convert.png" width="70%" alt="Starting a run scoped to an album">
-  <br><em>Start a run against the whole library, one album, a date range, or a Browse selection</em>
-  <br><br>
-  <img src="assets/screenshot-desktop-history.png" width="70%" alt="Run history">
-  <br><em>Run history with per-run savings; drill in for per-asset outcomes and retry-failed</em>
-</p>
-
 ## How It Works
 
-```
-Browse/filter → Download → Transcode → Upload new → Copy metadata → Verify → Delete original
+```mermaid
+flowchart LR
+    A[Browse / filter library] --> B[Start a run]
+    B -->|download| C[Original asset]
+    C --> D{Type}
+    D -->|Image| E[Image encode<br/>JXL / HEIC / AVIF]
+    D -->|Video| F[AV1 encode]
+    E --> K{Output mode}
+    F --> K
+    K -->|Upload| G[Upload new asset]
+    K -->|Local| L[Write to local disk]
+    G --> H[Copy metadata<br/>EXIF, GPS, albums]
+    H --> I[Delete original]
+    I -.->|live progress| J[Browser via WebSocket]
+    L -.->|live progress| J
 ```
 
 Each step is verified:
 1. **Download** original to a temporary per-run directory
-2. **Transcode** based on asset type (skip if already JPEG XL / AV1)
+2. **Transcode** based on asset type and configured target format (skip if already in the target format)
 3. **Validate** output format and integrity; retry with more compression if the output is larger than the input
-4. **Upload** new asset to Immich
-5. **Copy metadata** (EXIF, GPS, favorite state, rating, and albums)
-6. **Verify** new asset is accessible
-7. **Delete** original (goes to Immich's trash, recoverable for 30 days)
+4. **Upload** new asset to Immich — or, in local output mode, write it to `<local output dir>/<year>/<month>/` instead; either way the original isn't touched until step 7
+5. **Copy metadata** (EXIF, GPS, favorite state, rating, and albums) — upload mode only
+6. **Verify** new asset is accessible — upload mode only
+7. **Delete** original (goes to Immich's trash, recoverable for 30 days) — upload mode only; never happens in local mode
 
 If any step fails, the new asset is cleaned up and the original is preserved. The outcome is recorded either way, so a failed run shows up in History with the exact error.
 
 ## Configuration
 
-Environment variables only seed first-boot defaults — after the app starts once, use the **Settings** page to change any of this without a restart.
+Everything behavioral — Immich connection, encoding defaults, filters, output mode — is configured from the **Settings** page in the web UI, no restart required. The only environment variables the app reads are infrastructure that has to exist before the database is reachable, and none of them need to be set for a normal install:
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `IMMICH_API_BASE` | Your Immich API URL | — |
-| `IMMICH_API_KEY` | API key from Immich | — |
-| `ASSET_TYPES` | Default asset types: `IMAGE`, `VIDEO`, or `IMAGE,VIDEO` | `IMAGE,VIDEO` |
-| `INCLUDE_ARCHIVED` / `INCLUDE_DELETED` | Default filter state | `false` |
-| `IMAGE_DISTANCE` / `IMAGE_DISTANCE_RETRY` | JXL distance (0=lossless, 1=visually lossless) and retry distance | `1.0` / `2.0` |
-| `VIDEO_CRF` / `VIDEO_CRF_RETRY` | AV1 quality (0-63, lower=better) and retry CRF | `36` / `40` |
-| `VIDEO_PRESET` | AV1 speed/quality tradeoff (0-13, lower=slower) | `4` |
-| `VIDEO_MAX_DIMENSION` | Limit shorter-side resolution, 0=disable | `0` |
-| `VIDEO_AUDIO_BITRATE` | Opus audio bitrate | `64k` |
-| `ENABLE_RETRY` / `ACCEPT_RETRY_OUTPUT` | Retry with more compression if output is larger; accept it anyway if still larger | `true` / `false` |
-| `ALLOW_LARGER` | Keep output even if larger than input, no retry | `false` |
-| `CONCURRENCY` | Parallel workers per run | `2` |
 | `DATABASE_PATH` | Path to the app's SQLite database (settings + run history) | `/app/data/app.db` |
+| `TEMP_DIR` | Scratch directory for in-flight downloads/transcodes | `/app/temp` |
 | `LOG_LEVEL` | Log verbosity | `INFO` |
+| `CORS_ORIGINS` | Comma-separated origins allowed to call the API | `http://localhost:8000,http://127.0.0.1:8000` |
 
 ## Security & Safety
 
-**USE AT YOUR OWN RISK.** This tool deletes originals after conversion (recoverable via Immich trash for 30 days). Always back up first and test on a small selection before converting a whole library. The web UI has no built-in authentication — it's intended for a trusted home network or behind your own reverse-proxy auth; don't expose it directly to the internet.
+**USE AT YOUR OWN RISK.** In upload mode this tool deletes originals after conversion (recoverable via Immich trash for 30 days) — always back up first and test on a small selection before converting a whole library. The web UI has no built-in authentication — it's intended for a trusted home network or behind your own reverse-proxy auth; don't expose it directly to the internet.
 
 ## Docker Image Tags
 
@@ -190,10 +158,11 @@ MIT License — see [LICENSE](LICENSE) file.
 | Component | License | Source |
 |-----------|---------|--------|
 | libjxl | [BSD-3-Clause](https://github.com/libjxl/libjxl/blob/main/LICENSE) | https://github.com/libjxl/libjxl |
-| FFmpeg | [LGPL v2.1+](https://www.gnu.org/licenses/old-licenses/lgpl-2.1.html) | https://ffmpeg.org/ |
+| FFmpeg | [GPL-2.0+](https://www.gnu.org/licenses/old-licenses/gpl-2.0.html) (Alpine build links x264/x265) | https://ffmpeg.org/ |
+| libheif | [LGPL-3.0+](https://github.com/strukturag/libheif/blob/master/COPYING) | https://github.com/strukturag/libheif |
 | ImageMagick | [Apache-2.0](https://imagemagick.org/script/license.php) | https://imagemagick.org/ |
 | ExifTool | [Artistic/GPL](https://exiftool.org/#license) | https://exiftool.org/ |
 | FastAPI | [MIT](https://github.com/fastapi/fastapi/blob/master/LICENSE) | https://fastapi.tiangolo.com/ |
 | SQLAlchemy | [MIT](https://github.com/sqlalchemy/sqlalchemy/blob/main/LICENSE) | https://www.sqlalchemy.org/ |
 
-See [DOCKER_LICENSES.md](DOCKER_LICENSES.md) for full details.
+This app invokes these as separate subprocesses and never links against them, so none of the above affects this project's own MIT license. See [DOCKER_LICENSES.md](DOCKER_LICENSES.md) for the full codec library breakdown (x264, x265, libaom, dav1d, rav1e, SVT-AV1) and what GPL/LGPL requires of anyone distributing the image.
