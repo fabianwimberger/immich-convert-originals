@@ -27,7 +27,7 @@ jobs:
           python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Install linting tools
-        run: pip install ruff mypy types-requests
+        run: pip install ruff==0.15.21 mypy==2.2.0 types-requests
 
       - name: Lint with ruff
         run: ruff check backend/
