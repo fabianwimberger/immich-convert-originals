@@ -552,6 +552,39 @@ class TestProcessAssetSyncLocalMode:
         assert result["status"] == "dry_run_preview"
         assert not local_dir.exists()
 
+    def test_video_also_saves_locally(self, tmp_path, monkeypatch):
+        """Local mode isn't image-specific -- it's a branch after transcode
+        that applies to whatever _get_target_format resolved to."""
+        local_dir = tmp_path / "output"
+        work_dir = tmp_path / "work"
+        work_dir.mkdir()
+        asset = _make_asset(
+            asset_type="VIDEO", file_name="clip.mp4", created_at="2023-06-15T00:00:00Z"
+        )
+        client = FakeClient()
+        cfg = {**BASE_CFG, "output_mode": "local", "local_output_dir": str(local_dir)}
+
+        def fake_transcode_video(inp, out, crf, preset, max_dimension, audio_bitrate):
+            with open(out, "wb") as f:
+                f.write(b"x" * 500)
+            return TranscodeResult(
+                success=True,
+                input_path=inp,
+                output_path=out,
+                input_bytes=1000,
+                output_bytes=500,
+                input_format="h264",
+            )
+
+        monkeypatch.setattr(run_service, "transcode_video", fake_transcode_video)
+        monkeypatch.setattr(run_service, "validate_video_output", lambda path: True)
+
+        result = run_service._process_asset_sync(asset, client, cfg, str(work_dir))
+
+        assert result["status"] == "saved_local"
+        assert (local_dir / "2023" / "06" / "clip.mp4").exists()
+        assert client.upload_calls == 0
+
 
 class TestProcessAssetSyncVideos:
     def test_dry_run_video_previews_real_size_without_upload(
