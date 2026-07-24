@@ -61,13 +61,15 @@ async def _sync_settings_columns(conn: AsyncConnection) -> None:
     column) would otherwise 500 on the first query that references it. Diff
     the live table against the model and ALTER TABLE ADD COLUMN for the
     difference, still without pulling in Alembic for a one-table schema.
-    """
-    from app.models.settings import Settings
 
+    Reads the table from Base.metadata rather than importing the Settings
+    model directly -- app.models.settings already imports Base from this
+    module, so importing it back here would be circular.
+    """
     result = await conn.execute(text("PRAGMA table_info(settings)"))
     existing_columns = {row[1] for row in result.fetchall()}
 
-    for column in Settings.__table__.columns:
+    for column in Base.metadata.tables["settings"].columns:
         if column.name in existing_columns:
             continue
 
