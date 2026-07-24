@@ -15,7 +15,7 @@ Browse your library, pick what to convert (or filter by type/album/date), and wa
 
 ## Background
 
-JPEG XL shrinks photos by 20-40% and AV1 shrinks videos by 30-50% with no visible quality loss. On a multi-TB Immich library that adds up fast. This tool used to be a CLI you configured entirely through `.env` files and `docker compose` — it's now a proper web UI: connect once, browse your library with real thumbnails, and start a conversion run with a click. Dry-run is always available before you commit to anything.
+JPEG XL shrinks photos by 20-40% and AV1 shrinks videos by 30-50% with no visible quality loss. On a multi-TB Immich library that adds up fast. This tool used to be a CLI you configured entirely through `.env` files — it's now a proper web UI: connect once, browse your library with real thumbnails, and start a conversion run with a click. Dry-run is always available before you commit to anything.
 
 | Desktop | Mobile |
 |---------|--------|
@@ -32,7 +32,7 @@ JPEG XL shrinks photos by 20-40% and AV1 shrinks videos by 30-50% with no visibl
 - **Smart retry logic** — automatically retries with higher compression if output is larger than the original
 - **Run history** — every run and its per-asset outcomes are kept; drill into failures, retry just the failed assets, or export a failure CSV
 - **Resumable** — a filtered run automatically skips assets a previous run already converted successfully
-- **Settings in the UI** — connection details and default encoding settings are edited and saved from the Settings page; env vars only seed first-boot defaults
+- **Settings in the UI** — connection details, default encoding, and output mode are all edited and saved from the Settings page, no restart or `.env` file required
 - **Dry-run mode** — preview what a run would do before committing to it
 - **Concurrency control** — configurable parallel workers per run
 
@@ -60,13 +60,6 @@ flowchart LR
 # Create a directory for your configuration
 mkdir immich-converter && cd immich-converter
 
-# Download the example environment file (optional -- only first-boot
-# defaults; you can also configure everything from the Settings page
-# after the container starts)
-curl -O https://raw.githubusercontent.com/fabianwimberger/immich-convert-originals/main/.env.example
-mv .env.example .env
-nano .env
-
 # Create the host-side data directory before the first run. Docker
 # auto-creates missing bind-mount sources as root, which the container
 # (running as uid 1000) cannot write to. Pre-creating it avoids that.
@@ -76,12 +69,11 @@ docker run -d \
   --name immich-library-converter \
   --restart unless-stopped \
   -p 8000:8000 \
-  --env-file .env \
   -v ./data:/app/data \
   ghcr.io/fabianwimberger/immich-convert-originals:main
 
 # Open http://localhost:8000, set your Immich URL/API key on the
-# Settings page if you didn't use .env, and start browsing.
+# Settings page, and start browsing.
 ```
 
 ### Option 2: Docker Compose (Build Locally)
@@ -90,14 +82,11 @@ docker run -d \
 git clone https://github.com/fabianwimberger/immich-convert-originals.git
 cd immich-convert-originals
 
-cp .env.example .env
-# Edit .env with your Immich URL and API key (optional -- see above)
-
 # Create the host-side data directory before the first run (see Option 1 for why)
 mkdir -p data
 
 docker compose up -d
-# Open http://localhost:8000
+# Open http://localhost:8000, then set your Immich URL/API key on the Settings page
 ```
 
 ### Option 3: Local Development
@@ -154,24 +143,14 @@ If any step fails, the new asset is cleaned up and the original is preserved. Th
 
 ## Configuration
 
-Environment variables only seed first-boot defaults — after the app starts once, use the **Settings** page to change any of this without a restart.
+Everything behavioral — Immich connection, encoding defaults, filters, output mode — is configured from the **Settings** page in the web UI, no restart required. The only environment variables the app reads are infrastructure that has to exist before the database is reachable, and none of them need to be set for a normal install:
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `IMMICH_API_BASE` | Your Immich API URL | — |
-| `IMMICH_API_KEY` | API key from Immich | — |
-| `ASSET_TYPES` | Default asset types: `IMAGE`, `VIDEO`, or `IMAGE,VIDEO` | `IMAGE,VIDEO` |
-| `INCLUDE_ARCHIVED` / `INCLUDE_DELETED` | Default filter state | `false` |
-| `IMAGE_DISTANCE` / `IMAGE_DISTANCE_RETRY` | JXL distance (0=lossless, 1=visually lossless) and retry distance | `1.0` / `2.0` |
-| `VIDEO_CRF` / `VIDEO_CRF_RETRY` | AV1 quality (0-63, lower=better) and retry CRF | `36` / `40` |
-| `VIDEO_PRESET` | AV1 speed/quality tradeoff (0-13, lower=slower) | `4` |
-| `VIDEO_MAX_DIMENSION` | Limit shorter-side resolution, 0=disable | `0` |
-| `VIDEO_AUDIO_BITRATE` | Opus audio bitrate | `64k` |
-| `ENABLE_RETRY` / `ACCEPT_RETRY_OUTPUT` | Retry with more compression if output is larger; accept it anyway if still larger | `true` / `false` |
-| `ALLOW_LARGER` | Keep output even if larger than input, no retry | `false` |
-| `CONCURRENCY` | Parallel workers per run | `2` |
 | `DATABASE_PATH` | Path to the app's SQLite database (settings + run history) | `/app/data/app.db` |
+| `TEMP_DIR` | Scratch directory for in-flight downloads/transcodes | `/app/temp` |
 | `LOG_LEVEL` | Log verbosity | `INFO` |
+| `CORS_ORIGINS` | Comma-separated origins allowed to call the API | `http://localhost:8000,http://127.0.0.1:8000` |
 
 ## Security & Safety
 

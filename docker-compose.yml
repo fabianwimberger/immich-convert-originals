@@ -9,8 +9,14 @@ services:
     # image: ghcr.io/fabianwimberger/immich-convert-originals:main
 
     container_name: immich-library-converter
-    env_file:
-      - .env
+    # Everything (Immich connection, encoding defaults, output mode) is
+    # configured from the Settings page after the container starts -- no
+    # .env file needed. These are the only env vars the app reads, and only
+    # for infrastructure that has to exist before the database is reachable.
+    # environment:
+    #   - LOG_LEVEL=INFO
+    #   - DATABASE_PATH=/app/data/app.db
+    #   - TEMP_DIR=/app/temp
     ports:
       - "8000:8000"
     restart: unless-stopped
