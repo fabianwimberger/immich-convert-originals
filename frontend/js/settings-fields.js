@@ -3,6 +3,12 @@
  * (see backend/app/models/schemas.py); these mirror them for display, they
  * don't re-implement them. */
 const SETTINGS_FIELDS = {
+  immich_api_base: {
+    description:
+      "Must include the /api suffix -- Immich's API lives under that path, and omitting it returns an unhelpful 404.",
+    default: "none",
+    example: "e.g. https://photos.example.com/api",
+  },
   asset_types: {
     description: "Which asset types a filtered run considers by default.",
     default: "Images + Videos",
