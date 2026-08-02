@@ -22,6 +22,7 @@ class SettingsPanel {
         <label>API Base URL
           <input id="set-api-base" type="text" value="${s.immich_api_base}" placeholder="https://photos.example.com/api" />
         </label>
+        ${fieldHint("immich_api_base")}
         <label>API Key
           <input id="set-api-key" type="password" placeholder="${s.immich_api_key_set ? "•••••••• (set)" : "not set"}" />
         </label>

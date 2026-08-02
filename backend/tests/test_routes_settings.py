@@ -121,6 +121,42 @@ class TestConnectionCheck:
         assert data["server_version"] == "3.0.3"
 
     @responses.activate
+    async def test_404_without_api_suffix_hints_at_missing_api_path(self, client):
+        responses.add(
+            responses.POST,
+            "https://immich.example.com/search/metadata",
+            status=404,
+        )
+        resp = await client.post(
+            "/api/settings/test-connection",
+            json={
+                "immich_api_base": "https://immich.example.com/",
+                "immich_api_key": "key",
+            },
+        )
+        data = resp.json()
+        assert data["ok"] is False
+        assert "/api" in data["error"]
+
+    @responses.activate
+    async def test_404_with_api_suffix_already_present_has_no_hint(self, client):
+        responses.add(
+            responses.POST,
+            "https://immich.example.com/api/search/metadata",
+            status=404,
+        )
+        resp = await client.post(
+            "/api/settings/test-connection",
+            json={
+                "immich_api_base": "https://immich.example.com/api/",
+                "immich_api_key": "key",
+            },
+        )
+        data = resp.json()
+        assert data["ok"] is False
+        assert data["error"] == "Search failed: HTTP 404"
+
+    @responses.activate
     async def test_uses_saved_credentials_when_override_omitted(self, client):
         await client.put(
             "/api/settings",
