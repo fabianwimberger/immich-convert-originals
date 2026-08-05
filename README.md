@@ -66,7 +66,8 @@ docker run -d \
   ghcr.io/fabianwimberger/immich-convert-originals:main
 
 # Open http://localhost:8000, set your Immich URL/API key on the
-# Settings page, and start browsing.
+# Settings page, and start browsing. The URL must include the /api
+# suffix, e.g. https://photos.example.com/api.
 ```
 
 ### Option 2: Docker Compose (Build Locally)
@@ -79,7 +80,8 @@ cd immich-convert-originals
 mkdir -p data
 
 docker compose up -d
-# Open http://localhost:8000, then set your Immich URL/API key on the Settings page
+# Open http://localhost:8000, then set your Immich URL/API key on the Settings
+# page. The URL must include the /api suffix, e.g. https://photos.example.com/api.
 ```
 
 ### Option 3: Local Development

@@ -61,6 +61,8 @@ async def test_connection(
     client = ImmichClient(api_base=api_base, api_key=api_key, retry_max=0)
     ok, error = await asyncio.to_thread(client.test_connection)
     if not ok:
+        if error and "404" in error and "/api" not in api_base.rstrip("/").lower():
+            error += " -- does the URL include the /api suffix, e.g. https://photos.example.com/api?"
         return TestConnectionResponse(ok=False, error=error)
 
     info = await asyncio.to_thread(client.server_info)
