@@ -49,6 +49,8 @@ JPEG XL shrinks photos by 20-40% and AV1 shrinks videos by 30-50% with no visibl
 
 ### Option 1: Prebuilt Docker Image (Recommended)
 
+Multi-arch image (`linux/amd64`, `linux/arm64`) — Docker pulls the right one automatically.
+
 ```bash
 # Create a directory for your configuration
 mkdir immich-converter && cd immich-converter
