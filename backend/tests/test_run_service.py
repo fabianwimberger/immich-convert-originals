@@ -181,7 +181,7 @@ class TestProcessAssetSyncImages:
         monkeypatch.setattr(
             run_service,
             "transcode",
-            lambda inp, out, fmt, distance: TranscodeResult(
+            lambda inp, out, fmt, distance, jxl_effort=7: TranscodeResult(
                 success=True,
                 input_path=inp,
                 output_path=out,
@@ -201,7 +201,7 @@ class TestProcessAssetSyncImages:
         cfg = {**BASE_CFG, "image_target_format": "avif", "dry_run": True}
         captured = {}
 
-        def fake_transcode(inp, out, fmt, quality):
+        def fake_transcode(inp, out, fmt, quality, jxl_effort=7):
             captured["fmt"] = fmt
             captured["quality"] = quality
             captured["out"] = out
@@ -224,6 +224,57 @@ class TestProcessAssetSyncImages:
         assert captured["quality"] == BASE_CFG["image_quality_avif"]
         assert captured["out"].endswith(".avif")
 
+    def test_uses_configured_jxl_effort(self, tmp_path, monkeypatch):
+        asset = _make_asset()
+        client = FakeClient()
+        cfg = {**BASE_CFG, "image_jxl_effort": 9, "dry_run": True}
+        captured = {}
+
+        def fake_transcode(inp, out, fmt, quality, jxl_effort=7):
+            captured["jxl_effort"] = jxl_effort
+            return TranscodeResult(
+                success=True,
+                input_path=inp,
+                output_path=out,
+                input_bytes=1000,
+                output_bytes=500,
+                input_format="jpg",
+            )
+
+        monkeypatch.setattr(run_service, "transcode", fake_transcode)
+        monkeypatch.setattr(run_service, "validate_output", lambda path, fmt: True)
+
+        run_service._process_asset_sync(asset, client, cfg, str(tmp_path))
+        assert captured["jxl_effort"] == 9
+
+    def test_missing_jxl_effort_key_defaults_to_7(self, tmp_path, monkeypatch):
+        """A config_snapshot persisted before this setting existed (e.g. a
+        retry-failed run started from an old run row) has no
+        image_jxl_effort key at all -- it must still fall back to 7 instead
+        of KeyError-ing."""
+        asset = _make_asset()
+        client = FakeClient()
+        cfg = {k: v for k, v in BASE_CFG.items() if k != "image_jxl_effort"}
+        cfg["dry_run"] = True
+        captured = {}
+
+        def fake_transcode(inp, out, fmt, quality, jxl_effort=7):
+            captured["jxl_effort"] = jxl_effort
+            return TranscodeResult(
+                success=True,
+                input_path=inp,
+                output_path=out,
+                input_bytes=1000,
+                output_bytes=500,
+                input_format="jpg",
+            )
+
+        monkeypatch.setattr(run_service, "transcode", fake_transcode)
+        monkeypatch.setattr(run_service, "validate_output", lambda path, fmt: True)
+
+        run_service._process_asset_sync(asset, client, cfg, str(tmp_path))
+        assert captured["jxl_effort"] == 7
+
     def test_missing_convert_image_formats_key_defaults_to_all(self, tmp_path):
         """A config_snapshot persisted before this setting existed (e.g. a
         retry-failed run started from an old run row) has no
@@ -245,7 +296,7 @@ class TestProcessAssetSyncImages:
         monkeypatch.setattr(
             run_service,
             "transcode",
-            lambda inp, out, fmt, distance: TranscodeResult(
+            lambda inp, out, fmt, distance, jxl_effort=7: TranscodeResult(
                 success=True,
                 input_path=inp,
                 output_path=out,
@@ -276,7 +327,7 @@ class TestProcessAssetSyncImages:
         monkeypatch.setattr(
             run_service,
             "transcode",
-            lambda inp, out, fmt, distance: TranscodeResult(
+            lambda inp, out, fmt, distance, jxl_effort=7: TranscodeResult(
                 success=True,
                 input_path=inp,
                 output_path=out,
@@ -297,7 +348,7 @@ class TestProcessAssetSyncImages:
         client = FakeClient()
         calls = []
 
-        def fake_transcode(inp, out, fmt, distance):
+        def fake_transcode(inp, out, fmt, distance, jxl_effort=7):
             calls.append(distance)
             output = 1500 if len(calls) == 1 else 400
             return TranscodeResult(
@@ -322,7 +373,7 @@ class TestProcessAssetSyncImages:
         monkeypatch.setattr(
             run_service,
             "transcode",
-            lambda inp, out, fmt, distance: TranscodeResult(
+            lambda inp, out, fmt, distance, jxl_effort=7: TranscodeResult(
                 success=True,
                 input_path=inp,
                 output_path=out,
@@ -342,7 +393,7 @@ class TestProcessAssetSyncImages:
         monkeypatch.setattr(
             run_service,
             "transcode",
-            lambda inp, out, fmt, distance: TranscodeResult(
+            lambda inp, out, fmt, distance, jxl_effort=7: TranscodeResult(
                 success=True,
                 input_path=inp,
                 output_path=out,
@@ -362,7 +413,7 @@ class TestProcessAssetSyncImages:
         monkeypatch.setattr(
             run_service,
             "transcode",
-            lambda inp, out, fmt, distance: TranscodeResult(
+            lambda inp, out, fmt, distance, jxl_effort=7: TranscodeResult(
                 success=True,
                 input_path=inp,
                 output_path=out,
@@ -383,7 +434,7 @@ class TestProcessAssetSyncImages:
         monkeypatch.setattr(
             run_service,
             "transcode",
-            lambda inp, out, fmt, distance: TranscodeResult(
+            lambda inp, out, fmt, distance, jxl_effort=7: TranscodeResult(
                 success=True,
                 input_path=inp,
                 output_path=out,
@@ -404,7 +455,7 @@ class TestProcessAssetSyncImages:
         monkeypatch.setattr(
             run_service,
             "transcode",
-            lambda inp, out, fmt, distance: TranscodeResult(
+            lambda inp, out, fmt, distance, jxl_effort=7: TranscodeResult(
                 success=True,
                 input_path=inp,
                 output_path=out,
@@ -424,7 +475,7 @@ class TestProcessAssetSyncImages:
         monkeypatch.setattr(
             run_service,
             "transcode",
-            lambda inp, out, fmt, distance: TranscodeResult(
+            lambda inp, out, fmt, distance, jxl_effort=7: TranscodeResult(
                 success=False,
                 input_path=inp,
                 output_path=out,
@@ -444,7 +495,7 @@ class TestProcessAssetSyncImages:
         monkeypatch.setattr(
             run_service,
             "transcode",
-            lambda inp, out, fmt, distance: TranscodeResult(
+            lambda inp, out, fmt, distance, jxl_effort=7: TranscodeResult(
                 success=True,
                 input_path=inp,
                 output_path=out,
@@ -460,7 +511,7 @@ class TestProcessAssetSyncImages:
 
 class TestProcessAssetSyncLocalMode:
     def _patch_transcode(self, monkeypatch, input_format="jpg"):
-        def fake_transcode(inp, out, fmt, quality):
+        def fake_transcode(inp, out, fmt, quality, jxl_effort=7):
             # shutil.move/copy2 in the local-save path need a real file --
             # unlike upload_asset (which just reads kwargs), this is the
             # first path that actually touches output_path on disk.
@@ -756,7 +807,7 @@ class TestExecuteRun:
         monkeypatch.setattr(
             run_service,
             "transcode",
-            lambda inp, out, fmt, distance: TranscodeResult(
+            lambda inp, out, fmt, distance, jxl_effort=7: TranscodeResult(
                 success=True,
                 input_path=inp,
                 output_path=out,
@@ -825,7 +876,7 @@ class TestExecuteRun:
         monkeypatch.setattr(run_service, "ImmichClient", FakeClientFactory(client))
         monkeypatch.setattr(run_service, "validate_output", lambda path, fmt: True)
 
-        def flaky_transcode(inp, out, fmt, distance):
+        def flaky_transcode(inp, out, fmt, distance, jxl_effort=7):
             if "boom-a1" in inp:
                 raise RuntimeError("disk exploded")
             return TranscodeResult(
@@ -899,7 +950,7 @@ class TestExecuteRun:
 
         run_id_holder: dict[str, int] = {}
 
-        def cancel_on_first_asset(inp, out, fmt, distance):
+        def cancel_on_first_asset(inp, out, fmt, distance, jxl_effort=7):
             if "cancel-a1" in inp:
                 run_service.request_cancel(run_id_holder["id"])
             return TranscodeResult(

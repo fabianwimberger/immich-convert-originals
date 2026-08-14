@@ -62,6 +62,7 @@ async def _build_config_snapshot(data: RunCreate, db: AsyncSession) -> dict[str,
         "image_distance_retry": _pick(
             data.image_distance_retry, settings.image_distance_retry
         ),
+        "image_jxl_effort": _pick(data.image_jxl_effort, settings.image_jxl_effort),
         "image_quality_heic": _pick(
             data.image_quality_heic, settings.image_quality_heic
         ),

@@ -89,6 +89,21 @@ class TestCreateRun:
             # Unset overrides fall back to the saved Settings defaults.
             assert cfg["image_quality_avif"] == 75
 
+    async def test_image_jxl_effort_override_stored_in_snapshot(self, client):
+        await _configure_connection(client)
+        resp = await client.post(
+            "/api/runs",
+            json={"asset_types": "IMAGE", "image_jxl_effort": 9},
+        )
+        data = resp.json()
+        async with AsyncSessionLocal() as db:
+            from sqlalchemy import select
+
+            result = await db.execute(select(Run).where(Run.id == data["id"]))
+            run = result.scalar_one()
+            cfg = json.loads(run.config_snapshot)
+            assert cfg["image_jxl_effort"] == 9
+
     async def test_output_mode_override_stored_in_snapshot(self, client):
         await _configure_connection(client)
         resp = await client.post(

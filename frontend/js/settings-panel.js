@@ -77,6 +77,10 @@ class SettingsPanel {
             <input id="set-image-distance-retry" type="number" step="0.1" min="0" max="25" value="${s.image_distance_retry}" />
             ${fieldHint("image_distance_retry")}
           </label>
+          <label>JPEG repack effort (1-9)
+            <input id="set-image-jxl-effort" type="number" step="1" min="1" max="9" value="${s.image_jxl_effort}" />
+            ${fieldHint("image_jxl_effort")}
+          </label>
         </div>
         <div class="format-fields" data-format="heic" style="${s.image_target_format === "heic" ? "" : "display:none"}">
           <label>Quality (0-100)
@@ -266,6 +270,10 @@ class SettingsPanel {
       image_distance: parseFloat(this.root.querySelector("#set-image-distance").value),
       image_distance_retry: parseFloat(
         this.root.querySelector("#set-image-distance-retry").value
+      ),
+      image_jxl_effort: parseInt(
+        this.root.querySelector("#set-image-jxl-effort").value,
+        10
       ),
       image_quality_heic: parseInt(
         this.root.querySelector("#set-image-quality-heic").value,

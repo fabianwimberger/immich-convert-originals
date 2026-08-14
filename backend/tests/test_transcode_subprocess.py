@@ -36,6 +36,28 @@ class TestTranscodeImage:
         assert mock_run.call_count == 1
         assert mock_run.call_args_list[0][0][0][0] == "cjxl"
 
+    def test_jpeg_cjxl_defaults_to_effort_7(self, tmp_path):
+        input_path = tmp_path / "input.jpg"
+        input_path.write_bytes(b"\xff\xd8\xff" + b"\x00" * 29)
+        output_path = tmp_path / "output.jxl"
+
+        with patch("app.services.transcode.subprocess.run") as mock_run:
+            mock_run.return_value = FakeCompletedProcess(returncode=0)
+            transcode(str(input_path), str(output_path), "jxl", 1.0)
+
+        assert "--effort=7" in mock_run.call_args_list[0][0][0]
+
+    def test_jpeg_cjxl_uses_configured_effort(self, tmp_path):
+        input_path = tmp_path / "input.jpg"
+        input_path.write_bytes(b"\xff\xd8\xff" + b"\x00" * 29)
+        output_path = tmp_path / "output.jxl"
+
+        with patch("app.services.transcode.subprocess.run") as mock_run:
+            mock_run.return_value = FakeCompletedProcess(returncode=0)
+            transcode(str(input_path), str(output_path), "jxl", 1.0, jxl_effort=3)
+
+        assert "--effort=3" in mock_run.call_args_list[0][0][0]
+
     def test_jpeg_cjxl_not_found_falls_back_to_magick(self, tmp_path):
         input_path = tmp_path / "input.jpg"
         input_path.write_bytes(b"\xff\xd8\xff" + b"\x00" * 29)
