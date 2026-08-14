@@ -232,6 +232,7 @@ def _process_asset_sync(
                 output_path,
                 target_format,
                 _get_image_quality(cfg, target_format, retry=False),
+                jxl_effort=cfg.get("image_jxl_effort", 7),
             )
             is_valid = validate_output(output_path, target_format)
 
@@ -275,6 +276,7 @@ def _process_asset_sync(
                         output_path,
                         target_format,
                         _get_image_quality(cfg, target_format, retry=True),
+                        jxl_effort=cfg.get("image_jxl_effort", 7),
                     )
                     is_valid = validate_output(output_path, target_format)
 

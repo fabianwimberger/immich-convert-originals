@@ -37,6 +37,9 @@ class Settings(Base):
     image_target_format: Mapped[str] = mapped_column(default="jxl")
     image_distance: Mapped[float] = mapped_column(default=1.0)
     image_distance_retry: Mapped[float] = mapped_column(default=2.0)
+    # cjxl --effort (1-9, higher=slower/smaller) for the JPEG->JXL lossless
+    # repack path only; ImageMagick's JXL encode doesn't go through cjxl.
+    image_jxl_effort: Mapped[int] = mapped_column(default=7)
     image_quality_heic: Mapped[int] = mapped_column(default=80)
     image_quality_heic_retry: Mapped[int] = mapped_column(default=60)
     image_quality_avif: Mapped[int] = mapped_column(default=75)

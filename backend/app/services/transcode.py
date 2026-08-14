@@ -262,6 +262,7 @@ def transcode(
     output_path: str,
     target_format: str,
     quality: float,
+    jxl_effort: int = 7,
     timeouts: Timeouts = DEFAULT_TIMEOUTS,
 ) -> TranscodeResult:
     """Transcode an image to the given target format.
@@ -272,6 +273,10 @@ def transcode(
     those falls through to the normal ImageMagick re-encode below.
     Everything else: ImageMagick with the given quality (JXL distance 0-25,
     or HEIC/AVIF -quality 0-100).
+
+    jxl_effort (1-9) only applies to the cjxl repack above -- it trades
+    encode time for smaller output via cjxl's entropy coding, independent of
+    the lossless bit-exactness of the repack itself.
     """
     input_bytes = os.path.getsize(input_path)
     input_format = detect_format(input_path)
@@ -306,7 +311,13 @@ def transcode(
         # is unnecessary and can accidentally downgrade metadata.
         try:
             result = subprocess.run(
-                ["cjxl", "--compress_boxes=0", input_path, output_path],
+                [
+                    "cjxl",
+                    "--compress_boxes=0",
+                    f"--effort={jxl_effort}",
+                    input_path,
+                    output_path,
+                ],
                 capture_output=True,
                 timeout=timeouts.image,
             )

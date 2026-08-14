@@ -23,6 +23,7 @@ class SettingsResponse(BaseModel):
     image_target_format: str
     image_distance: float
     image_distance_retry: float
+    image_jxl_effort: int
     image_quality_heic: int
     image_quality_heic_retry: int
     image_quality_avif: int
@@ -52,6 +53,7 @@ class SettingsResponse(BaseModel):
             image_target_format=settings.image_target_format,
             image_distance=settings.image_distance,
             image_distance_retry=settings.image_distance_retry,
+            image_jxl_effort=settings.image_jxl_effort,
             image_quality_heic=settings.image_quality_heic,
             image_quality_heic_retry=settings.image_quality_heic_retry,
             image_quality_avif=settings.image_quality_avif,
@@ -88,6 +90,7 @@ class SettingsUpdate(BaseModel):
     image_target_format: str | None = None
     image_distance: float | None = Field(default=None, ge=0, le=25)
     image_distance_retry: float | None = Field(default=None, ge=0, le=25)
+    image_jxl_effort: int | None = Field(default=None, ge=1, le=9)
     image_quality_heic: int | None = Field(default=None, ge=0, le=100)
     image_quality_heic_retry: int | None = Field(default=None, ge=0, le=100)
     image_quality_avif: int | None = Field(default=None, ge=0, le=100)
@@ -167,6 +170,7 @@ class RunCreate(BaseModel):
     image_target_format: str | None = None
     image_distance: float | None = Field(default=None, ge=0, le=25)
     image_distance_retry: float | None = Field(default=None, ge=0, le=25)
+    image_jxl_effort: int | None = Field(default=None, ge=1, le=9)
     image_quality_heic: int | None = Field(default=None, ge=0, le=100)
     image_quality_heic_retry: int | None = Field(default=None, ge=0, le=100)
     image_quality_avif: int | None = Field(default=None, ge=0, le=100)
