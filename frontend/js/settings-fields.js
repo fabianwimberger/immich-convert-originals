@@ -41,6 +41,12 @@ const SETTINGS_FIELDS = {
     description: "Distance used if the first pass came out larger than the original.",
     default: "2.0",
   },
+  image_jxl_effort: {
+    description:
+      "cjxl --effort for the JPEG->JXL lossless repack -- higher is slower but smaller. Only applies to JPEG sources targeting JXL; ImageMagick's re-encode path ignores it.",
+    default: "7",
+    example: "e.g. 9 for maximum compression, 3 for faster batch runs",
+  },
   image_quality_heic: {
     description: "HEIC quality (ImageMagick -quality) -- higher is better and larger.",
     default: "80",
