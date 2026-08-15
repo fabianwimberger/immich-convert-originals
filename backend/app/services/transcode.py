@@ -175,6 +175,7 @@ def _transcode_with_magick(
     output_path: str,
     target_format: str,
     quality: float,
+    jxl_effort: int = 7,
     timeouts: Timeouts = DEFAULT_TIMEOUTS,
 ) -> TranscodeResult:
     """Transcode using ImageMagick.
@@ -182,13 +183,20 @@ def _transcode_with_magick(
     `quality` is JXL distance (0-25) when target_format == "jxl", otherwise
     a 0-100 ImageMagick -quality value (HEIC/AVIF). Output container is
     whatever output_path's extension is -- ImageMagick picks the delegate
-    from it, same as it always has.
+    from it, same as it always has. `jxl_effort` is passed through to
+    libjxl's encoder via ImageMagick's jxl:effort define for any JXL target,
+    not just the cjxl lossless repack.
     """
     input_bytes = os.path.getsize(input_path)
     input_format = detect_format(input_path)
 
     quality_args = (
-        ["-define", f"jxl:distance={quality}"]
+        [
+            "-define",
+            f"jxl:distance={quality}",
+            "-define",
+            f"jxl:effort={jxl_effort}",
+        ]
         if target_format == "jxl"
         else ["-quality", str(quality)]
     )
@@ -274,9 +282,10 @@ def transcode(
     Everything else: ImageMagick with the given quality (JXL distance 0-25,
     or HEIC/AVIF -quality 0-100).
 
-    jxl_effort (1-9) only applies to the cjxl repack above -- it trades
-    encode time for smaller output via cjxl's entropy coding, independent of
-    the lossless bit-exactness of the repack itself.
+    jxl_effort (1-10) applies to every JXL target, via cjxl's --effort above
+    or ImageMagick's jxl:effort define otherwise. It trades encode time for
+    smaller output, independent of quality/distance or the lossless
+    bit-exactness of the cjxl repack. Ignored for non-JXL targets.
     """
     input_bytes = os.path.getsize(input_path)
     input_format = detect_format(input_path)
@@ -334,7 +343,12 @@ def transcode(
         except FileNotFoundError:
             # cjxl not installed - fall back to ImageMagick
             return _transcode_with_magick(
-                input_path, output_path, target_format, quality, timeouts=timeouts
+                input_path,
+                output_path,
+                target_format,
+                quality,
+                jxl_effort=jxl_effort,
+                timeouts=timeouts,
             )
 
         if result.returncode == 0:
@@ -352,11 +366,21 @@ def transcode(
         else:
             # cjxl failed (e.g., progressive JPEG) - fall back to ImageMagick
             return _transcode_with_magick(
-                input_path, output_path, target_format, quality, timeouts=timeouts
+                input_path,
+                output_path,
+                target_format,
+                quality,
+                jxl_effort=jxl_effort,
+                timeouts=timeouts,
             )
     else:
         return _transcode_with_magick(
-            input_path, output_path, target_format, quality, timeouts=timeouts
+            input_path,
+            output_path,
+            target_format,
+            quality,
+            jxl_effort=jxl_effort,
+            timeouts=timeouts,
         )
 
 

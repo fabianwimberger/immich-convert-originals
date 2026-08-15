@@ -43,9 +43,9 @@ const SETTINGS_FIELDS = {
   },
   image_jxl_effort: {
     description:
-      "cjxl --effort for the JPEG->JXL lossless repack -- higher is slower but smaller. Only applies to JPEG sources targeting JXL; ImageMagick's re-encode path ignores it.",
+      "Encoder effort for any JXL target -- higher is slower but smaller. Applies to JPEG sources via cjxl's lossless repack, and to all other sources via ImageMagick's JXL encoder.",
     default: "7",
-    example: "e.g. 9 for maximum compression, 3 for faster batch runs",
+    example: "e.g. 10 for maximum compression, 3 for faster batch runs",
   },
   image_quality_heic: {
     description: "HEIC quality (ImageMagick -quality) -- higher is better and larger.",

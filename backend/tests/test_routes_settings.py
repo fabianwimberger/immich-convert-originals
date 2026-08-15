@@ -79,8 +79,12 @@ class TestUpdateSettings:
         resp = await client.put("/api/settings", json={"image_jxl_effort": 3})
         assert resp.json()["image_jxl_effort"] == 3
 
-    async def test_out_of_range_image_jxl_effort_rejected(self, client):
+    async def test_image_jxl_effort_accepts_ten(self, client):
         resp = await client.put("/api/settings", json={"image_jxl_effort": 10})
+        assert resp.json()["image_jxl_effort"] == 10
+
+    async def test_out_of_range_image_jxl_effort_rejected(self, client):
+        resp = await client.put("/api/settings", json={"image_jxl_effort": 11})
         assert resp.status_code == 422
 
     async def test_output_mode_and_local_dir_persist(self, client):
