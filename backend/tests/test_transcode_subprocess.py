@@ -108,6 +108,20 @@ class TestTranscodeImage:
         assert mock_run.call_count >= 1
         assert mock_run.call_args_list[0][0][0][0] == "magick"
 
+    def test_non_jpeg_to_jxl_uses_configured_effort(self, tmp_path):
+        input_path = tmp_path / "input.png"
+        input_path.write_bytes(b"\x89\x50\x4e\x47\x0d\x0a\x1a\x0a" + b"\x00" * 24)
+        output_path = tmp_path / "output.jxl"
+
+        with patch("app.services.transcode.subprocess.run") as mock_run:
+            mock_run.return_value = FakeCompletedProcess(returncode=0)
+            transcode(str(input_path), str(output_path), "jxl", 1.0, jxl_effort=9)
+
+        args = mock_run.call_args_list[0][0][0]
+        assert "-define" in args
+        assert "jxl:effort=9" in args
+        assert "jxl:distance=1.0" in args
+
     def test_refuses_jxl_input(self, tmp_path):
         input_path = tmp_path / "input.jxl"
         input_path.write_bytes(b"\xff\x0a" + b"\x00" * 30)

@@ -77,8 +77,8 @@ class SettingsPanel {
             <input id="set-image-distance-retry" type="number" step="0.1" min="0" max="25" value="${s.image_distance_retry}" />
             ${fieldHint("image_distance_retry")}
           </label>
-          <label>JPEG repack effort (1-9)
-            <input id="set-image-jxl-effort" type="number" step="1" min="1" max="9" value="${s.image_jxl_effort}" />
+          <label>JXL encoder effort (1-10)
+            <input id="set-image-jxl-effort" type="number" step="1" min="1" max="10" value="${s.image_jxl_effort}" />
             ${fieldHint("image_jxl_effort")}
           </label>
         </div>
