@@ -10,7 +10,7 @@ ENV PYTHONUNBUFFERED=1
 
 RUN apk add --no-cache \
     libjxl-tools \
-    imagemagick imagemagick-heic imagemagick-jxl imagemagick-webp \
+    imagemagick imagemagick-heic imagemagick-jxl imagemagick-webp imagemagick-tiff \
     exiftool \
     ffmpeg
 
