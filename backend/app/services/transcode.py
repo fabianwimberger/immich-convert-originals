@@ -121,6 +121,50 @@ def detect_video_codec(path: str, timeouts: Timeouts = DEFAULT_TIMEOUTS) -> str 
         return None
 
 
+# ffprobe color_transfer value -> SVT-AV1 transfer-characteristics code.
+# Anything not in this map (including untagged/SDR streams) is treated as SDR.
+HDR_TRANSFER_CHARACTERISTICS = {
+    "smpte2084": "16",  # PQ (HDR10 / HDR10+)
+    "arib-std-b67": "18",  # HLG
+}
+
+
+def detect_hdr_transfer(path: str, timeouts: Timeouts = DEFAULT_TIMEOUTS) -> str | None:
+    """Detect HDR transfer characteristic using ffprobe.
+
+    Returns the ffprobe color_transfer value ("smpte2084" or "arib-std-b67")
+    when the stream is tagged HDR, otherwise None -- covers SDR and untagged
+    sources the same way.
+    """
+    try:
+        result = subprocess.run(
+            [
+                "ffprobe",
+                "-v",
+                "error",
+                "-select_streams",
+                "v:0",
+                "-show_entries",
+                "stream=color_transfer",
+                "-of",
+                "default=noprint_wrappers=1:nokey=1",
+                path,
+            ],
+            capture_output=True,
+            text=True,
+            timeout=timeouts.probe,
+        )
+        if result.returncode == 0:
+            transfer = result.stdout.strip().lower()
+            return transfer if transfer in HDR_TRANSFER_CHARACTERISTICS else None
+        return None
+    except subprocess.TimeoutExpired:
+        logger.warning("ffprobe timed out detecting HDR transfer for %s", path)
+        return None
+    except (subprocess.SubprocessError, FileNotFoundError):
+        return None
+
+
 def validate_output(path: str, expected_format: str) -> bool:
     """Validate output file exists, is non-zero, and has correct magic bytes."""
     if not os.path.exists(path):
@@ -395,6 +439,11 @@ def transcode_video(
 ) -> TranscodeResult:
     """Transcode a video to MP4/AV1 using ffmpeg + SVT-AV1.
 
+    HDR10/HDR10+ (PQ) and HLG sources are detected via ffprobe's
+    color_transfer tag and re-encoded 10-bit with BT.2020 primaries and
+    matching transfer characteristics carried through to the AV1 stream,
+    instead of being flattened to 8-bit SDR. Everything else is unaffected.
+
     Args:
         crf: Quality (0-63, lower=better)
         preset: Speed preset (0-13, lower=slower/better)
@@ -429,6 +478,8 @@ def transcode_video(
             error="Already AV1",
         )
 
+    hdr_transfer = detect_hdr_transfer(input_path, timeouts=timeouts)
+
     cmd = [
         "ffmpeg",
         "-y",
@@ -451,10 +502,33 @@ def transcode_video(
         )
         cmd.extend(["-vf", scale_filter])
 
+    if hdr_transfer:
+        svtav1_params = [
+            "enable-hdr=1",
+            "color-primaries=9",  # BT.2020
+            f"transfer-characteristics={HDR_TRANSFER_CHARACTERISTICS[hdr_transfer]}",
+            "matrix-coefficients=9",  # BT.2020 non-constant luminance
+            "color-range=0",  # Limited/TV range
+        ]
+        cmd.extend(
+            [
+                "-pix_fmt",
+                "yuv420p10le",
+                "-color_primaries",
+                "bt2020",
+                "-color_trc",
+                hdr_transfer,
+                "-colorspace",
+                "bt2020nc",
+                "-svtav1-params",
+                ":".join(svtav1_params),
+            ]
+        )
+    else:
+        cmd.extend(["-pix_fmt", "yuv420p"])
+
     cmd.extend(
         [
-            "-pix_fmt",
-            "yuv420p",
             "-c:a",
             "libopus",
             "-b:a",
