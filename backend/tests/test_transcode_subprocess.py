@@ -7,6 +7,7 @@ import subprocess
 from app.services.transcode import (
     Timeouts,
     copy_metadata,
+    detect_hdr_transfer,
     detect_video_codec,
     transcode,
     transcode_video,
@@ -358,6 +359,7 @@ class TestTranscodeVideo:
         with patch("app.services.transcode.subprocess.run") as mock_run:
             mock_run.side_effect = [
                 FakeCompletedProcess(stdout="h264"),
+                FakeCompletedProcess(stdout=""),
                 FileNotFoundError("ffmpeg not found"),
             ]
             result = transcode_video(
@@ -375,6 +377,7 @@ class TestTranscodeVideo:
         with patch("app.services.transcode.subprocess.run") as mock_run:
             mock_run.side_effect = [
                 FakeCompletedProcess(stdout="h264"),
+                FakeCompletedProcess(stdout=""),
                 subprocess.TimeoutExpired("ffmpeg", 43200),
             ]
             result = transcode_video(
@@ -393,6 +396,7 @@ class TestTranscodeVideo:
         with patch("app.services.transcode.subprocess.run") as mock_run:
             mock_run.side_effect = [
                 FakeCompletedProcess(stdout="h264"),
+                FakeCompletedProcess(stdout=""),
                 FakeCompletedProcess(returncode=0),
             ]
             transcode_video(
@@ -405,10 +409,79 @@ class TestTranscodeVideo:
                 timeouts=timeouts,
             )
 
-        probe_call = mock_run.call_args_list[0]
-        video_call = mock_run.call_args_list[1]
-        assert probe_call[1]["timeout"] == 11
+        codec_probe_call = mock_run.call_args_list[0]
+        hdr_probe_call = mock_run.call_args_list[1]
+        video_call = mock_run.call_args_list[2]
+        assert codec_probe_call[1]["timeout"] == 11
+        assert hdr_probe_call[1]["timeout"] == 11
         assert video_call[1]["timeout"] == 99
+
+    def test_hdr_pq_uses_10bit_and_bt2020(self, tmp_path):
+        input_path = tmp_path / "input.mp4"
+        input_path.write_bytes(b"\x00" * 100)
+        output_path = tmp_path / "output.mp4"
+
+        with patch("app.services.transcode.subprocess.run") as mock_run:
+            mock_run.side_effect = [
+                FakeCompletedProcess(stdout="hevc"),
+                FakeCompletedProcess(stdout="smpte2084"),
+                FakeCompletedProcess(returncode=0),
+            ]
+            result = transcode_video(
+                str(input_path), str(output_path), 30, "4", 0, "128k"
+            )
+
+        assert result.success is True
+        args = mock_run.call_args[0][0]
+        assert args[args.index("-pix_fmt") + 1] == "yuv420p10le"
+        assert args[args.index("-color_primaries") + 1] == "bt2020"
+        assert args[args.index("-color_trc") + 1] == "smpte2084"
+        assert args[args.index("-colorspace") + 1] == "bt2020nc"
+        svtav1_params = args[args.index("-svtav1-params") + 1]
+        assert "enable-hdr=1" in svtav1_params
+        assert "transfer-characteristics=16" in svtav1_params
+
+    def test_hdr_hlg_uses_correct_transfer_characteristics(self, tmp_path):
+        input_path = tmp_path / "input.mp4"
+        input_path.write_bytes(b"\x00" * 100)
+        output_path = tmp_path / "output.mp4"
+
+        with patch("app.services.transcode.subprocess.run") as mock_run:
+            mock_run.side_effect = [
+                FakeCompletedProcess(stdout="hevc"),
+                FakeCompletedProcess(stdout="arib-std-b67"),
+                FakeCompletedProcess(returncode=0),
+            ]
+            result = transcode_video(
+                str(input_path), str(output_path), 30, "4", 0, "128k"
+            )
+
+        assert result.success is True
+        args = mock_run.call_args[0][0]
+        assert args[args.index("-color_trc") + 1] == "arib-std-b67"
+        svtav1_params = args[args.index("-svtav1-params") + 1]
+        assert "transfer-characteristics=18" in svtav1_params
+
+    def test_sdr_video_stays_8bit(self, tmp_path):
+        input_path = tmp_path / "input.mp4"
+        input_path.write_bytes(b"\x00" * 100)
+        output_path = tmp_path / "output.mp4"
+
+        with patch("app.services.transcode.subprocess.run") as mock_run:
+            mock_run.side_effect = [
+                FakeCompletedProcess(stdout="h264"),
+                FakeCompletedProcess(stdout="bt709"),
+                FakeCompletedProcess(returncode=0),
+            ]
+            result = transcode_video(
+                str(input_path), str(output_path), 30, "4", 0, "128k"
+            )
+
+        assert result.success is True
+        args = mock_run.call_args[0][0]
+        assert args[args.index("-pix_fmt") + 1] == "yuv420p"
+        assert "-svtav1-params" not in args
+        assert "-color_primaries" not in args
 
 
 class TestDetectVideoCodec:
@@ -450,6 +523,79 @@ class TestDetectVideoCodec:
         with patch("app.services.transcode.subprocess.run") as mock_run:
             mock_run.return_value = FakeCompletedProcess(stdout="hevc")
             detect_video_codec(str(video), timeouts=timeouts)
+
+        assert mock_run.call_args[1]["timeout"] == 7
+
+
+class TestDetectHdrTransfer:
+    def test_returns_transfer_for_pq(self, tmp_path):
+        video = tmp_path / "video.mp4"
+        video.write_bytes(b"\x00" * 10)
+
+        with patch("app.services.transcode.subprocess.run") as mock_run:
+            mock_run.return_value = FakeCompletedProcess(stdout="smpte2084")
+            transfer = detect_hdr_transfer(str(video))
+
+        assert transfer == "smpte2084"
+
+    def test_returns_transfer_for_hlg(self, tmp_path):
+        video = tmp_path / "video.mp4"
+        video.write_bytes(b"\x00" * 10)
+
+        with patch("app.services.transcode.subprocess.run") as mock_run:
+            mock_run.return_value = FakeCompletedProcess(stdout="arib-std-b67")
+            transfer = detect_hdr_transfer(str(video))
+
+        assert transfer == "arib-std-b67"
+
+    def test_returns_none_for_sdr(self, tmp_path):
+        video = tmp_path / "video.mp4"
+        video.write_bytes(b"\x00" * 10)
+
+        with patch("app.services.transcode.subprocess.run") as mock_run:
+            mock_run.return_value = FakeCompletedProcess(stdout="bt709")
+            transfer = detect_hdr_transfer(str(video))
+
+        assert transfer is None
+
+    def test_returns_none_for_untagged_stream(self, tmp_path):
+        video = tmp_path / "video.mp4"
+        video.write_bytes(b"\x00" * 10)
+
+        with patch("app.services.transcode.subprocess.run") as mock_run:
+            mock_run.return_value = FakeCompletedProcess(stdout="")
+            transfer = detect_hdr_transfer(str(video))
+
+        assert transfer is None
+
+    def test_returns_none_on_timeout(self, tmp_path):
+        video = tmp_path / "video.mp4"
+        video.write_bytes(b"\x00" * 10)
+
+        with patch("app.services.transcode.subprocess.run") as mock_run:
+            mock_run.side_effect = subprocess.TimeoutExpired("ffprobe", 60)
+            transfer = detect_hdr_transfer(str(video))
+
+        assert transfer is None
+
+    def test_returns_none_on_missing_binary(self, tmp_path):
+        video = tmp_path / "video.mp4"
+        video.write_bytes(b"\x00" * 10)
+
+        with patch("app.services.transcode.subprocess.run") as mock_run:
+            mock_run.side_effect = FileNotFoundError("ffprobe not found")
+            transfer = detect_hdr_transfer(str(video))
+
+        assert transfer is None
+
+    def test_custom_probe_timeout(self, tmp_path):
+        video = tmp_path / "video.mp4"
+        video.write_bytes(b"\x00" * 10)
+
+        timeouts = Timeouts(probe=7)
+        with patch("app.services.transcode.subprocess.run") as mock_run:
+            mock_run.return_value = FakeCompletedProcess(stdout="smpte2084")
+            detect_hdr_transfer(str(video), timeouts=timeouts)
 
         assert mock_run.call_args[1]["timeout"] == 7
 
