@@ -568,6 +568,18 @@ class TestDetectHdrTransfer:
 
         assert transfer is None
 
+    def test_returns_none_on_nonzero_exit(self, tmp_path):
+        video = tmp_path / "video.mp4"
+        video.write_bytes(b"\x00" * 10)
+
+        with patch("app.services.transcode.subprocess.run") as mock_run:
+            mock_run.return_value = FakeCompletedProcess(
+                returncode=1, stdout="smpte2084"
+            )
+            transfer = detect_hdr_transfer(str(video))
+
+        assert transfer is None
+
     def test_returns_none_on_timeout(self, tmp_path):
         video = tmp_path / "video.mp4"
         video.write_bytes(b"\x00" * 10)
