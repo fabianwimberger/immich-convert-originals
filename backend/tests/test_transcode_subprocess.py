@@ -7,6 +7,7 @@ import subprocess
 from app.services.transcode import (
     Timeouts,
     copy_metadata,
+    detect_color_space,
     detect_hdr_transfer,
     detect_video_codec,
     transcode,
@@ -360,6 +361,7 @@ class TestTranscodeVideo:
             mock_run.side_effect = [
                 FakeCompletedProcess(stdout="h264"),
                 FakeCompletedProcess(stdout=""),
+                FakeCompletedProcess(stdout=""),
                 FileNotFoundError("ffmpeg not found"),
             ]
             result = transcode_video(
@@ -377,6 +379,7 @@ class TestTranscodeVideo:
         with patch("app.services.transcode.subprocess.run") as mock_run:
             mock_run.side_effect = [
                 FakeCompletedProcess(stdout="h264"),
+                FakeCompletedProcess(stdout=""),
                 FakeCompletedProcess(stdout=""),
                 subprocess.TimeoutExpired("ffmpeg", 43200),
             ]
@@ -397,6 +400,7 @@ class TestTranscodeVideo:
             mock_run.side_effect = [
                 FakeCompletedProcess(stdout="h264"),
                 FakeCompletedProcess(stdout=""),
+                FakeCompletedProcess(stdout=""),
                 FakeCompletedProcess(returncode=0),
             ]
             transcode_video(
@@ -411,9 +415,11 @@ class TestTranscodeVideo:
 
         codec_probe_call = mock_run.call_args_list[0]
         hdr_probe_call = mock_run.call_args_list[1]
-        video_call = mock_run.call_args_list[2]
+        color_space_probe_call = mock_run.call_args_list[2]
+        video_call = mock_run.call_args_list[3]
         assert codec_probe_call[1]["timeout"] == 11
         assert hdr_probe_call[1]["timeout"] == 11
+        assert color_space_probe_call[1]["timeout"] == 11
         assert video_call[1]["timeout"] == 99
 
     def test_hdr_pq_uses_10bit_and_bt2020(self, tmp_path):
@@ -425,6 +431,7 @@ class TestTranscodeVideo:
             mock_run.side_effect = [
                 FakeCompletedProcess(stdout="hevc"),
                 FakeCompletedProcess(stdout="smpte2084"),
+                FakeCompletedProcess(stdout=""),
                 FakeCompletedProcess(returncode=0),
             ]
             result = transcode_video(
@@ -450,6 +457,7 @@ class TestTranscodeVideo:
             mock_run.side_effect = [
                 FakeCompletedProcess(stdout="hevc"),
                 FakeCompletedProcess(stdout="arib-std-b67"),
+                FakeCompletedProcess(stdout=""),
                 FakeCompletedProcess(returncode=0),
             ]
             result = transcode_video(
@@ -471,6 +479,7 @@ class TestTranscodeVideo:
             mock_run.side_effect = [
                 FakeCompletedProcess(stdout="h264"),
                 FakeCompletedProcess(stdout="bt709"),
+                FakeCompletedProcess(stdout="bt709"),
                 FakeCompletedProcess(returncode=0),
             ]
             result = transcode_video(
@@ -482,6 +491,94 @@ class TestTranscodeVideo:
         assert args[args.index("-pix_fmt") + 1] == "yuv420p"
         assert "-svtav1-params" not in args
         assert "-color_primaries" not in args
+        assert "-vf" not in args
+
+    def test_gbr_sdr_source_remaps_colorspace(self, tmp_path):
+        input_path = tmp_path / "input.mp4"
+        input_path.write_bytes(b"\x00" * 100)
+        output_path = tmp_path / "output.mp4"
+
+        with patch("app.services.transcode.subprocess.run") as mock_run:
+            mock_run.side_effect = [
+                FakeCompletedProcess(stdout="h264"),
+                FakeCompletedProcess(stdout=""),
+                FakeCompletedProcess(stdout="gbr"),
+                FakeCompletedProcess(returncode=0),
+            ]
+            result = transcode_video(
+                str(input_path), str(output_path), 30, "4", 0, "128k"
+            )
+
+        assert result.success is True
+        args = mock_run.call_args[0][0]
+        assert "-vf" in args
+        assert args[args.index("-vf") + 1] == "setparams=colorspace=bt709"
+
+    def test_rgb_sdr_source_remaps_colorspace(self, tmp_path):
+        input_path = tmp_path / "input.mp4"
+        input_path.write_bytes(b"\x00" * 100)
+        output_path = tmp_path / "output.mp4"
+
+        with patch("app.services.transcode.subprocess.run") as mock_run:
+            mock_run.side_effect = [
+                FakeCompletedProcess(stdout="h264"),
+                FakeCompletedProcess(stdout=""),
+                FakeCompletedProcess(stdout="rgb"),
+                FakeCompletedProcess(returncode=0),
+            ]
+            result = transcode_video(
+                str(input_path), str(output_path), 30, "4", 0, "128k"
+            )
+
+        assert result.success is True
+        args = mock_run.call_args[0][0]
+        assert "-vf" in args
+        assert args[args.index("-vf") + 1] == "setparams=colorspace=bt709"
+
+    def test_gbr_sdr_source_combines_with_scale_filter(self, tmp_path):
+        input_path = tmp_path / "input.mp4"
+        input_path.write_bytes(b"\x00" * 100)
+        output_path = tmp_path / "output.mp4"
+
+        with patch("app.services.transcode.subprocess.run") as mock_run:
+            mock_run.side_effect = [
+                FakeCompletedProcess(stdout="h264"),
+                FakeCompletedProcess(stdout=""),
+                FakeCompletedProcess(stdout="gbr"),
+                FakeCompletedProcess(returncode=0),
+            ]
+            result = transcode_video(
+                str(input_path), str(output_path), 30, "4", 1080, "128k"
+            )
+
+        assert result.success is True
+        args = mock_run.call_args[0][0]
+        vf_value = args[args.index("-vf") + 1]
+        assert "scale=" in vf_value
+        assert vf_value.endswith(",setparams=colorspace=bt709")
+
+    def test_gbr_hdr_source_is_not_remapped(self, tmp_path):
+        # HDR branch sets its own explicit -colorspace, so the SDR-only
+        # identity-matrix workaround must not also fire here.
+        input_path = tmp_path / "input.mp4"
+        input_path.write_bytes(b"\x00" * 100)
+        output_path = tmp_path / "output.mp4"
+
+        with patch("app.services.transcode.subprocess.run") as mock_run:
+            mock_run.side_effect = [
+                FakeCompletedProcess(stdout="hevc"),
+                FakeCompletedProcess(stdout="smpte2084"),
+                FakeCompletedProcess(stdout="gbr"),
+                FakeCompletedProcess(returncode=0),
+            ]
+            result = transcode_video(
+                str(input_path), str(output_path), 30, "4", 0, "128k"
+            )
+
+        assert result.success is True
+        args = mock_run.call_args[0][0]
+        assert "-vf" not in args
+        assert args[args.index("-colorspace") + 1] == "bt2020nc"
 
 
 class TestDetectVideoCodec:
@@ -608,6 +705,79 @@ class TestDetectHdrTransfer:
         with patch("app.services.transcode.subprocess.run") as mock_run:
             mock_run.return_value = FakeCompletedProcess(stdout="smpte2084")
             detect_hdr_transfer(str(video), timeouts=timeouts)
+
+        assert mock_run.call_args[1]["timeout"] == 7
+
+
+class TestDetectColorSpace:
+    def test_returns_gbr_for_identity_matrix_stream(self, tmp_path):
+        video = tmp_path / "video.mp4"
+        video.write_bytes(b"\x00" * 10)
+
+        with patch("app.services.transcode.subprocess.run") as mock_run:
+            mock_run.return_value = FakeCompletedProcess(stdout="gbr")
+            color_space = detect_color_space(str(video))
+
+        assert color_space == "gbr"
+
+    def test_returns_bt709_for_normal_stream(self, tmp_path):
+        video = tmp_path / "video.mp4"
+        video.write_bytes(b"\x00" * 10)
+
+        with patch("app.services.transcode.subprocess.run") as mock_run:
+            mock_run.return_value = FakeCompletedProcess(stdout="bt709")
+            color_space = detect_color_space(str(video))
+
+        assert color_space == "bt709"
+
+    def test_returns_none_for_untagged_stream(self, tmp_path):
+        video = tmp_path / "video.mp4"
+        video.write_bytes(b"\x00" * 10)
+
+        with patch("app.services.transcode.subprocess.run") as mock_run:
+            mock_run.return_value = FakeCompletedProcess(stdout="")
+            color_space = detect_color_space(str(video))
+
+        assert color_space is None
+
+    def test_returns_none_on_nonzero_exit(self, tmp_path):
+        video = tmp_path / "video.mp4"
+        video.write_bytes(b"\x00" * 10)
+
+        with patch("app.services.transcode.subprocess.run") as mock_run:
+            mock_run.return_value = FakeCompletedProcess(returncode=1, stdout="gbr")
+            color_space = detect_color_space(str(video))
+
+        assert color_space is None
+
+    def test_returns_none_on_timeout(self, tmp_path):
+        video = tmp_path / "video.mp4"
+        video.write_bytes(b"\x00" * 10)
+
+        with patch("app.services.transcode.subprocess.run") as mock_run:
+            mock_run.side_effect = subprocess.TimeoutExpired("ffprobe", 60)
+            color_space = detect_color_space(str(video))
+
+        assert color_space is None
+
+    def test_returns_none_on_missing_binary(self, tmp_path):
+        video = tmp_path / "video.mp4"
+        video.write_bytes(b"\x00" * 10)
+
+        with patch("app.services.transcode.subprocess.run") as mock_run:
+            mock_run.side_effect = FileNotFoundError("ffprobe not found")
+            color_space = detect_color_space(str(video))
+
+        assert color_space is None
+
+    def test_custom_probe_timeout(self, tmp_path):
+        video = tmp_path / "video.mp4"
+        video.write_bytes(b"\x00" * 10)
+
+        timeouts = Timeouts(probe=7)
+        with patch("app.services.transcode.subprocess.run") as mock_run:
+            mock_run.return_value = FakeCompletedProcess(stdout="gbr")
+            detect_color_space(str(video), timeouts=timeouts)
 
         assert mock_run.call_args[1]["timeout"] == 7
 
