@@ -1,6 +1,7 @@
 """Tests for immich_api module using responses to mock HTTP."""
 
 import json
+from unittest.mock import patch
 
 import pytest
 import requests
@@ -367,6 +368,27 @@ class TestUploadAsset:
         )
         assert asset_id == "new-asset-1"
         assert error is None
+
+    def test_uses_upload_timeout_not_default_timeout(self, tmp_path):
+        client = ImmichClient(
+            api_base="https://example.com/api/",
+            api_key="test_key",
+            timeout=(10, 300),
+            upload_timeout=(60, 300),
+        )
+        file_path = tmp_path / "upload.bin"
+        file_path.write_bytes(b"data")
+
+        with patch("app.services.immich_client.requests.request") as mock_request:
+            mock_request.return_value.status_code = 201
+            mock_request.return_value.json.return_value = {"id": "new-asset-1"}
+            client.upload_asset(
+                file_path=str(file_path),
+                file_created_at="2023-01-01T00:00:00Z",
+                file_modified_at="2023-01-01T00:00:00Z",
+            )
+
+        assert mock_request.call_args.kwargs["timeout"] == (60, 300)
 
     @responses.activate
     def test_retries_on_500(self, client, tmp_path, monkeypatch):
