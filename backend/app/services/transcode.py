@@ -165,6 +165,42 @@ def detect_hdr_transfer(path: str, timeouts: Timeouts = DEFAULT_TIMEOUTS) -> str
         return None
 
 
+# ffprobe color_space values SVT-AV1 rejects outside 4:4:4 chroma.
+# Ordinary SDR mistagged gbr/rgb (matrix_coefficients=0, "Identity").
+IDENTITY_MATRIX_COLOR_SPACES = {"gbr", "rgb"}
+
+
+def detect_color_space(path: str, timeouts: Timeouts = DEFAULT_TIMEOUTS) -> str | None:
+    """Detect video color space (matrix coefficients) using ffprobe."""
+    try:
+        result = subprocess.run(
+            [
+                "ffprobe",
+                "-v",
+                "error",
+                "-select_streams",
+                "v:0",
+                "-show_entries",
+                "stream=color_space",
+                "-of",
+                "default=noprint_wrappers=1:nokey=1",
+                path,
+            ],
+            capture_output=True,
+            text=True,
+            timeout=timeouts.probe,
+        )
+        if result.returncode == 0:
+            color_space = result.stdout.strip().lower()
+            return color_space if color_space else None
+        return None
+    except subprocess.TimeoutExpired:
+        logger.warning("ffprobe timed out detecting color space for %s", path)
+        return None
+    except (subprocess.SubprocessError, FileNotFoundError):
+        return None
+
+
 def validate_output(path: str, expected_format: str) -> bool:
     """Validate output file exists, is non-zero, and has correct magic bytes."""
     if not os.path.exists(path):
@@ -444,6 +480,9 @@ def transcode_video(
     matching transfer characteristics carried through to the AV1 stream,
     instead of being flattened to 8-bit SDR. Everything else is unaffected.
 
+    SDR sources mistagged gbr/rgb (matrix_coefficients=0, "Identity") are
+    relabeled to bt709, which SVT-AV1 accepts outside 4:4:4 chroma.
+
     Args:
         crf: Quality (0-63, lower=better)
         preset: Speed preset (0-13, lower=slower/better)
@@ -479,6 +518,7 @@ def transcode_video(
         )
 
     hdr_transfer = detect_hdr_transfer(input_path, timeouts=timeouts)
+    color_space = detect_color_space(input_path, timeouts=timeouts)
 
     cmd = [
         "ffmpeg",
@@ -493,14 +533,23 @@ def transcode_video(
         preset,
     ]
 
+    filters = []
+
     if max_dimension > 0:
         # Scale based on the shorter side (min of width/height)
         # This ensures portrait videos get proper resolution (e.g., 1080x1920 instead of 607x1080)
-        scale_filter = (
+        filters.append(
             f"scale='trunc(if(gt(min(iw,ih),{max_dimension}),iw*{max_dimension}/min(iw,ih),iw)/2)*2':"
             f"'trunc(if(gt(min(iw,ih),{max_dimension}),ih*{max_dimension}/min(iw,ih),ih)/2)*2'"
         )
-        cmd.extend(["-vf", scale_filter])
+
+    # Mistagged gbr/rgb SDR: relabel metadata to bt709 (HDR sets its own
+    # -colorspace below).
+    if not hdr_transfer and color_space in IDENTITY_MATRIX_COLOR_SPACES:
+        filters.append("setparams=colorspace=bt709")
+
+    if filters:
+        cmd.extend(["-vf", ",".join(filters)])
 
     if hdr_transfer:
         svtav1_params = [

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "immich-convert-originals"
-version = "2.4.0"
+version = "2.4.1"
 requires-python = ">=3.13"
 dependencies = [
     "fastapi>=0.141.1",
