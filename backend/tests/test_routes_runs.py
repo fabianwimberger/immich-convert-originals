@@ -7,6 +7,7 @@ separately in test_run_service.py).
 """
 
 import json
+from datetime import datetime
 
 from app.database import AsyncSessionLocal
 from app.models.asset_outcome import AssetOutcome
@@ -139,6 +140,54 @@ class TestCreateRun:
             run = result.scalar_one()
             cfg = json.loads(run.config_snapshot)
             assert cfg["asset_ids"] == ["a1", "a2"]
+
+
+class TestRunTimestampsAreUtcAware:
+    """Regression tests for timestamps serialized without a UTC offset.
+
+    A plain DateTime column drops tzinfo on read on SQLite, so the API
+    returned e.g. "2026-09-23T22:00:01" instead of "...+00:00" and browsers
+    read it as local time. Without TZDateTime (app/models/types.py),
+    datetime.fromisoformat() yields a naive datetime here.
+    """
+
+    async def test_created_at_round_trips_through_sqlite_with_a_utc_offset(
+        self, client
+    ):
+        await _configure_connection(client)
+        resp = await client.post(
+            "/api/runs", json={"asset_types": "IMAGE", "dry_run": True}
+        )
+        data = resp.json()
+
+        parsed = datetime.fromisoformat(data["created_at"])
+        assert parsed.tzinfo is not None, f"created_at={data['created_at']!r}"
+        assert parsed.utcoffset().total_seconds() == 0
+
+    async def test_asset_outcome_updated_at_has_a_utc_offset(self, client):
+        await _configure_connection(client)
+        run_resp = await client.post(
+            "/api/runs", json={"asset_ids": ["a1"], "dry_run": False}
+        )
+        run_id = run_resp.json()["id"]
+
+        async with AsyncSessionLocal() as db:
+            outcome = AssetOutcome(
+                run_id=run_id,
+                asset_id="a1",
+                filename="a1.jpg",
+                status="success",
+            )
+            db.add(outcome)
+            await db.commit()
+
+        resp = await client.get(f"/api/runs/{run_id}/assets")
+        assert resp.status_code == 200
+        items = resp.json()["items"]
+        assert len(items) == 1
+
+        parsed = datetime.fromisoformat(items[0]["updated_at"])
+        assert parsed.tzinfo is not None, f"updated_at={items[0]['updated_at']!r}"
 
 
 class TestListAndGetRuns:
@@ -337,6 +386,30 @@ class TestExportFailures:
         assert "b.jpg" in body
         assert "boom" in body
         assert "a1" not in body
+
+    async def test_updated_at_column_is_iso8601_with_utc_offset(self, client):
+        """Same ISO 8601 shape as the JSON API, so spreadsheets parse it."""
+        await _configure_connection(client)
+        created = await client.post("/api/runs", json={"asset_types": "IMAGE"})
+        run_id = created.json()["id"]
+
+        async with AsyncSessionLocal() as db:
+            db.add(
+                AssetOutcome(
+                    run_id=run_id,
+                    asset_id="a2",
+                    filename="b.jpg",
+                    status="failed_upload",
+                    error="boom",
+                )
+            )
+            await db.commit()
+
+        resp = await client.get(f"/api/runs/{run_id}/export-failures")
+        assert resp.status_code == 200
+        updated_at_field = resp.text.strip().splitlines()[-1].split(",")[-1]
+        assert "T" in updated_at_field, updated_at_field
+        assert updated_at_field.endswith("+00:00"), updated_at_field
 
     async def test_missing_run_404(self, client):
         resp = await client.get("/api/runs/999999/export-failures")

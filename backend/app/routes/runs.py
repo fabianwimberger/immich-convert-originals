@@ -237,7 +237,9 @@ async def export_failures(run_id: int, db: AsyncSession = Depends(get_db)):
     writer = csv.writer(buffer)
     writer.writerow(["asset_id", "filename", "status", "error", "updated_at"])
     for o in outcomes:
-        writer.writerow([o.asset_id, o.filename, o.status, o.error, o.updated_at])
+        writer.writerow(
+            [o.asset_id, o.filename, o.status, o.error, o.updated_at.isoformat()]
+        )
     buffer.seek(0)
 
     return StreamingResponse(
