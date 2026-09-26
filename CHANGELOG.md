@@ -11,12 +11,12 @@ Sorts album dropdowns alphabetically and fixes timestamp display and partner-sha
 
 ### Features
 
-- Sort album dropdowns A-Z
+- Sort album dropdowns A-Z (thanks to @hirenshah)
 
 ### Fixes
 
 - Store run and asset timestamps as timezone-aware UTC, so the run history shows the correct local time and the failure CSV exports ISO 8601 (thanks to @arjankapteijn)
-- Skip assets owned by another account (partner shares and others' shared albums) in upload mode instead of failing with `no asset.copy.access`
+- Skip assets owned by another account (partner shares and others' shared albums) in upload mode instead of failing with `no asset.copy.access` (thanks to @p0krawczyk)
 
 ### Documentation & Links
 
