@@ -23,6 +23,6 @@ async def list_albums(client: ImmichClient = Depends(get_immich_client)):
             AlbumItem(
                 id=a["id"], album_name=a["album_name"], asset_count=a["asset_count"]
             )
-            for a in albums
+            for a in sorted(albums, key=lambda a: a["album_name"].casefold())
         ]
     )
