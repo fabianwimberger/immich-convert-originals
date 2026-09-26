@@ -23,6 +23,7 @@ class Asset:
     type: str
     file_created_at: str
     file_modified_at: str
+    owner_id: str | None = None
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "Asset":
@@ -34,6 +35,7 @@ class Asset:
             type=data["type"],
             file_created_at=data["fileCreatedAt"],
             file_modified_at=data["fileModifiedAt"],
+            owner_id=data.get("ownerId"),
         )
 
 
@@ -56,6 +58,7 @@ class ImmichClient:
         self._default_headers = {"x-api-key": api_key}
         self._timeout = timeout  # (connect_timeout, read_timeout)
         self._upload_timeout = upload_timeout
+        self._current_user_id: str | None = None
 
     def _request_with_retry(self, method: str, url: str, **kwargs) -> requests.Response:
         last_error = None
@@ -273,6 +276,21 @@ class ImmichClient:
             return Asset.from_dict(response.json())
         except Exception:
             return None
+
+    def get_current_user_id(self) -> str | None:
+        """ID of the user the API key belongs to, memoized for the client's
+        lifetime. Used to tell apart assets this key owns from ones merely
+        shared with it (partners, shared albums). None if it can't be read."""
+        if self._current_user_id is not None:
+            return self._current_user_id
+        url = urljoin(self.api_base, "users/me")
+        try:
+            response = self._request_with_retry("GET", url)
+            if response.status_code == 200:
+                self._current_user_id = response.json().get("id")
+        except Exception:
+            pass
+        return self._current_user_id
 
     def upload_asset(
         self,

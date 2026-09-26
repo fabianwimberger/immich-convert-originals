@@ -6,6 +6,7 @@ from sqlalchemy import BigInteger, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
+from app.models.types import TZDateTime
 
 
 class Run(Base):
@@ -19,10 +20,10 @@ class Run(Base):
     status: Mapped[str] = mapped_column(default="queued")
 
     created_at: Mapped[datetime] = mapped_column(
-        default=lambda: datetime.now(timezone.utc)
+        TZDateTime, default=lambda: datetime.now(timezone.utc)
     )
-    started_at: Mapped[datetime | None] = mapped_column(default=None)
-    completed_at: Mapped[datetime | None] = mapped_column(default=None)
+    started_at: Mapped[datetime | None] = mapped_column(TZDateTime, default=None)
+    completed_at: Mapped[datetime | None] = mapped_column(TZDateTime, default=None)
 
     # JSON snapshot of the filters + encoding settings actually used.
     config_snapshot: Mapped[str] = mapped_column(Text, default="{}")

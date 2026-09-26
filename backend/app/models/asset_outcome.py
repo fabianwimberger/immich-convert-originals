@@ -6,6 +6,7 @@ from sqlalchemy import BigInteger, ForeignKey, Index, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
+from app.models.types import TZDateTime
 
 # A status we consider "done" -- resumable filter-based runs skip these.
 # Everything else (failed_*, error, unknown) is retryable.
@@ -37,7 +38,7 @@ class AssetOutcome(Base):
     output_bytes: Mapped[int] = mapped_column(BigInteger, default=0)
 
     updated_at: Mapped[datetime] = mapped_column(
-        default=lambda: datetime.now(timezone.utc)
+        TZDateTime, default=lambda: datetime.now(timezone.utc)
     )
 
     __table_args__ = (

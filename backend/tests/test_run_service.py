@@ -28,6 +28,7 @@ class FakeClient:
     by_id: dict[str, Asset] = field(default_factory=dict)
     download_calls: int = 0
     upload_calls: int = 0
+    current_user_id: str | None = "current-user"
 
     def download_original(self, asset_id: str, output_path: str):
         self.download_calls += 1
@@ -49,6 +50,9 @@ class FakeClient:
     def get_asset_full(self, asset_id: str):
         return self.by_id.get(asset_id)
 
+    def get_current_user_id(self):
+        return self.current_user_id
+
     def delete_assets(self, asset_ids: list[str]):
         self.deleted_ids.extend(asset_ids)
         return self.delete_result
@@ -67,6 +71,7 @@ def _make_asset(
     mime_type: str | None = "image/jpeg",
     asset_type: str = "IMAGE",
     created_at: str = "2023-01-01T00:00:00Z",
+    owner_id: str | None = None,
 ) -> Asset:
     return Asset(
         id=asset_id,
@@ -76,6 +81,7 @@ def _make_asset(
         type=asset_type,
         file_created_at=created_at,
         file_modified_at=created_at,
+        owner_id=owner_id,
     )
 
 
@@ -507,6 +513,68 @@ class TestProcessAssetSyncImages:
         monkeypatch.setattr(run_service, "validate_output", lambda path, fmt: True)
         run_service._process_asset_sync(asset, client, BASE_CFG, str(tmp_path))
         assert list(tmp_path.iterdir()) == []
+
+
+class TestSkipNotOwned:
+    def _patch_transcode(self, monkeypatch):
+        monkeypatch.setattr(
+            run_service,
+            "transcode",
+            lambda inp, out, fmt, distance, jxl_effort=7: TranscodeResult(
+                success=True,
+                input_path=inp,
+                output_path=out,
+                input_bytes=1000,
+                output_bytes=500,
+                input_format="jpg",
+            ),
+        )
+        monkeypatch.setattr(run_service, "validate_output", lambda path, fmt: True)
+
+    def test_partner_owned_asset_skipped_before_download(self, tmp_path):
+        asset = _make_asset(owner_id="partner-user")
+        client = FakeClient(current_user_id="me")
+        result = run_service._process_asset_sync(asset, client, BASE_CFG, str(tmp_path))
+        assert result["status"] == "skipped"
+        assert result["error"] == "Owned by another user (shared asset)"
+        assert client.download_calls == 0
+
+    def test_owned_asset_not_skipped(self, tmp_path, monkeypatch):
+        asset = _make_asset(owner_id="me")
+        client = FakeClient(current_user_id="me")
+        self._patch_transcode(monkeypatch)
+        cfg = {**BASE_CFG, "dry_run": True}
+        result = run_service._process_asset_sync(asset, client, cfg, str(tmp_path))
+        assert result["status"] == "dry_run_preview"
+
+    def test_local_mode_processes_partner_owned_asset(self, tmp_path, monkeypatch):
+        asset = _make_asset(owner_id="partner-user")
+        client = FakeClient(current_user_id="me")
+        self._patch_transcode(monkeypatch)
+        cfg = {
+            **BASE_CFG,
+            "dry_run": True,
+            "output_mode": "local",
+            "local_output_dir": str(tmp_path / "out"),
+        }
+        result = run_service._process_asset_sync(asset, client, cfg, str(tmp_path))
+        assert result["status"] == "dry_run_preview"
+
+    def test_unknown_asset_owner_not_skipped(self, tmp_path, monkeypatch):
+        asset = _make_asset(owner_id=None)
+        client = FakeClient(current_user_id="me")
+        self._patch_transcode(monkeypatch)
+        cfg = {**BASE_CFG, "dry_run": True}
+        result = run_service._process_asset_sync(asset, client, cfg, str(tmp_path))
+        assert result["status"] == "dry_run_preview"
+
+    def test_unknown_current_user_not_skipped(self, tmp_path, monkeypatch):
+        asset = _make_asset(owner_id="partner-user")
+        client = FakeClient(current_user_id=None)
+        self._patch_transcode(monkeypatch)
+        cfg = {**BASE_CFG, "dry_run": True}
+        result = run_service._process_asset_sync(asset, client, cfg, str(tmp_path))
+        assert result["status"] == "dry_run_preview"
 
 
 class TestProcessAssetSyncLocalMode:

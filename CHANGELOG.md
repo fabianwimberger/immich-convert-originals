@@ -5,6 +5,24 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.5.0] - 2026-09-26
+
+Sorts album dropdowns alphabetically and fixes timestamp display and partner-shared asset handling.
+
+### Features
+
+- Sort album dropdowns A-Z (thanks to @hirenshah)
+
+### Fixes
+
+- Store run and asset timestamps as timezone-aware UTC, so the run history shows the correct local time and the failure CSV exports ISO 8601 (thanks to @arjankapteijn)
+- Skip assets owned by another account (partner shares and others' shared albums) in upload mode instead of failing with `no asset.copy.access` (thanks to @p0krawczyk)
+
+### Documentation & Links
+
+- [README](https://github.com/fabianwimberger/immich-convert-originals#readme)
+- [Container image](https://github.com/fabianwimberger/immich-convert-originals/pkgs/container/immich-convert-originals)
+
 ## [v2.4.2] - 2026-09-19
 
 Reports the package version in the OpenAPI schema and tidies the lint tooling.
