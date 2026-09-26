@@ -155,6 +155,7 @@ Everything behavioral — Immich connection, encoding defaults, filters, output 
 |---------|-------------|
 | Connection test fails with a 404 | The Immich URL must point at the API root and include the `/api` suffix, e.g. `http://immich:2283/api` or `https://photos.example.com/api`. |
 | Connection test or uploads fail with 401/403 | The API key is missing a needed scope. Create it with asset read **and** asset upload permissions in Immich → Account Settings → API Keys; a read-only key authenticates but fails on upload. |
+| Assets shared by a partner are skipped | They belong to another account, so the API key can't replace them in upload mode; they're skipped instead of failing. Local output mode can still convert them. |
 | `Permission denied` writing to `/app/data` | The container runs as uid 1000, but a bind-mount source created by Docker is root-owned. Create the host `data/` directory yourself before the first run (`mkdir -p data`). |
 | Transcode fails with a codec or delegate error | Local runs need `ffmpeg`, ImageMagick with the JXL/HEIC/AVIF delegates, `libjxl-tools`, and `exiftool` on the host. Use the Docker image to avoid host codec gaps. |
 

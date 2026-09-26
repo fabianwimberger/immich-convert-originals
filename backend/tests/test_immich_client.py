@@ -62,6 +62,29 @@ class TestAssetFromDict:
         assert asset.original_file_name == 123
         assert asset.original_path is None
 
+    def test_owner_id_parsed(self):
+        data = {
+            "id": "asset-4",
+            "originalFileName": "photo.jpg",
+            "originalPath": "/uploads/photo.jpg",
+            "type": "IMAGE",
+            "fileCreatedAt": "2023-01-01T00:00:00Z",
+            "fileModifiedAt": "2023-01-01T00:00:00Z",
+            "ownerId": "user-42",
+        }
+        assert Asset.from_dict(data).owner_id == "user-42"
+
+    def test_missing_owner_id_is_none(self):
+        data = {
+            "id": "asset-5",
+            "originalFileName": "photo.jpg",
+            "originalPath": "/uploads/photo.jpg",
+            "type": "IMAGE",
+            "fileCreatedAt": "2023-01-01T00:00:00Z",
+            "fileModifiedAt": "2023-01-01T00:00:00Z",
+        }
+        assert Asset.from_dict(data).owner_id is None
+
 
 class TestRequestWithRetry:
     @responses.activate
@@ -903,3 +926,21 @@ class TestListAlbums:
         responses.add(responses.GET, "https://example.com/api/albums", status=500)
         with pytest.raises(RuntimeError, match="Failed to list albums: HTTP 500"):
             client.list_albums()
+
+
+class TestGetCurrentUserId:
+    @responses.activate
+    def test_returns_id_and_caches(self, client):
+        responses.add(
+            responses.GET,
+            "https://example.com/api/users/me",
+            json={"id": "user-1", "email": "a@example.com"},
+        )
+        assert client.get_current_user_id() == "user-1"
+        assert client.get_current_user_id() == "user-1"
+        assert len(responses.calls) == 1
+
+    @responses.activate
+    def test_error_returns_none(self, client):
+        responses.add(responses.GET, "https://example.com/api/users/me", status=500)
+        assert client.get_current_user_id() is None

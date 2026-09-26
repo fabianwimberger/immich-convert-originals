@@ -177,6 +177,29 @@ def _should_skip_by_mime_type(asset: Asset, cfg: dict[str, Any]) -> str | None:
     return None
 
 
+def _should_skip_not_owned(
+    asset: Asset, client: ImmichClient, cfg: dict[str, Any]
+) -> str | None:
+    """Returns a skip reason for assets the API key doesn't own, else None.
+
+    Partner-shared assets (and assets in someone else's shared album) can be
+    read and downloaded, but not replaced: the upload lands under the API
+    key's account, and copying the source's album associations back onto it
+    is rejected with "Not found or no asset.copy.access". The original can't
+    be deleted either, so converting these would leave a duplicate we can
+    never clean up. Local output never writes to Immich, so it can still
+    convert them.
+    """
+    if cfg.get("output_mode", "upload") == "local" or not asset.owner_id:
+        return None
+
+    owner_id = client.get_current_user_id()
+    if owner_id and asset.owner_id != owner_id:
+        return "Owned by another user (shared asset)"
+
+    return None
+
+
 def _process_asset_sync(
     asset: Asset, client: ImmichClient, cfg: dict[str, Any], work_dir: str
 ) -> dict[str, Any]:
@@ -200,6 +223,12 @@ def _process_asset_sync(
             result["status"] = "skipped"
             result["error"] = skip_reason
             return result
+
+    skip_reason = _should_skip_not_owned(asset, client, cfg)
+    if skip_reason:
+        result["status"] = "skipped"
+        result["error"] = skip_reason
+        return result
 
     try:
         input_path = os.path.join(work_dir, f"{asset.id}.bin")
