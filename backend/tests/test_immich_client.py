@@ -944,3 +944,8 @@ class TestGetCurrentUserId:
     def test_error_returns_none(self, client):
         responses.add(responses.GET, "https://example.com/api/users/me", status=500)
         assert client.get_current_user_id() is None
+
+    @responses.activate
+    def test_auth_error_returns_none(self, client):
+        responses.add(responses.GET, "https://example.com/api/users/me", status=401)
+        assert client.get_current_user_id() is None
