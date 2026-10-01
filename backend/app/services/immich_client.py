@@ -133,7 +133,6 @@ class ImmichClient:
         taken_after: str | None = None,
         taken_before: str | None = None,
     ) -> list[Asset]:
-        """Search for assets of a given type."""
         url = urljoin(self.api_base, "search/metadata")
 
         body: dict[str, Any] = {
@@ -194,7 +193,6 @@ class ImmichClient:
         """
         url = urljoin(self.api_base, f"assets/{asset_id}/original")
 
-        # Fetch expected checksum before download
         expected_checksum = self._get_asset_checksum(asset_id)
 
         try:
@@ -371,7 +369,6 @@ class ImmichClient:
     ) -> tuple[bool, str | None]:
         """Copy asset metadata (favorite, visibility, rating, albums, stack)
         from one asset to another."""
-        # 1. Fetch source asset details
         source_url = urljoin(self.api_base, f"assets/{from_asset_id}")
         try:
             source_resp = self._request_with_retry("GET", source_url)
@@ -383,9 +380,7 @@ class ImmichClient:
         except Exception as e:
             return False, str(e)
 
-        # 2. Bulk-update target asset with favorite / visibility / rating.
-        #    Only include fields that were explicitly present in the source
-        #    so we don't reset state when the API omits keys.
+        # Omitted source fields must not reset the target's state.
         update_url = urljoin(self.api_base, "assets")
         update_body: dict[str, Any] = {"ids": [to_asset_id]}
         for key in ("isFavorite", "visibility"):
@@ -413,7 +408,6 @@ class ImmichClient:
             except Exception as e:
                 return False, str(e)
 
-        # 3. Copy album and stack associations from source to target.
         copy_url = urljoin(self.api_base, "assets/copy")
         copy_body = {
             "sourceId": from_asset_id,
@@ -441,7 +435,6 @@ class ImmichClient:
         return True, None
 
     def delete_assets(self, asset_ids: list[str]) -> tuple[bool, str | None]:
-        """Delete assets by ID."""
         url = urljoin(self.api_base, "assets")
         body = {"ids": asset_ids}
         try:
@@ -453,7 +446,6 @@ class ImmichClient:
             return False, str(e)
 
     def server_info(self) -> dict[str, Any] | None:
-        """Get server version/info."""
         url = urljoin(self.api_base, "server/version")
         try:
             response = self._request_with_retry("GET", url)
