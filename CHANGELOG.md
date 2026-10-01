@@ -5,6 +5,24 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.5.1] - 2026-10-01
+
+Installs SQLAlchemy's asyncio dependencies explicitly and uses the latest release image in Docker instructions.
+
+### Dependencies
+
+- Install SQLAlchemy with the `asyncio` extra so greenlet is available.
+
+### Fixes
+
+- Use the `latest` container tag in Docker examples.
+- Remove redundant comments and docstrings while retaining explanations of asset safety.
+
+### Documentation & Links
+
+- [README](https://github.com/fabianwimberger/immich-convert-originals#readme)
+- [Full changelog](https://github.com/fabianwimberger/immich-convert-originals/compare/v2.5.0...v2.5.1)
+
 ## [v2.5.0] - 2026-09-26
 
 Sorts album dropdowns alphabetically and fixes timestamp display and partner-shared asset handling.

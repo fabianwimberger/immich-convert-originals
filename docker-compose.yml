@@ -6,7 +6,7 @@ services:
 
     # Option 2: Use prebuilt image from GitHub Container Registry
     # Uncomment the line below and comment out the 'build' and 'image' lines above
-    # image: ghcr.io/fabianwimberger/immich-convert-originals:main
+    # image: ghcr.io/fabianwimberger/immich-convert-originals:latest
 
     container_name: immich-library-converter
     # Everything (Immich connection, encoding defaults, output mode) is
