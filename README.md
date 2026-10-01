@@ -65,7 +65,7 @@ docker run -d \
   --restart unless-stopped \
   -p 8000:8000 \
   -v ./data:/app/data \
-  ghcr.io/fabianwimberger/immich-convert-originals:main
+  ghcr.io/fabianwimberger/immich-convert-originals:latest
 
 # Open http://localhost:8000, set your Immich URL/API key on the
 # Settings page, and start browsing. The URL must include the /api
@@ -161,7 +161,7 @@ Everything behavioral — Immich connection, encoding defaults, filters, output 
 
 ## Docker Image Tags
 
-Images are available from `ghcr.io/fabianwimberger/immich-convert-originals`. Use `main` for latest, or pin to a release tag (`v2`, `v2.0`, `v2.0.0`).
+Images are available from `ghcr.io/fabianwimberger/immich-convert-originals`. Use `latest` for the latest release, or pin to a release tag (`v2`, `v2.0`, `v2.0.0`).
 
 ## License
 

@@ -1,6 +1,5 @@
 FROM python:3.14-alpine
 
-# OCI labels for image metadata
 LABEL org.opencontainers.image.title="Immich Library Converter"
 LABEL org.opencontainers.image.description="Web UI for batch-transcoding an Immich library to JPEG XL and AV1"
 LABEL org.opencontainers.image.source="https://github.com/fabianwimberger/immich-convert-originals"

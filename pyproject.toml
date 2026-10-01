@@ -4,12 +4,12 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "immich-convert-originals"
-version = "2.5.0"
+version = "2.5.1"
 requires-python = ">=3.13"
 dependencies = [
     "fastapi>=0.141.1",
     "uvicorn[standard]>=0.53.0",
-    "sqlalchemy>=2.0.54",
+    "sqlalchemy[asyncio]>=2.0.54",
     "aiosqlite>=0.22.1",
     "websockets>=17.1",
     "requests>=2.34.2",
