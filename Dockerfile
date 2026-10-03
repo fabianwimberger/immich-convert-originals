@@ -1,3 +1,12 @@
+FROM python:3.14-alpine AS builder
+
+WORKDIR /build
+
+COPY pyproject.toml .
+COPY backend/app backend/app
+RUN python -m venv /opt/venv \
+    && /opt/venv/bin/python -m pip install --no-cache-dir .
+
 FROM python:3.14-alpine
 
 LABEL org.opencontainers.image.title="Immich Library Converter"
@@ -6,6 +15,7 @@ LABEL org.opencontainers.image.source="https://github.com/fabianwimberger/immich
 LABEL org.opencontainers.image.licenses="MIT"
 
 ENV PYTHONUNBUFFERED=1
+ENV PATH="/opt/venv/bin:$PATH"
 
 RUN apk add --no-cache \
     libjxl-tools \
@@ -13,8 +23,7 @@ RUN apk add --no-cache \
     exiftool \
     ffmpeg
 
-COPY backend/requirements.txt /tmp/requirements.txt
-RUN pip install --no-cache-dir -r /tmp/requirements.txt
+COPY --from=builder /opt/venv /opt/venv
 
 RUN adduser -D -u 1000 -s /bin/sh appuser
 

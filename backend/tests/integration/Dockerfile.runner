@@ -1,3 +1,12 @@
+FROM python:3.14-alpine AS builder
+
+WORKDIR /build
+
+COPY pyproject.toml .
+COPY backend/app backend/app
+RUN python -m venv /opt/venv \
+    && /opt/venv/bin/python -m pip install --no-cache-dir '.[dev]'
+
 FROM python:3.14-alpine
 
 RUN apk add --no-cache \
@@ -8,9 +17,10 @@ RUN apk add --no-cache \
     curl \
     git
 
-COPY backend/requirements-dev.txt /tmp/requirements-dev.txt
-COPY backend/requirements.txt /tmp/requirements.txt
-RUN pip install --no-cache-dir -r /tmp/requirements-dev.txt
+COPY --from=builder /opt/venv /opt/venv
+
+ENV PATH="/opt/venv/bin:$PATH"
+ENV PYTHONPATH=/workspace/backend
 
 ENV PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1
 
