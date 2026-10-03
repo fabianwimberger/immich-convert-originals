@@ -4,28 +4,32 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "immich-convert-originals"
-version = "2.5.1"
+version = "2.5.2"
 requires-python = ">=3.13"
 dependencies = [
-    "fastapi>=0.141.1",
-    "uvicorn[standard]>=0.53.0",
-    "sqlalchemy[asyncio]>=2.1.0",
-    "aiosqlite>=0.22.1",
-    "websockets>=17.1",
-    "requests>=2.34.2",
+    "fastapi==0.141.1",
+    "uvicorn[standard]==0.53.0",
+    "sqlalchemy[asyncio]==2.1.0",
+    "aiosqlite==0.22.1",
+    "websockets==17.1",
+    "requests==2.34.2",
 ]
 
 [project.optional-dependencies]
 dev = [
-    "pytest>=9.1.1",
-    "pytest-asyncio>=1.4.0",
-    "pytest-cov>=7.0.0",
-    "httpx>=0.28.1",
-    "responses>=0.26.3",
-    "ruff>=0.16.9",
-    "mypy>=2.3.1",
-    "types-requests>=2.33.0.20260906",
+    "pytest==9.1.1",
+    "pytest-asyncio==1.4.0",
+    "pytest-cov==7.1.0",
+    "httpx==0.28.1",
+    "responses==0.26.3",
+    "ruff==0.16.9",
+    "mypy==2.3.1",
+    "types-requests==2.33.0.20260906",
 ]
+
+[tool.setuptools.packages.find]
+where = ["backend"]
+include = ["app*"]
 
 [tool.pytest.ini_options]
 testpaths = ["backend/tests"]

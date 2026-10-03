@@ -93,7 +93,7 @@ git clone https://github.com/fabianwimberger/immich-convert-originals.git
 cd immich-convert-originals
 
 python -m venv .venv
-.venv/bin/pip install -r backend/requirements-dev.txt
+.venv/bin/python -m pip install -e '.[dev]'
 
 # ffmpeg, ImageMagick (with JXL and HEIC/AVIF delegates), libjxl-tools, and
 # exiftool must be installed on the host for local (non-Docker) runs.

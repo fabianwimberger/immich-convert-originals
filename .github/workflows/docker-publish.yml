@@ -8,6 +8,7 @@ on:
     branches: [main]
     paths:
       - 'Dockerfile'
+      - 'pyproject.toml'
       - '.github/workflows/docker-publish.yml'
       - 'backend/**'
       - 'frontend/**'

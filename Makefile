@@ -1,4 +1,6 @@
-.PHONY: all build up down clean lint test integration
+.PHONY: all build up down clean lint format typecheck test integration
+
+PYTHON ?= .venv/bin/python
 
 all: build
 
@@ -20,16 +22,20 @@ clean:
 
 lint:
 	@echo "Running linters..."
-	@ruff check backend/
+	@$(PYTHON) -m ruff check backend/
 
 format:
 	@echo "Formatting code..."
-	@ruff format backend/
+	@$(PYTHON) -m ruff format backend/
+
+typecheck:
+	@echo "Running type checker..."
+	@$(PYTHON) -m mypy backend/app
 
 test:
 	@echo "Running unit tests..."
-	@pytest -m "not integration" -v
+	@$(PYTHON) -m pytest -m "not integration" -v --cov-fail-under=85
 
 integration:
 	@echo "Running integration tests..."
-	@pytest -m integration -v
+	@$(PYTHON) -m pytest -m integration -v
