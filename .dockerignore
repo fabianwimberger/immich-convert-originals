@@ -8,6 +8,16 @@ docker-compose.yml
 __pycache__/
 *.pyc
 *.pyo
+.venv/
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+coverage.xml
+backend/tests/.test-data/
 
 # Include license files in Docker image (required for LGPL compliance)
 !DOCKER_LICENSES.md

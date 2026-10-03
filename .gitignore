@@ -11,4 +11,8 @@ __pycache__/
 /data/
 .coverage
 coverage.xml
+.pytest_cache/
+.ruff_cache/
+build/
+dist/
 backend/tests/.test-data/
