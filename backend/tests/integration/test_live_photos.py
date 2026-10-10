@@ -258,3 +258,43 @@ async def test_live_photo_video_is_not_offered_for_conversion(
     run = await _wait_for_run(gui_client, create_resp.json()["id"])
     assert run["success_count"] == 0
     assert _get_asset_detail(admin_client, video_id) is not None
+
+
+def test_upload_of_a_trashed_duplicate_restores_it(admin_client, tmp_path):
+    """What a retry after a rolled-back attempt runs into: the same bytes
+    are already in Immich, in the trash."""
+    still, _ = _make_still_and_video(tmp_path)
+    first = _upload(admin_client, still, "dup.jpg")
+    assert admin_client.delete_assets([first]) == (True, None)
+    assert _get_asset_detail(admin_client, first)["isTrashed"]
+
+    again = _upload(admin_client, still, "dup.jpg")
+
+    assert again == first
+    assert not _get_asset_detail(admin_client, first)["isTrashed"]
+
+
+def test_video_with_two_streams_encodes_the_first(tmp_path):
+    """A Pixel motion photo clip carries a second, larger video stream that
+    ffmpeg would pick by default and the encoder rejects."""
+    from app.services.transcode import transcode_video
+
+    clip = tmp_path / "two-streams.mp4"
+    _run(
+        "ffmpeg", "-y",
+        "-f", "lavfi", "-i", "testsrc2=size=320x240:rate=30",
+        "-f", "lavfi", "-i", "testsrc2=size=640x480:rate=30",
+        "-map", "0:v", "-map", "1:v", "-t", "1", "-c:v", "libx264",
+        "-pix_fmt", "yuv420p", str(clip),
+    )  # fmt: skip
+    out = tmp_path / "out.mp4"
+
+    result = transcode_video(str(clip), str(out), 36, "8", 0, "64k")
+
+    assert result.success, result.error
+    size = subprocess.run(
+        ["ffprobe", "-v", "error", "-select_streams", "v", "-show_entries",
+         "stream=width,height", "-of", "csv=p=0", str(out)],
+        capture_output=True, text=True, check=True,
+    )  # fmt: skip
+    assert size.stdout.split() == ["320,240"]

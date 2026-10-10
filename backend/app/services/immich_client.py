@@ -352,6 +352,10 @@ class ImmichClient:
                     if response.status_code in (200, 201):
                         result = response.json()
                         asset_id = result.get("id")
+                        if asset_id and result.get("status") == "duplicate":
+                            error = self._restore_if_trashed(asset_id)
+                            if error:
+                                return None, error
                         return asset_id, None
                     else:
                         try:
@@ -468,6 +472,32 @@ class ImmichClient:
             return False, f"Album copy failed: {e}"
 
         return True, None
+
+    def _restore_if_trashed(self, asset_id: str) -> str | None:
+        """Take an asset out of the trash. Returns an error message, or None
+        if it is not, or no longer, trashed.
+
+        Immich answers an upload of bytes it already holds with the existing
+        asset, even one in the trash, which a rolled-back earlier attempt
+        leaves there. Used as the replacement while still trashed, it would
+        be purged with the original.
+        """
+        url = urljoin(self.api_base, f"assets/{asset_id}")
+        try:
+            response = self._request_with_retry("GET", url)
+            if response.status_code != 200:
+                return f"Duplicate asset check failed: HTTP {response.status_code}"
+            if not response.json().get("isTrashed"):
+                return None
+            restore_url = urljoin(self.api_base, "trash/restore/assets")
+            response = self._request_with_retry(
+                "POST", restore_url, json={"ids": [asset_id]}
+            )
+            if response.status_code != 200:
+                return f"Restore from trash failed: HTTP {response.status_code}"
+            return None
+        except Exception as e:
+            return f"Duplicate asset check failed: {e}"
 
     def delete_assets(self, asset_ids: list[str]) -> tuple[bool, str | None]:
         url = urljoin(self.api_base, "assets")
