@@ -7,16 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [v2.6.0] - 2026-10-10
 
-Converts assets from Immich external libraries, which previously failed at download.
+Keeps live and motion photos intact when their still is converted, and converts assets from Immich external libraries, which previously failed at download.
 
 ### Features
 
+- Live and motion photos are supported: the converted still stays linked to its video, and the video is left untouched. This covers stills with a separate video (iPhone) and motion photos with an embedded video (Google Pixel, Samsung, OnePlus).
+- Motion photos are stored as the still alone, with the embedded video cut off before conversion. JPEG → JXL remains a bit-exact repack of the still, including an Ultra HDR gain map.
+- Local output mode saves a live photo's video next to the converted still.
 - Add a **Convert external library assets** setting (Settings → Output, off by default) for upload mode. When on, the converted file is stored in Immich's own storage and the original is deleted from the external folder when Immich empties its trash.
 
 ### Fixes
 
+- Converting a live or motion photo no longer loses its video: the converted asset was not linked to it, so Immich deleted the video together with the original once the trash was emptied.
+- A converted motion photo no longer makes Immich attach a broken clip read from the end of the converted file.
+- Live photo videos are no longer listed in Browse or converted on their own when archived assets are included.
+- A motion photo whose video Immich has not extracted is skipped instead of converted.
 - External library assets no longer fail with `Checksum mismatch`: Immich reports a path hash instead of a content checksum for them, so the download check is skipped for these assets.
 - External library assets are skipped in upload mode instead of failing, unless the new setting is on. Local output mode converts them without it.
+
+### Testing
+
+- Verified against Immich v3.0.3 with sample files from OnePlus 12, Google Pixel 6 to 8a, Samsung (JPEG and HEIC), and iPhone (HEIC and JPEG with MOV), for JXL, HEIC, and AVIF targets.
+
+### Dependencies
+
+- SQLAlchemy 2.1.0 → 2.1.2, Uvicorn 0.53.0 → 0.54.0, FastAPI 0.141.1 → 0.142.2.
+- Ruff 0.16.9 → 0.16.10, mypy 2.3.1 → 2.4.0.
 
 ### Documentation & Links
 
