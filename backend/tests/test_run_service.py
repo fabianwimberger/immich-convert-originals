@@ -72,6 +72,7 @@ def _make_asset(
     asset_type: str = "IMAGE",
     created_at: str = "2023-01-01T00:00:00Z",
     owner_id: str | None = None,
+    library_id: str | None = None,
 ) -> Asset:
     return Asset(
         id=asset_id,
@@ -82,6 +83,7 @@ def _make_asset(
         file_created_at=created_at,
         file_modified_at=created_at,
         owner_id=owner_id,
+        library_id=library_id,
     )
 
 
@@ -565,6 +567,36 @@ class TestSkipNotOwned:
         client = FakeClient(current_user_id="me")
         self._patch_transcode(monkeypatch)
         cfg = {**BASE_CFG, "dry_run": True}
+        result = run_service._process_asset_sync(asset, client, cfg, str(tmp_path))
+        assert result["status"] == "dry_run_preview"
+
+    def test_external_asset_skipped_before_download(self, tmp_path):
+        asset = _make_asset(library_id="lib-1")
+        client = FakeClient()
+        result = run_service._process_asset_sync(asset, client, BASE_CFG, str(tmp_path))
+        assert result["status"] == "skipped"
+        assert result["error"].startswith("External library asset")
+        assert client.download_calls == 0
+
+    def test_external_asset_processed_when_enabled(self, tmp_path, monkeypatch):
+        asset = _make_asset(library_id="lib-1")
+        client = FakeClient()
+        self._patch_transcode(monkeypatch)
+        cfg = {**BASE_CFG, "upload_external_assets": True}
+        result = run_service._process_asset_sync(asset, client, cfg, str(tmp_path))
+        assert result["status"] == "success"
+        assert client.deleted_ids == ["a1"]
+
+    def test_local_mode_processes_external_asset(self, tmp_path, monkeypatch):
+        asset = _make_asset(library_id="lib-1")
+        client = FakeClient()
+        self._patch_transcode(monkeypatch)
+        cfg = {
+            **BASE_CFG,
+            "dry_run": True,
+            "output_mode": "local",
+            "local_output_dir": str(tmp_path / "out"),
+        }
         result = run_service._process_asset_sync(asset, client, cfg, str(tmp_path))
         assert result["status"] == "dry_run_preview"
 

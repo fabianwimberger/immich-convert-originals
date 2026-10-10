@@ -63,3 +63,7 @@ class Settings(Base):
     output_mode: Mapped[str] = mapped_column(default="upload")
     local_output_dir: Mapped[str] = mapped_column(default="/app/output")
     local_keep_originals: Mapped[bool] = mapped_column(default=False)
+
+    # Upload mode moves a converted external library asset into Immich's own
+    # storage and deletes the file from the external folder, so it's opt-in.
+    upload_external_assets: Mapped[bool] = mapped_column(default=False)

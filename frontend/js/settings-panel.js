@@ -153,6 +153,10 @@ class SettingsPanel {
           <label><input id="set-local-keep-originals" type="checkbox" ${s.local_keep_originals ? "checked" : ""} /> Keep a copy of the original alongside</label>
           ${fieldHint("local_keep_originals")}
         </div>
+        <div class="output-upload-fields" style="${s.output_mode === "local" ? "display:none" : ""}">
+          <label><input id="set-upload-external-assets" type="checkbox" ${s.upload_external_assets ? "checked" : ""} /> Convert external library assets</label>
+          ${fieldHint("upload_external_assets")}
+        </div>
         <div class="row">
           <button id="btn-save-output" class="primary">Save</button>
           <span id="output-status"></span>
@@ -206,6 +210,8 @@ class SettingsPanel {
     this.root.querySelector("#set-output-mode").addEventListener("change", (e) => {
       this.root.querySelector(".output-local-fields").style.display =
         e.target.value === "local" ? "" : "none";
+      this.root.querySelector(".output-upload-fields").style.display =
+        e.target.value === "local" ? "none" : "";
     });
     this.root.querySelector("#btn-save-retry").addEventListener("click", () =>
       this.saveRetry()
@@ -317,6 +323,8 @@ class SettingsPanel {
       output_mode: this.root.querySelector("#set-output-mode").value,
       local_output_dir: this.root.querySelector("#set-local-output-dir").value.trim(),
       local_keep_originals: this.root.querySelector("#set-local-keep-originals")
+        .checked,
+      upload_external_assets: this.root.querySelector("#set-upload-external-assets")
         .checked,
     });
   }

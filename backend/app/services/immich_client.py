@@ -24,6 +24,7 @@ class Asset:
     file_created_at: str
     file_modified_at: str
     owner_id: str | None = None
+    library_id: str | None = None
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "Asset":
@@ -36,6 +37,7 @@ class Asset:
             file_created_at=data["fileCreatedAt"],
             file_modified_at=data["fileModifiedAt"],
             owner_id=data.get("ownerId"),
+            library_id=data.get("libraryId"),
         )
 
 
@@ -189,7 +191,8 @@ class ImmichClient:
         """Download original asset binary to file.
 
         After download, verifies the file size is non-zero and the SHA1
-        checksum matches the value reported by Immich.
+        checksum matches the value reported by Immich (external library
+        assets have no content checksum to compare against).
         """
         url = urljoin(self.api_base, f"assets/{asset_id}/original")
 
@@ -226,12 +229,18 @@ class ImmichClient:
             return 0, f"Download failed: {e}"
 
     def _get_asset_checksum(self, asset_id: str) -> str | None:
-        """Return the SHA1 checksum reported by Immich for an asset."""
+        """Return the SHA1 content checksum reported by Immich for an asset,
+        or None if there is none to verify against."""
         url = urljoin(self.api_base, f"assets/{asset_id}")
         try:
             response = self._request_with_retry("GET", url)
             if response.status_code == 200:
                 data = response.json()
+                # Immich doesn't hash external library files: their checksum
+                # is the SHA1 of "path:<file path>", which never matches the
+                # file's content.
+                if data.get("libraryId"):
+                    return None
                 return data.get("checksum")
         except Exception:
             pass
