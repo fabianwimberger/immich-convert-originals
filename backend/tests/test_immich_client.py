@@ -1,5 +1,7 @@
 """Tests for immich_api module using responses to mock HTTP."""
 
+import base64
+import hashlib
 import json
 from unittest.mock import patch
 
@@ -84,6 +86,18 @@ class TestAssetFromDict:
             "fileModifiedAt": "2023-01-01T00:00:00Z",
         }
         assert Asset.from_dict(data).owner_id is None
+
+    def test_library_id_parsed(self):
+        data = {
+            "id": "asset-6",
+            "originalFileName": "photo.jpg",
+            "originalPath": "/mnt/photos/photo.jpg",
+            "type": "IMAGE",
+            "fileCreatedAt": "2023-01-01T00:00:00Z",
+            "fileModifiedAt": "2023-01-01T00:00:00Z",
+            "libraryId": "lib-1",
+        }
+        assert Asset.from_dict(data).library_id == "lib-1"
 
 
 class TestRequestWithRetry:
@@ -346,6 +360,47 @@ class TestDownloadOriginal:
         assert error is None
         with open(out_path, "rb") as f:
             assert f.read() == b"hello world"
+
+    @staticmethod
+    def _add_asset(body: bytes, **metadata):
+        responses.add(
+            responses.GET,
+            "https://example.com/api/assets/a1",
+            json={"id": "a1", **metadata},
+            status=200,
+        )
+        responses.add(
+            responses.GET,
+            "https://example.com/api/assets/a1/original",
+            body=body,
+            status=200,
+        )
+
+    @responses.activate
+    def test_matching_checksum_accepted(self, client, tmp_path):
+        body = b"hello world"
+        checksum = base64.b64encode(hashlib.sha1(body).digest()).decode()
+        self._add_asset(body, checksum=checksum, libraryId=None)
+        size, error = client.download_original("a1", str(tmp_path / "out.bin"))
+        assert (size, error) == (11, None)
+
+    @responses.activate
+    def test_checksum_mismatch_returns_error(self, client, tmp_path):
+        checksum = base64.b64encode(hashlib.sha1(b"other").digest()).decode()
+        self._add_asset(b"hello world", checksum=checksum, libraryId=None)
+        size, error = client.download_original("a1", str(tmp_path / "out.bin"))
+        assert size == 0
+        assert error.startswith("Checksum mismatch")
+
+    @responses.activate
+    def test_external_library_checksum_not_verified(self, client, tmp_path):
+        # Immich stores sha1("path:<file path>") for external library assets.
+        checksum = base64.b64encode(
+            hashlib.sha1(b"path:/mnt/photos/photo.jpg").digest()
+        ).decode()
+        self._add_asset(b"hello world", checksum=checksum, libraryId="lib-1")
+        size, error = client.download_original("a1", str(tmp_path / "out.bin"))
+        assert (size, error) == (11, None)
 
     @responses.activate
     def test_404_returns_error_tuple(self, client, tmp_path):

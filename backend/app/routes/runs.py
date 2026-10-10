@@ -95,6 +95,9 @@ async def _build_config_snapshot(data: RunCreate, db: AsyncSession) -> dict[str,
         "local_keep_originals": _pick(
             data.local_keep_originals, settings.local_keep_originals
         ),
+        "upload_external_assets": _pick(
+            data.upload_external_assets, settings.upload_external_assets
+        ),
     }
 
 
