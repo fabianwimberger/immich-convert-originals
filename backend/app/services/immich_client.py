@@ -25,6 +25,8 @@ class Asset:
     file_modified_at: str
     owner_id: str | None = None
     library_id: str | None = None
+    visibility: str | None = None
+    live_photo_video_id: str | None = None
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "Asset":
@@ -38,6 +40,8 @@ class Asset:
             file_modified_at=data["fileModifiedAt"],
             owner_id=data.get("ownerId"),
             library_id=data.get("libraryId"),
+            visibility=data.get("visibility"),
+            live_photo_video_id=data.get("livePhotoVideoId"),
         )
 
 
@@ -376,8 +380,8 @@ class ImmichClient:
         from_asset_id: str,
         to_asset_id: str,
     ) -> tuple[bool, str | None]:
-        """Copy asset metadata (favorite, visibility, rating, albums, stack)
-        from one asset to another."""
+        """Copy asset metadata (favorite, visibility, rating, live photo
+        video, albums, stack) from one asset to another."""
         source_url = urljoin(self.api_base, f"assets/{from_asset_id}")
         try:
             source_resp = self._request_with_retry("GET", source_url)
@@ -416,6 +420,23 @@ class ImmichClient:
                     )
             except Exception as e:
                 return False, str(e)
+
+        # Immich deletes a live photo's video together with the last asset
+        # linking to it, so the target has to link to it before the source
+        # is removed. Only the single-asset endpoint accepts this field.
+        live_photo_video_id = source_data.get("livePhotoVideoId")
+        if live_photo_video_id:
+            link_url = urljoin(self.api_base, f"assets/{to_asset_id}")
+            try:
+                link_resp = self._request_with_retry(
+                    "PUT", link_url, json={"livePhotoVideoId": live_photo_video_id}
+                )
+                if link_resp.status_code != 200:
+                    return False, (
+                        f"Live photo link failed: HTTP {link_resp.status_code}"
+                    )
+            except Exception as e:
+                return False, f"Live photo link failed: {e}"
 
         copy_url = urljoin(self.api_base, "assets/copy")
         copy_body = {

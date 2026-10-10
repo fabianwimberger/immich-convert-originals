@@ -2,7 +2,11 @@
 
 from unittest.mock import patch
 
+import json
+import os
 import subprocess
+
+import pytest
 
 from app.services.transcode import (
     Timeouts,
@@ -10,6 +14,8 @@ from app.services.transcode import (
     detect_color_space,
     detect_hdr_transfer,
     detect_video_codec,
+    has_motion_photo_tags,
+    strip_motion_photo_tags,
     transcode,
     transcode_video,
     validate_video_output,
@@ -778,6 +784,196 @@ class TestDetectColorSpace:
             detect_color_space(str(video), timeouts=timeouts)
 
         assert mock_run.call_args[1]["timeout"] == 7
+
+
+class TestMotionPhotoTags:
+    def _run(self, **kwargs):
+        with patch("app.services.transcode.subprocess.run") as mock_run:
+            mock_run.return_value = FakeCompletedProcess(**kwargs)
+            return has_motion_photo_tags("photo.jpg")
+
+    def test_detects_motion_photo(self):
+        assert self._run(stdout=b"1\n") is True
+
+    def test_plain_still(self):
+        assert self._run(stdout=b"") is False
+
+    def test_zero_flag_is_a_plain_still(self):
+        assert self._run(stdout=b"0\n") is False
+
+    def test_exiftool_failure_raises(self):
+        with pytest.raises(RuntimeError, match="exiftool failed: boom"):
+            self._run(returncode=1, stderr=b"boom")
+
+    def test_missing_exiftool_raises(self):
+        with patch(
+            "app.services.transcode.subprocess.run", side_effect=FileNotFoundError
+        ):
+            with pytest.raises(RuntimeError, match="exiftool not found"):
+                has_motion_photo_tags("photo.jpg")
+
+    def test_strip_reports_exiftool_errors(self):
+        error = subprocess.CalledProcessError(1, "exiftool", stderr=b"boom")
+        with patch("app.services.transcode.subprocess.run", side_effect=error):
+            assert strip_motion_photo_tags("photo.jpg", []) == "exiftool failed: boom"
+
+    def test_strip_reports_timeout_and_missing_exiftool(self):
+        timeout = subprocess.TimeoutExpired("exiftool", 120)
+        with patch("app.services.transcode.subprocess.run", side_effect=timeout):
+            assert "timed out" in strip_motion_photo_tags("photo.jpg", [])
+        with patch(
+            "app.services.transcode.subprocess.run", side_effect=FileNotFoundError
+        ):
+            assert strip_motion_photo_tags("photo.jpg", []) == "exiftool not found"
+
+    def test_tag_check_timeout_raises(self):
+        timeout = subprocess.TimeoutExpired("exiftool", 120)
+        with patch("app.services.transcode.subprocess.run", side_effect=timeout):
+            with pytest.raises(RuntimeError, match="timed out"):
+                has_motion_photo_tags("photo.jpg")
+
+    @pytest.mark.parametrize(
+        ("failure", "message"),
+        [
+            (subprocess.TimeoutExpired("exiftool", 120), "timed out"),
+            (subprocess.CalledProcessError(1, "exiftool"), "exiftool failed"),
+            (FakeCompletedProcess(stdout=b"not json"), "exiftool failed"),
+        ],
+    )
+    def test_unreadable_layout_fails_the_transcode(self, tmp_path, failure, message):
+        input_path = tmp_path / "input.jpg"
+        input_path.write_bytes(b"\xff\xd8\xff" + b"\x00" * 29)
+        side_effect = failure if isinstance(failure, Exception) else None
+
+        with patch(
+            "app.services.transcode.subprocess.run",
+            side_effect=side_effect,
+            return_value=failure,
+        ):
+            result = transcode(
+                str(input_path), str(tmp_path / "o.jxl"), "jxl", 1.0, motion_photo=True
+            )
+
+        assert result.success is False
+        assert message in result.error
+        assert os.listdir(tmp_path) == ["input.jpg"]
+
+    def test_strip_failure_fails_the_transcode_before_encoding(self, tmp_path):
+        input_path = tmp_path / "input.jpg"
+        input_path.write_bytes(b"\xff\xd8\xff" + b"\x00" * 29)
+        commands = []
+
+        def fake_run(cmd, **kwargs):
+            commands.append(cmd[0])
+            if "-overwrite_original" in cmd:
+                raise subprocess.CalledProcessError(1, "exiftool", stderr=b"boom")
+            return FakeCompletedProcess(stdout=b"[{}]")
+
+        with patch("app.services.transcode.subprocess.run", side_effect=fake_run):
+            result = transcode(
+                str(input_path), str(tmp_path / "o.jxl"), "jxl", 1.0, motion_photo=True
+            )
+
+        assert result.success is False
+        assert result.error == "exiftool failed: boom"
+        assert "cjxl" not in commands
+
+    def _transcode_motion_photo(self, tmp_path, tags, tags_left=b""):
+        """Runs transcode() on a 32-byte fake JPEG with the tools faked.
+        Returns the result and what each tool was handed."""
+        input_path = tmp_path / "input.jpg"
+        input_path.write_bytes(b"\xff\xd8\xff" + b"\x00" * 29)
+        output_path = tmp_path / "output.jxl"
+        seen: dict = {}
+
+        def fake_run(cmd, **kwargs):
+            if cmd[0] == "cjxl":
+                seen["cjxl"] = cmd
+                seen["still_bytes"] = os.path.getsize(cmd[-2])
+                output_path.write_bytes(b"x" * 10)
+            elif "-j" in cmd:
+                return FakeCompletedProcess(stdout=json.dumps([tags]).encode())
+            elif "-overwrite_original" in cmd:
+                seen["strip"] = cmd
+                imports = [a for a in cmd if a.startswith("-json=")]
+                if imports:
+                    with open(imports[0].removeprefix("-json=")) as f:
+                        seen["directory"] = json.load(f)[0][
+                            "XMP-GContainer:ContainerDirectory"
+                        ]
+            else:
+                return FakeCompletedProcess(stdout=tags_left)
+            return FakeCompletedProcess()
+
+        with patch("app.services.transcode.subprocess.run", side_effect=fake_run):
+            result = transcode(
+                str(input_path), str(output_path), "jxl", 1.0, motion_photo=True
+            )
+        leftovers = set(os.listdir(tmp_path)) - {"input.jpg", "output.jxl"}
+        assert not leftovers
+        return result, seen
+
+    def test_video_is_cut_off_and_gain_map_entry_kept(self, tmp_path):
+        primary = {"Item": {"Semantic": "Primary", "Length": 0}}
+        gain_map = {"Item": {"Semantic": "GainMap", "Length": 4}}
+        video = {"Item": {"Semantic": "MotionPhoto", "Length": 10, "Padding": 2}}
+
+        result, seen = self._transcode_motion_photo(
+            tmp_path, {"ContainerDirectory": [primary, gain_map, video]}
+        )
+
+        assert result.success is True
+        assert (result.input_bytes, result.output_bytes) == (32, 10)
+        assert result.input_path.endswith("input.jpg")
+        assert seen["still_bytes"] == 20
+        assert seen["directory"] == [primary, gain_map]
+        assert "-MotionPhoto*=" in seen["strip"]
+        assert "--allow_jpeg_reconstruction=0" not in seen["cjxl"]
+
+    def test_microvideo_offset_is_cut_off(self, tmp_path):
+        result, seen = self._transcode_motion_photo(tmp_path, {"MicroVideoOffset": 8})
+
+        assert result.success is True
+        assert seen["still_bytes"] == 24
+        assert "-ContainerDirectory=" in seen["strip"]
+
+    def test_unlocatable_video_is_dropped_by_the_repack(self, tmp_path):
+        result, seen = self._transcode_motion_photo(tmp_path, {})
+
+        assert result.success is True
+        assert seen["still_bytes"] == 32
+        assert "--allow_jpeg_reconstruction=0" in seen["cjxl"]
+
+    def test_fails_when_tags_survive(self, tmp_path):
+        result, _ = self._transcode_motion_photo(tmp_path, {}, tags_left=b"1\n")
+
+        assert result.success is False
+        assert "still present" in result.error
+
+    def test_fails_when_layout_cannot_be_read(self, tmp_path):
+        input_path = tmp_path / "input.jpg"
+        input_path.write_bytes(b"\xff\xd8\xff" + b"\x00" * 29)
+
+        with patch(
+            "app.services.transcode.subprocess.run", side_effect=FileNotFoundError
+        ):
+            result = transcode(
+                str(input_path), str(tmp_path / "o.jxl"), "jxl", 1.0, motion_photo=True
+            )
+
+        assert result.success is False
+        assert result.error == "exiftool not found"
+
+    def test_plain_still_keeps_jpeg_reconstruction(self, tmp_path):
+        input_path = tmp_path / "input.jpg"
+        input_path.write_bytes(b"\xff\xd8\xff" + b"\x00" * 29)
+
+        with patch("app.services.transcode.subprocess.run") as mock_run:
+            mock_run.return_value = FakeCompletedProcess(returncode=0)
+            transcode(str(input_path), str(tmp_path / "out.jxl"), "jxl", 1.0)
+
+        assert mock_run.call_count == 1
+        assert "--allow_jpeg_reconstruction=0" not in mock_run.call_args[0][0]
 
 
 class TestCopyMetadata:
