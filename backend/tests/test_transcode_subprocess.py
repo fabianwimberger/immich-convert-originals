@@ -305,6 +305,10 @@ class TestTranscodeVideo:
         assert "ffmpeg" in args
         assert "-crf" in args
         assert args[args.index("-crf") + 1] == "30"
+        assert [args[i + 1] for i, a in enumerate(args) if a == "-map"] == [
+            "0:v:0",
+            "0:a:0?",
+        ]
         assert "-preset" in args
         assert args[args.index("-preset") + 1] == "4"
         assert "-b:a" in args

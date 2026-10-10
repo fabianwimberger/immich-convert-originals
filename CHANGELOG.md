@@ -23,13 +23,15 @@ Keeps live and motion photos intact when their still is converted, and converts 
 - A converted motion photo no longer makes Immich attach a broken clip read from the end of the converted file.
 - Live photo videos are no longer listed in Browse or converted on their own when archived assets are included.
 - A motion photo whose video Immich has not extracted is skipped instead of converted.
+- Retrying an asset after a failed attempt no longer ends with both the original and its replacement in the trash: Immich answers the repeated upload with the earlier copy, which the failed attempt had moved to the trash, and that copy is now restored before it is used.
+- Video conversion encodes the first video stream. Clips with a second, larger stream, such as those in Google Pixel motion photos, failed to encode.
 - External library assets no longer fail with `Checksum mismatch`: Immich reports a path hash instead of a content checksum for them, so the download check is skipped for these assets.
 - External library assets are skipped in upload mode instead of failing, unless the new setting is on. Local output mode converts them without it.
 
 ### Testing
 
 - Verified against Immich v3.0.3 with sample files from OnePlus 12, Google Pixel 6 to 8a, Samsung (JPEG and HEIC), and iPhone (HEIC and JPEG with MOV), for JXL, HEIC, and AVIF targets.
-- Integration tests and the OnePlus 12 sample, including video conversion, also pass against Immich v3.3.1.
+- Integration tests also pass against Immich v3.3.1. OnePlus 12, Google Pixel 8a, Samsung (JPEG and HEIC), and iPhone sample files were converted on a live Immich v3.3.1 library, with and without video conversion.
 
 ### Dependencies
 
