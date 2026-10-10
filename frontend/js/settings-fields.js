@@ -125,6 +125,11 @@ const SETTINGS_FIELDS = {
       "Also copy the untouched original alongside the converted file, under an originals/ subfolder.",
     default: "off",
   },
+  upload_external_assets: {
+    description:
+      "Off skips external library assets in upload mode. On converts them like any other asset: the converted file is stored in Immich's own storage, not in the external folder, and the original file is deleted from the external folder when Immich empties its trash.",
+    default: "off",
+  },
 };
 
 /** "Default: X -- description (example)" hint markup for a field, or "" if

@@ -5,6 +5,24 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.6.0] - 2026-10-10
+
+Converts assets from Immich external libraries, which previously failed at download.
+
+### Features
+
+- Add a **Convert external library assets** setting (Settings → Output, off by default) for upload mode. When on, the converted file is stored in Immich's own storage and the original is deleted from the external folder when Immich empties its trash.
+
+### Fixes
+
+- External library assets no longer fail with `Checksum mismatch`: Immich reports a path hash instead of a content checksum for them, so the download check is skipped for these assets.
+- External library assets are skipped in upload mode instead of failing, unless the new setting is on. Local output mode converts them without it.
+
+### Documentation & Links
+
+- [README](https://github.com/fabianwimberger/immich-convert-originals#readme)
+- [Full changelog](https://github.com/fabianwimberger/immich-convert-originals/compare/v2.5.2...v2.6.0)
+
 ## [v2.5.1] - 2026-10-01
 
 Installs SQLAlchemy's asyncio dependencies explicitly and uses the latest release image in Docker instructions.

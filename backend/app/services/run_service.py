@@ -200,6 +200,22 @@ def _should_skip_not_owned(
     return None
 
 
+def _should_skip_external(asset: Asset, cfg: dict[str, Any]) -> str | None:
+    """Returns a skip reason for external library assets, else None.
+
+    An upload can't land in the external library's folder: it goes to
+    Immich's own storage, and deleting the original removes the file from
+    the external folder once the trash is emptied. That moves the asset out
+    of the library the user manages on disk, so it only happens on opt-in.
+    Local output never writes to Immich, so it can always convert them.
+    """
+    if cfg.get("output_mode", "upload") == "local" or not asset.library_id:
+        return None
+    if cfg.get("upload_external_assets", False):
+        return None
+    return "External library asset (enable in Settings or use local output)"
+
+
 def _process_asset_sync(
     asset: Asset, client: ImmichClient, cfg: dict[str, Any], work_dir: str
 ) -> dict[str, Any]:
@@ -224,7 +240,9 @@ def _process_asset_sync(
             result["error"] = skip_reason
             return result
 
-    skip_reason = _should_skip_not_owned(asset, client, cfg)
+    skip_reason = _should_skip_external(asset, cfg) or _should_skip_not_owned(
+        asset, client, cfg
+    )
     if skip_reason:
         result["status"] = "skipped"
         result["error"] = skip_reason

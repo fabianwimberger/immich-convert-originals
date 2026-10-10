@@ -40,6 +40,7 @@ class SettingsResponse(BaseModel):
     output_mode: str
     local_output_dir: str
     local_keep_originals: bool
+    upload_external_assets: bool
 
     @classmethod
     def from_settings(cls, settings: SettingsRow) -> "SettingsResponse":
@@ -70,6 +71,7 @@ class SettingsResponse(BaseModel):
             output_mode=settings.output_mode,
             local_output_dir=settings.local_output_dir,
             local_keep_originals=settings.local_keep_originals,
+            upload_external_assets=settings.upload_external_assets,
         )
 
 
@@ -107,6 +109,7 @@ class SettingsUpdate(BaseModel):
     output_mode: str | None = None
     local_output_dir: str | None = None
     local_keep_originals: bool | None = None
+    upload_external_assets: bool | None = None
 
 
 class TestConnectionRequest(BaseModel):
@@ -187,6 +190,7 @@ class RunCreate(BaseModel):
     output_mode: str | None = None
     local_output_dir: str | None = None
     local_keep_originals: bool | None = None
+    upload_external_assets: bool | None = None
 
 
 class RunResponse(BaseModel):
