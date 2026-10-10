@@ -189,3 +189,48 @@ class TestEndToEnd:
         detail = _get_asset_detail(admin_client, fresh_id)
         assert detail is not None
         assert not detail.get("isTrashed")
+
+
+def _orientation_and_size(path: Path) -> tuple[str, str]:
+    orientation = subprocess.run(
+        ["exiftool", "-s3", "-n", "-Orientation", str(path)],
+        capture_output=True, text=True, check=True,
+    )  # fmt: skip
+    size = subprocess.run(
+        ["magick", "identify", "-format", "%wx%h", str(path)],
+        capture_output=True, text=True, check=True,
+    )  # fmt: skip
+    return orientation.stdout.strip(), size.stdout.strip()
+
+
+@pytest.mark.parametrize("target", ["jxl", "avif"])
+def test_rotated_heic_loses_its_orientation_flag(tmp_path, target):
+    """A phone HEIC is stored sideways with a rotation transform and often an
+    EXIF flag saying the same. Decoding applies the transform, so the flag
+    must not travel along to the upright output."""
+    from app.services.transcode import transcode
+
+    sideways = tmp_path / "sideways.jpg"
+    subprocess.run(
+        ["magick", "-size", "400x300", "gradient:red-blue", str(sideways)],
+        check=True, capture_output=True,
+    )  # fmt: skip
+    subprocess.run(
+        ["exiftool", "-overwrite_original", "-n", "-Orientation=6", str(sideways)],
+        check=True, capture_output=True,
+    )  # fmt: skip
+    source = tmp_path / "phone.heic"
+    subprocess.run(
+        ["magick", str(sideways), str(source)], check=True, capture_output=True
+    )
+    subprocess.run(
+        ["exiftool", "-m", "-overwrite_original", "-n", "-Orientation=6", str(source)],
+        check=True, capture_output=True,
+    )  # fmt: skip
+    assert _orientation_and_size(source) == ("6", "300x400")
+
+    out = tmp_path / f"out.{target}"
+    result = transcode(str(source), str(out), target, 1.0 if target == "jxl" else 80)
+
+    assert result.success, result.error
+    assert _orientation_and_size(out) == ("", "300x400")
