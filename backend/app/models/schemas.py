@@ -33,6 +33,7 @@ class SettingsResponse(BaseModel):
     video_max_dimension: int
     video_audio_bitrate: str
     video_crf_retry: int
+    convert_live_photo_videos: bool
     enable_retry: bool
     accept_retry_output: bool
     allow_larger: bool
@@ -64,6 +65,7 @@ class SettingsResponse(BaseModel):
             video_max_dimension=settings.video_max_dimension,
             video_audio_bitrate=settings.video_audio_bitrate,
             video_crf_retry=settings.video_crf_retry,
+            convert_live_photo_videos=settings.convert_live_photo_videos,
             enable_retry=settings.enable_retry,
             accept_retry_output=settings.accept_retry_output,
             allow_larger=settings.allow_larger,
@@ -102,6 +104,7 @@ class SettingsUpdate(BaseModel):
     video_max_dimension: int | None = Field(default=None, ge=0)
     video_audio_bitrate: str | None = None
     video_crf_retry: int | None = Field(default=None, ge=0, le=63)
+    convert_live_photo_videos: bool | None = None
     enable_retry: bool | None = None
     accept_retry_output: bool | None = None
     allow_larger: bool | None = None
@@ -183,6 +186,7 @@ class RunCreate(BaseModel):
     video_max_dimension: int | None = Field(default=None, ge=0)
     video_audio_bitrate: str | None = None
     video_crf_retry: int | None = Field(default=None, ge=0, le=63)
+    convert_live_photo_videos: bool | None = None
     enable_retry: bool | None = None
     accept_retry_output: bool | None = None
     allow_larger: bool | None = None

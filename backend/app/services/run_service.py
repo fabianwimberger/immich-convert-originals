@@ -16,6 +16,7 @@ import os
 import shutil
 import time
 import uuid
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any
 
@@ -233,12 +234,63 @@ def _save_live_photo_video(
     return error
 
 
+@dataclass(frozen=True)
+class _ConvertedVideo:
+    asset: Asset
+    input_bytes: int
+    output_bytes: int
+
+
+def _convert_live_photo_video(
+    asset: Asset,
+    client: ImmichClient,
+    cfg: dict[str, Any],
+    input_path: str,
+    output_path: str,
+) -> _ConvertedVideo | None:
+    """Re-encode a live photo's video to output_path.
+
+    Returns None when the video should stay as it is: it is already AV1, it
+    didn't get smaller, or it couldn't be fetched or converted. None of
+    these is a reason to fail the still, which then keeps the existing video.
+    """
+    video = client.get_asset_full(asset.live_photo_video_id or "")
+    if video is None:
+        return None
+    input_bytes, error = client.download_original(video.id, input_path)
+    if error:
+        logger.warning("Keeping live photo video %s: %s", video.id, error)
+        return None
+
+    crfs = [cfg["video_crf"]]
+    if cfg["enable_retry"]:
+        crfs.append(cfg["video_crf_retry"])
+    for crf in crfs:
+        tx = transcode_video(
+            input_path,
+            output_path,
+            crf=crf,
+            preset=str(cfg["video_preset"]),
+            max_dimension=cfg["video_max_dimension"],
+            audio_bitrate=cfg["video_audio_bitrate"],
+        )
+        if not tx.success or not validate_video_output(output_path):
+            if not (tx.error or "").startswith("Already "):
+                logger.warning("Keeping live photo video %s: %s", video.id, tx.error)
+            return None
+        if tx.output_bytes < input_bytes:
+            return _ConvertedVideo(video, input_bytes, tx.output_bytes)
+    return None
+
+
 def _process_asset_sync(
     asset: Asset, client: ImmichClient, cfg: dict[str, Any], work_dir: str
 ) -> dict[str, Any]:
     """Blocking pipeline for a single asset. Runs on a worker thread."""
     input_path = ""
     output_path = ""
+    video_input_path = os.path.join(work_dir, f"{asset.id}.video.bin")
+    video_output_path = os.path.join(work_dir, f"{asset.id}.video.mp4")
     result: dict[str, Any] = {
         "status": "unknown",
         "input_bytes": 0,
@@ -377,6 +429,19 @@ def _process_asset_sync(
                 result["status"] = "skipped"
                 return result
 
+        converted_video = None
+        if (
+            not is_video
+            and asset.live_photo_video_id
+            and cfg.get("convert_live_photo_videos")
+        ):
+            converted_video = _convert_live_photo_video(
+                asset, client, cfg, video_input_path, video_output_path
+            )
+            if converted_video:
+                result["input_bytes"] += converted_video.input_bytes
+                result["output_bytes"] += converted_video.output_bytes
+
         if dry_run:
             # Real download + transcode already ran above, so this reflects
             # the actual size a real run would produce -- just stop short of
@@ -398,7 +463,9 @@ def _process_asset_sync(
                 os.makedirs(os.path.dirname(original_dest), exist_ok=True)
                 shutil.copy2(input_path, original_dest)
 
-            if asset.live_photo_video_id:
+            if converted_video:
+                shutil.move(video_output_path, os.path.splitext(dest_path)[0] + ".mp4")
+            elif asset.live_photo_video_id:
                 error = _save_live_photo_video(client, asset, dest_path)
                 if error:
                     result["status"] = "failed_download"
@@ -410,6 +477,25 @@ def _process_asset_sync(
 
         base_name = os.path.splitext(asset.original_file_name)[0]
         new_filename = f"{base_name}.{target_format}"
+        uploaded_ids: list[str] = []
+        live_photo_video_id = asset.live_photo_video_id
+
+        if converted_video:
+            # The old video needs no cleanup: Immich deletes it along with
+            # the original still, once no asset links to it any more.
+            video = converted_video.asset
+            video_name = os.path.splitext(video.original_file_name)[0]
+            live_photo_video_id, error = client.upload_asset(
+                file_path=video_output_path,
+                file_created_at=video.file_created_at,
+                file_modified_at=video.file_modified_at,
+                filename=f"{video_name}.mp4",
+            )
+            if error or not live_photo_video_id:
+                result["status"] = "failed_upload"
+                result["error"] = error
+                return result
+            uploaded_ids.append(live_photo_video_id)
 
         new_asset_id, error = client.upload_asset(
             file_path=output_path,
@@ -418,34 +504,38 @@ def _process_asset_sync(
             filename=new_filename,
         )
         if error or not new_asset_id:
+            client.delete_assets(uploaded_ids)
             result["status"] = "failed_upload"
             result["error"] = error
             return result
         result["new_asset_id"] = new_asset_id
+        uploaded_ids.append(new_asset_id)
 
         success, error = client.copy_asset_data(
-            from_asset_id=asset.id, to_asset_id=new_asset_id
+            from_asset_id=asset.id,
+            to_asset_id=new_asset_id,
+            live_photo_video_id=live_photo_video_id,
         )
         if not success:
-            client.delete_assets([new_asset_id])
+            client.delete_assets(uploaded_ids)
             result["status"] = "failed_copy"
             result["error"] = error
             return result
 
         verified, verify_error = client.get_asset(new_asset_id)
         if not verified:
-            client.delete_assets([new_asset_id])
+            client.delete_assets(uploaded_ids)
             result["status"] = "failed_verification"
             result["error"] = verify_error
             return result
 
-        if asset.live_photo_video_id:
+        if live_photo_video_id:
             # Deleting the original while the new asset points anywhere else
             # makes Immich delete the video along with it.
             new_asset = client.get_asset_full(new_asset_id)
             linked_id = new_asset.live_photo_video_id if new_asset else None
-            if linked_id != asset.live_photo_video_id:
-                client.delete_assets([new_asset_id])
+            if linked_id != live_photo_video_id:
+                client.delete_assets(uploaded_ids)
                 result["status"] = "failed_verification"
                 result["error"] = "Live photo video is not linked to the new asset"
                 return result
@@ -460,7 +550,7 @@ def _process_asset_sync(
         return result
 
     finally:
-        for path in (input_path, output_path):
+        for path in (input_path, output_path, video_input_path, video_output_path):
             if path and os.path.exists(path):
                 try:
                     os.remove(path)

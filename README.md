@@ -29,7 +29,7 @@ JPEG XL shrinks photos by 20-40% and AV1 shrinks videos by 30-50% with no visibl
 - **Video conversion** — MP4, MOV, MKV → AV1 (MP4)
 - **Local-only mode** — write converted files to disk under `<year>/<month>` folders instead of uploading, with an option to keep the original alongside; Immich is never touched either way
 - **Metadata preservation** — EXIF, GPS, favorite state, rating, and albums copied to the replacement asset
-- **Live & motion photos** — the still is converted and stays linked to its video, which is left untouched; motion photos with an embedded video (Google, Samsung, OnePlus) are stored as the still alone, with the video cut off before the repack; local-only mode saves the video next to the still
+- **Live & motion photos** — the still is converted and stays linked to its video, which is left untouched; motion photos with an embedded video (Google, Samsung, OnePlus) are stored as the still alone, with the video cut off before the repack; optionally the video itself is re-encoded to AV1 (off by default, lossy); local-only mode saves the video next to the still
 - **Smart retry & resumable** — retries with more compression if output is larger than the original; a filtered run automatically skips assets a previous run already converted
 - **Run history** — every run and its per-asset outcomes are kept; retry just the failures or export a failure CSV
 - **Live progress & dry-run** — WebSocket-driven progress while a run is in flight; preview what a run would do before committing to it

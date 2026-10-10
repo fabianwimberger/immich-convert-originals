@@ -1,6 +1,7 @@
 """Tests for run_service: the per-asset pipeline and run orchestration."""
 
 import json
+import os
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -28,10 +29,19 @@ class FakeClient:
     by_id: dict[str, Asset] = field(default_factory=dict)
     download_calls: int = 0
     upload_calls: int = 0
+    # Per-filename results, for runs that upload more than one file.
+    upload_results: dict[str, tuple[str | None, str | None]] = field(
+        default_factory=dict
+    )
+    uploaded_names: list[str] = field(default_factory=list)
+    download_errors: dict[str, str] = field(default_factory=dict)
+    linked_video_id: str | None = None
     current_user_id: str | None = "current-user"
 
     def download_original(self, asset_id: str, output_path: str):
         self.download_calls += 1
+        if asset_id in self.download_errors:
+            return 0, self.download_errors[asset_id]
         if self.download_result[1] is None:
             with open(output_path, "wb") as f:
                 f.write(b"x" * self.download_result[0])
@@ -39,9 +49,15 @@ class FakeClient:
 
     def upload_asset(self, **kwargs: Any):
         self.upload_calls += 1
+        self.uploaded_names.append(kwargs["filename"])
+        if kwargs["filename"] in self.upload_results:
+            return self.upload_results[kwargs["filename"]]
         return self.upload_result
 
-    def copy_asset_data(self, from_asset_id: str, to_asset_id: str):
+    def copy_asset_data(
+        self, from_asset_id: str, to_asset_id: str, live_photo_video_id=None
+    ):
+        self.linked_video_id = live_photo_video_id
         return self.copy_result
 
     def get_asset(self, asset_id: str):
@@ -904,6 +920,184 @@ class TestProcessAssetSyncLivePhotos:
 
         assert result["status"] == "failed_download"
         assert result["error"] == "Live photo video not found"
+
+
+class TestProcessAssetSyncLivePhotoVideoConversion:
+    CFG = {**BASE_CFG, "convert_live_photo_videos": True}
+
+    def _setup(self, monkeypatch, video_sizes=(300,), video_error=None):
+        """A live photo (still a1, video video-1 named IMG_1.MOV) whose still
+        converts 1000 -> 500 bytes. Each video transcode attempt produces the
+        next size from video_sizes; the download is always 1000 bytes."""
+        asset = _make_asset(file_name="IMG_1.heic", live_photo_video_id="video-1")
+        client = FakeClient(
+            by_id={
+                "video-1": _make_asset("video-1", "IMG_1.MOV", asset_type="VIDEO"),
+                "new-id": _make_asset("new-id", live_photo_video_id="new-video"),
+            },
+            upload_results={"IMG_1.mp4": ("new-video", None)},
+        )
+        crfs: list[int] = []
+        sizes = iter(video_sizes)
+
+        def fake_transcode(inp, out, fmt, distance, jxl_effort=7, motion_photo=False):
+            with open(out, "wb") as f:
+                f.write(b"x" * 500)
+            return TranscodeResult(True, inp, out, 1000, 500, "heic")
+
+        def fake_transcode_video(inp, out, crf, preset, max_dimension, audio_bitrate):
+            crfs.append(crf)
+            if video_error:
+                return TranscodeResult(False, inp, out, 1000, 0, "hevc", video_error)
+            size = next(sizes)
+            with open(out, "wb") as f:
+                f.write(b"v" * size)
+            return TranscodeResult(True, inp, out, 1000, size, "hevc")
+
+        monkeypatch.setattr(run_service, "transcode", fake_transcode)
+        monkeypatch.setattr(run_service, "validate_output", lambda path, fmt: True)
+        monkeypatch.setattr(run_service, "transcode_video", fake_transcode_video)
+        monkeypatch.setattr(run_service, "validate_video_output", lambda path: True)
+        return asset, client, crfs
+
+    def test_video_is_converted_and_linked_to_the_new_still(
+        self, tmp_path, monkeypatch
+    ):
+        asset, client, crfs = self._setup(monkeypatch)
+
+        result = run_service._process_asset_sync(asset, client, self.CFG, str(tmp_path))
+
+        assert result["status"] == "success"
+        assert client.uploaded_names == ["IMG_1.mp4", "IMG_1.jxl"]
+        assert client.linked_video_id == "new-video"
+        assert (result["input_bytes"], result["output_bytes"]) == (2000, 800)
+        # Immich removes the old video itself, together with the original.
+        assert client.deleted_ids == ["a1"]
+        assert crfs == [36]
+        assert os.listdir(tmp_path) == []
+
+    def test_setting_off_keeps_the_video(self, tmp_path, monkeypatch):
+        asset, client, crfs = self._setup(monkeypatch)
+        client.by_id["new-id"] = _make_asset("new-id", live_photo_video_id="video-1")
+
+        result = run_service._process_asset_sync(asset, client, BASE_CFG, str(tmp_path))
+
+        assert result["status"] == "success"
+        assert crfs == []
+        assert client.uploaded_names == ["IMG_1.jxl"]
+        assert client.linked_video_id == "video-1"
+
+    def test_video_that_does_not_shrink_is_kept_after_a_retry(
+        self, tmp_path, monkeypatch
+    ):
+        asset, client, crfs = self._setup(monkeypatch, video_sizes=(1500, 1000))
+        client.by_id["new-id"] = _make_asset("new-id", live_photo_video_id="video-1")
+
+        result = run_service._process_asset_sync(asset, client, self.CFG, str(tmp_path))
+
+        assert result["status"] == "success"
+        assert crfs == [36, 40]
+        assert client.uploaded_names == ["IMG_1.jxl"]
+        assert client.linked_video_id == "video-1"
+        assert (result["input_bytes"], result["output_bytes"]) == (1000, 500)
+
+    def test_retry_result_is_used_when_smaller(self, tmp_path, monkeypatch):
+        asset, client, crfs = self._setup(monkeypatch, video_sizes=(1500, 400))
+
+        result = run_service._process_asset_sync(asset, client, self.CFG, str(tmp_path))
+
+        assert result["status"] == "success"
+        assert crfs == [36, 40]
+        assert client.linked_video_id == "new-video"
+        assert result["output_bytes"] == 900
+
+    @pytest.mark.parametrize("error", ["Already AV1", "ffmpeg failed"])
+    def test_unconvertible_video_is_kept(self, tmp_path, monkeypatch, error):
+        asset, client, _ = self._setup(monkeypatch, video_error=error)
+        client.by_id["new-id"] = _make_asset("new-id", live_photo_video_id="video-1")
+
+        result = run_service._process_asset_sync(asset, client, self.CFG, str(tmp_path))
+
+        assert result["status"] == "success"
+        assert client.uploaded_names == ["IMG_1.jxl"]
+        assert client.linked_video_id == "video-1"
+
+    @pytest.mark.parametrize("problem", ["missing", "download fails", "no retry"])
+    def test_video_is_kept_when_it_cannot_be_converted_smaller(
+        self, tmp_path, monkeypatch, problem
+    ):
+        asset, client, crfs = self._setup(monkeypatch, video_sizes=(1500,))
+        client.by_id["new-id"] = _make_asset("new-id", live_photo_video_id="video-1")
+        cfg = self.CFG
+        if problem == "missing":
+            del client.by_id["video-1"]
+        elif problem == "download fails":
+            client.download_errors["video-1"] = "boom"
+        else:
+            cfg = {**cfg, "enable_retry": False}
+
+        result = run_service._process_asset_sync(asset, client, cfg, str(tmp_path))
+
+        assert result["status"] == "success"
+        assert crfs == ([36] if problem == "no retry" else [])
+        assert client.linked_video_id == "video-1"
+
+    def test_video_upload_failure_leaves_immich_untouched(self, tmp_path, monkeypatch):
+        asset, client, _ = self._setup(monkeypatch)
+        client.upload_results["IMG_1.mp4"] = (None, "boom")
+
+        result = run_service._process_asset_sync(asset, client, self.CFG, str(tmp_path))
+
+        assert result["status"] == "failed_upload"
+        assert client.uploaded_names == ["IMG_1.mp4"]
+        assert client.deleted_ids == []
+
+    def test_still_upload_failure_removes_the_uploaded_video(
+        self, tmp_path, monkeypatch
+    ):
+        asset, client, _ = self._setup(monkeypatch)
+        client.upload_results["IMG_1.jxl"] = (None, "boom")
+
+        result = run_service._process_asset_sync(asset, client, self.CFG, str(tmp_path))
+
+        assert result["status"] == "failed_upload"
+        assert client.deleted_ids == ["new-video"]
+
+    def test_unlinked_new_still_removes_both_uploads_and_keeps_the_original(
+        self, tmp_path, monkeypatch
+    ):
+        asset, client, _ = self._setup(monkeypatch)
+        client.by_id["new-id"] = _make_asset("new-id", live_photo_video_id="video-1")
+
+        result = run_service._process_asset_sync(asset, client, self.CFG, str(tmp_path))
+
+        assert result["status"] == "failed_verification"
+        assert client.deleted_ids == ["new-video", "new-id"]
+
+    def test_dry_run_previews_both_sizes_without_uploading(self, tmp_path, monkeypatch):
+        asset, client, _ = self._setup(monkeypatch)
+
+        result = run_service._process_asset_sync(
+            asset, client, {**self.CFG, "dry_run": True}, str(tmp_path)
+        )
+
+        assert result["status"] == "dry_run_preview"
+        assert (result["input_bytes"], result["output_bytes"]) == (2000, 800)
+        assert client.upload_calls == 0
+
+    def test_local_mode_saves_the_converted_video(self, tmp_path, monkeypatch):
+        asset, client, _ = self._setup(monkeypatch)
+        local_dir = tmp_path / "output"
+        work_dir = tmp_path / "work"
+        work_dir.mkdir()
+        cfg = {**self.CFG, "output_mode": "local", "local_output_dir": str(local_dir)}
+
+        result = run_service._process_asset_sync(asset, client, cfg, str(work_dir))
+
+        assert result["status"] == "saved_local"
+        saved = sorted(p.name for p in (local_dir / "2023" / "01").iterdir())
+        assert saved == ["IMG_1.jxl", "IMG_1.mp4"]
+        assert client.upload_calls == 0
 
 
 class TestProcessAssetSyncVideos:
