@@ -379,9 +379,14 @@ class ImmichClient:
         self,
         from_asset_id: str,
         to_asset_id: str,
+        live_photo_video_id: str | None = None,
     ) -> tuple[bool, str | None]:
         """Copy asset metadata (favorite, visibility, rating, live photo
-        video, albums, stack) from one asset to another."""
+        video, albums, stack) from one asset to another.
+
+        live_photo_video_id links the target to that video instead of the
+        source's own.
+        """
         source_url = urljoin(self.api_base, f"assets/{from_asset_id}")
         try:
             source_resp = self._request_with_retry("GET", source_url)
@@ -424,7 +429,7 @@ class ImmichClient:
         # Immich deletes a live photo's video together with the last asset
         # linking to it, so the target has to link to it before the source
         # is removed. Only the single-asset endpoint accepts this field.
-        live_photo_video_id = source_data.get("livePhotoVideoId")
+        live_photo_video_id = live_photo_video_id or source_data.get("livePhotoVideoId")
         if live_photo_video_id:
             link_url = urljoin(self.api_base, f"assets/{to_asset_id}")
             try:

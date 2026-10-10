@@ -130,6 +130,10 @@ class SettingsPanel {
           <input id="set-video-audio-bitrate" type="text" placeholder="e.g. 64k" value="${s.video_audio_bitrate}" />
           ${fieldHint("video_audio_bitrate")}
         </label>
+        <div>
+          <label><input id="set-convert-live-photo-videos" type="checkbox" ${s.convert_live_photo_videos ? "checked" : ""} /> Convert live photo videos</label>
+          ${fieldHint("convert_live_photo_videos")}
+        </div>
         <div class="row">
           <button id="btn-save-videos" class="primary">Save</button>
           <span id="videos-status"></span>
@@ -315,6 +319,9 @@ class SettingsPanel {
       video_audio_bitrate: this.root
         .querySelector("#set-video-audio-bitrate")
         .value.trim(),
+      convert_live_photo_videos: this.root.querySelector(
+        "#set-convert-live-photo-videos"
+      ).checked,
     });
   }
 

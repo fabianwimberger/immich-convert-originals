@@ -33,8 +33,9 @@ def _make_still_and_video(tmp_path: Path) -> tuple[Path, Path]:
         "-frames:v", "1", "-q:v", "3", str(still),
     )  # fmt: skip
     _run(
-        "ffmpeg", "-y", "-f", "lavfi", "-i", "testsrc=size=320x240:rate=15",
-        "-t", "1", "-pix_fmt", "yuv420p", "-metadata", f"comment={marker}",
+        "ffmpeg", "-y", "-f", "lavfi", "-i", "testsrc2=size=640x480:rate=30",
+        "-t", "2", "-c:v", "libx264", "-b:v", "4M", "-pix_fmt", "yuv420p",
+        "-metadata", f"comment={marker}",
         str(video),
     )  # fmt: skip
     _run("exiftool", "-overwrite_original", f"-XMP-dc:Description={marker}", str(still))
@@ -180,6 +181,62 @@ async def test_converted_live_photo_keeps_its_video(
     assert (
         _api(admin_client, "GET", f"assets/{video_id}/original").content == video_bytes
     )
+
+
+@pytest.mark.parametrize("layout", ["motionphoto", "separate"])
+async def test_live_photo_video_is_converted_when_enabled(
+    gui_client, admin_client, tmp_path, layout
+):
+    still_id, video_id = _seed_live_photo(admin_client, tmp_path, layout)
+    old_size = len(_api(admin_client, "GET", f"assets/{video_id}/original").content)
+
+    create_resp = await gui_client.post(
+        "/api/runs",
+        json={
+            "asset_ids": [still_id],
+            "dry_run": False,
+            "convert_live_photo_videos": True,
+        },
+    )
+    assert create_resp.status_code == 200
+    run = await _wait_for_run(gui_client, create_resp.json()["id"], timeout=300)
+    outcomes = (await gui_client.get(f"/api/runs/{run['id']}/assets")).json()["items"]
+    assert [o["status"] for o in outcomes] == ["success"], outcomes
+    new_id = outcomes[0]["new_asset_id"]
+
+    _wait_for(
+        admin_client, new_id, lambda d: (d.get("exifInfo") or {}).get("exifImageWidth")
+    )
+    converted = _get_asset_detail(admin_client, new_id)
+    new_video_id = converted["livePhotoVideoId"]
+    assert new_video_id and new_video_id != video_id
+
+    # Until the original is purged, both videos exist and it can be restored.
+    assert _get_asset_detail(admin_client, video_id) is not None
+    resp = _api(
+        admin_client, "DELETE", "assets", json={"ids": [still_id], "force": True}
+    )
+    assert resp.status_code == 204
+    deadline = time.monotonic() + 60
+    while _get_asset_detail(admin_client, video_id) and time.monotonic() < deadline:
+        time.sleep(1)
+    assert _get_asset_detail(admin_client, video_id) is None
+    time.sleep(5)
+
+    assert _get_asset_detail(admin_client, new_id)["livePhotoVideoId"] == new_video_id
+    new_video = _get_asset_detail(admin_client, new_video_id)
+    assert new_video["visibility"] == "hidden"
+    assert not new_video["isTrashed"]
+    new_bytes = _api(admin_client, "GET", f"assets/{new_video_id}/original").content
+    assert 0 < len(new_bytes) < old_size
+    clip = tmp_path / "converted.mp4"
+    clip.write_bytes(new_bytes)
+    codec = subprocess.run(
+        ["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries",
+         "stream=codec_name", "-of", "csv=p=0", str(clip)],
+        capture_output=True, text=True, check=True,
+    )  # fmt: skip
+    assert codec.stdout.strip() == "av1"
 
 
 async def test_live_photo_video_is_not_offered_for_conversion(

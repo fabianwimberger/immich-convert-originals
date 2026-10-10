@@ -589,6 +589,23 @@ class TestCopyAssetData:
         }
 
     @responses.activate
+    def test_given_live_photo_video_replaces_the_source_one(self, client):
+        responses.add(
+            responses.GET,
+            "https://example.com/api/assets/src",
+            json={"id": "src", "livePhotoVideoId": "video-1"},
+        )
+        responses.add(responses.PUT, "https://example.com/api/assets/dst", json={})
+        responses.add(responses.PUT, "https://example.com/api/assets/copy", status=204)
+
+        result = client.copy_asset_data("src", "dst", live_photo_video_id="video-2")
+
+        assert result == (True, None)
+        assert json.loads(responses.calls[1].request.body) == {
+            "livePhotoVideoId": "video-2"
+        }
+
+    @responses.activate
     def test_live_photo_link_failure_is_reported(self, client):
         responses.add(
             responses.GET,
