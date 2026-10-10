@@ -817,6 +817,47 @@ class TestMotionPhotoTags:
         with patch("app.services.transcode.subprocess.run", side_effect=error):
             assert strip_motion_photo_tags("photo.jpg", []) == "exiftool failed: boom"
 
+    def test_strip_reports_timeout_and_missing_exiftool(self):
+        timeout = subprocess.TimeoutExpired("exiftool", 120)
+        with patch("app.services.transcode.subprocess.run", side_effect=timeout):
+            assert "timed out" in strip_motion_photo_tags("photo.jpg", [])
+        with patch(
+            "app.services.transcode.subprocess.run", side_effect=FileNotFoundError
+        ):
+            assert strip_motion_photo_tags("photo.jpg", []) == "exiftool not found"
+
+    def test_tag_check_timeout_raises(self):
+        timeout = subprocess.TimeoutExpired("exiftool", 120)
+        with patch("app.services.transcode.subprocess.run", side_effect=timeout):
+            with pytest.raises(RuntimeError, match="timed out"):
+                has_motion_photo_tags("photo.jpg")
+
+    @pytest.mark.parametrize(
+        ("failure", "message"),
+        [
+            (subprocess.TimeoutExpired("exiftool", 120), "timed out"),
+            (subprocess.CalledProcessError(1, "exiftool"), "exiftool failed"),
+            (FakeCompletedProcess(stdout=b"not json"), "exiftool failed"),
+        ],
+    )
+    def test_unreadable_layout_fails_the_transcode(self, tmp_path, failure, message):
+        input_path = tmp_path / "input.jpg"
+        input_path.write_bytes(b"\xff\xd8\xff" + b"\x00" * 29)
+        side_effect = failure if isinstance(failure, Exception) else None
+
+        with patch(
+            "app.services.transcode.subprocess.run",
+            side_effect=side_effect,
+            return_value=failure,
+        ):
+            result = transcode(
+                str(input_path), str(tmp_path / "o.jxl"), "jxl", 1.0, motion_photo=True
+            )
+
+        assert result.success is False
+        assert message in result.error
+        assert os.listdir(tmp_path) == ["input.jpg"]
+
     def _transcode_motion_photo(self, tmp_path, tags, tags_left=b""):
         """Runs transcode() on a 32-byte fake JPEG with the tools faked.
         Returns the result and what each tool was handed."""

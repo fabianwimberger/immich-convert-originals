@@ -602,6 +602,23 @@ class TestCopyAssetData:
         assert error == "Live photo link failed: HTTP 400"
 
     @responses.activate
+    def test_live_photo_link_network_error_is_reported(self, client):
+        responses.add(
+            responses.GET,
+            "https://example.com/api/assets/src",
+            json={"id": "src", "livePhotoVideoId": "video-1"},
+        )
+        responses.add(
+            responses.PUT,
+            "https://example.com/api/assets/dst",
+            body=requests.ConnectionError("down"),
+        )
+
+        success, error = client.copy_asset_data("src", "dst")
+        assert success is False
+        assert error.startswith("Live photo link failed: ")
+
+    @responses.activate
     def test_rating_zero_sent_as_null(self, client):
         responses.add(
             responses.GET,
