@@ -89,6 +89,11 @@ const SETTINGS_FIELDS = {
     default: "64k",
     example: "e.g. 96k, 128k",
   },
+  convert_live_photo_videos: {
+    description:
+      "Off keeps the video of a live or motion photo exactly as it is when its still is converted. On re-encodes it to AV1 with the settings above, which is lossy, and keeps the original video only if the result isn't smaller.",
+    default: "off",
+  },
   enable_retry: {
     description:
       "If a converted file comes out larger than the original, automatically retry once with more compression instead of keeping the larger file.",

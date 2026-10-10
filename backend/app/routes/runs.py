@@ -84,6 +84,9 @@ async def _build_config_snapshot(data: RunCreate, db: AsyncSession) -> dict[str,
             data.video_audio_bitrate, settings.video_audio_bitrate
         ),
         "video_crf_retry": _pick(data.video_crf_retry, settings.video_crf_retry),
+        "convert_live_photo_videos": _pick(
+            data.convert_live_photo_videos, settings.convert_live_photo_videos
+        ),
         "enable_retry": _pick(data.enable_retry, settings.enable_retry),
         "accept_retry_output": _pick(
             data.accept_retry_output, settings.accept_retry_output

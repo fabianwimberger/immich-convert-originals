@@ -50,6 +50,9 @@ class Settings(Base):
     video_max_dimension: Mapped[int] = mapped_column(default=0)
     video_audio_bitrate: Mapped[str] = mapped_column(default="64k")
     video_crf_retry: Mapped[int] = mapped_column(default=40)
+    # A live photo's video is otherwise kept as it is: re-encoding it is
+    # lossy while its still may be a lossless repack, so it's opt-in.
+    convert_live_photo_videos: Mapped[bool] = mapped_column(default=False)
 
     enable_retry: Mapped[bool] = mapped_column(default=True)
     accept_retry_output: Mapped[bool] = mapped_column(default=False)
