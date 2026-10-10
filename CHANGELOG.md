@@ -11,7 +11,7 @@ Keeps live and motion photos intact when their still is converted, and converts 
 
 ### Features
 
-- Live and motion photos are supported: the converted still stays linked to its video, and the video is left untouched. This covers stills with a separate video (iPhone) and motion photos with an embedded video (Google Pixel, Samsung, OnePlus).
+- Live and motion photos are supported: the converted still stays linked to its video, and the video is kept as it is by default. This covers stills with a separate video (iPhone) and motion photos with an embedded video (Google Pixel, Samsung, OnePlus).
 - Motion photos are stored as the still alone, with the embedded video cut off before conversion. JPEG → JXL remains a bit-exact repack of the still, including an Ultra HDR gain map.
 - Add a **Convert live photo videos** setting (Settings → Videos, off by default). When on, the video of a live or motion photo is re-encoded to AV1 with the video settings and replaces the old one, which Immich removes together with the original still. The existing video is kept if it is already AV1 or the result is not smaller.
 - Local output mode saves a live photo's video next to the converted still.
@@ -28,7 +28,8 @@ Keeps live and motion photos intact when their still is converted, and converts 
 
 ### Testing
 
-- Verified against Immich v3.0.3 and v3.3.1 with sample files from OnePlus 12, Google Pixel 6 to 8a, Samsung (JPEG and HEIC), and iPhone (HEIC and JPEG with MOV), for JXL, HEIC, and AVIF targets.
+- Verified against Immich v3.0.3 with sample files from OnePlus 12, Google Pixel 6 to 8a, Samsung (JPEG and HEIC), and iPhone (HEIC and JPEG with MOV), for JXL, HEIC, and AVIF targets.
+- Integration tests and the OnePlus 12 sample, including video conversion, also pass against Immich v3.3.1.
 
 ### Dependencies
 
