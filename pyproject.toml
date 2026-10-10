@@ -8,7 +8,7 @@ version = "2.5.2"
 requires-python = ">=3.13"
 dependencies = [
     "fastapi==0.142.2",
-    "uvicorn[standard]==0.53.0",
+    "uvicorn[standard]==0.54.0",
     "sqlalchemy[asyncio]==2.1.2",
     "aiosqlite==0.22.1",
     "websockets==17.1",
