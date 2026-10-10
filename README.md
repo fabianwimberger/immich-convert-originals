@@ -15,7 +15,7 @@ Browse your library, pick what to convert, and watch live progress in the browse
 
 ## Background
 
-JPEG XL shrinks photos by 20-40% and AV1 shrinks videos by 30-50% with no visible quality loss. On a multi-TB Immich library that adds up fast. Connect once, browse your library with real thumbnails, and start a run with a click. Dry-run is always available before you commit to anything.
+JPEG XL shrinks photos by 20-40% and AV1 shrinks videos by 30-50% with no visible quality loss. On a multi-TB Immich library that adds up fast.
 
 | Desktop | Mobile |
 |---------|--------|
@@ -23,81 +23,54 @@ JPEG XL shrinks photos by 20-40% and AV1 shrinks videos by 30-50% with no visibl
 
 ## Features
 
-- **Asset browser** — filter by type, album, archived/deleted state; real Immich thumbnails proxied through the backend (your API key never reaches the browser)
-- **Flexible run scoping** — whole library, one album, a date range, or an explicit selection from Browse
-- **Image conversion** — JPEG, PNG, WebP, HEIC, AVIF, TIFF, GIF, BMP → JPEG XL, HEIC, or AVIF; JPEG sources get a lossless bit-exact repack only when targeting JXL; exclude specific input formats from a run entirely
+- **Asset browser** — filter by type, album, archived/deleted state; thumbnails are proxied through the backend, so the API key never reaches the browser
+- **Run scoping** — whole library, one album, a date range, or a selection from Browse
+- **Image conversion** — JPEG, PNG, WebP, HEIC, AVIF, TIFF, GIF, BMP → JPEG XL, HEIC, or AVIF; JPEG → JXL is a lossless bit-exact repack; input formats can be excluded from a run
 - **Video conversion** — MP4, MOV, MKV → AV1 (MP4)
-- **Local-only mode** — write converted files to disk under `<year>/<month>` folders instead of uploading, with an option to keep the original alongside; Immich is never touched either way
-- **Metadata preservation** — EXIF, GPS, favorite state, rating, and albums copied to the replacement asset
-- **Live & motion photos** — the still is converted and stays linked to its video, which is left untouched; motion photos with an embedded video (Google, Samsung, OnePlus) are stored as the still alone, with the video cut off before the repack; optionally the video itself is re-encoded to AV1 (off by default, lossy); local-only mode saves the video next to the still
-- **Smart retry & resumable** — retries with more compression if output is larger than the original; a filtered run automatically skips assets a previous run already converted
-- **Run history** — every run and its per-asset outcomes are kept; retry just the failures or export a failure CSV
-- **Live progress & dry-run** — WebSocket-driven progress while a run is in flight; preview what a run would do before committing to it
-- **Settings in the UI** — connection, formats, quality, output mode, and retry/safety behavior all live on the Settings page, no restart or `.env` file required
-
-<p align="center">
-  <img src="assets/screenshot-desktop-convert.png" width="70%" alt="Starting a run scoped to an album">
-  <br><em>Start a run against the whole library, one album, a date range, or a Browse selection</em>
-  <br><br>
-  <img src="assets/screenshot-desktop-settings.png" width="70%" alt="Settings: target format and output mode">
-  <br><em>Pick your output format and quality, or switch to local-only conversion</em>
-  <br><br>
-  <img src="assets/screenshot-desktop-history.png" width="70%" alt="Run history">
-  <br><em>Run history with per-run savings; drill in for per-asset outcomes and retry-failed</em>
-</p>
+- **Local-only mode** — writes to `<year>/<month>` folders on disk instead of uploading, optionally keeping the original alongside; Immich is never touched
+- **Metadata preservation** — EXIF, GPS, favorite state, rating, and albums are copied to the replacement asset
+- **Live and motion photos** — the still is converted and stays linked to its video; motion photos with an embedded video (Google, Samsung, OnePlus) are stored as the still alone; re-encoding the video to AV1 is optional and off by default; local-only mode saves the video next to the still
+- **Retry and resume** — retries with more compression if the output is larger than the original; a later run skips assets already converted
+- **Run history** — per-asset outcomes for every run; retry only the failures or export them as CSV
+- **Dry-run and live progress** — preview what a run would do; progress arrives over WebSocket
+- **Settings in the UI** — connection, formats, quality, output mode, and retry behavior; no restart or `.env` file
 
 ## Quick Start
 
+Open `http://localhost:8000` afterwards and enter the Immich URL and API key on the Settings page. The URL must include the `/api` suffix, e.g. `https://photos.example.com/api`.
+
 ### Option 1: Prebuilt Docker Image (Recommended)
 
-Multi-arch image (`linux/amd64`, `linux/arm64`) — Docker pulls the right one automatically.
+Multi-arch image (`linux/amd64`, `linux/arm64`).
 
 ```bash
-# Create a directory for your configuration
-mkdir immich-converter && cd immich-converter
-
-# Create the host-side data directory before the first run. Docker
-# auto-creates missing bind-mount sources as root, which the container
-# (running as uid 1000) cannot write to. Pre-creating it avoids that.
-mkdir -p data
-
+mkdir -p immich-converter/data && cd immich-converter
 docker run -d \
   --name immich-library-converter \
   --restart unless-stopped \
   -p 8000:8000 \
   -v ./data:/app/data \
   ghcr.io/fabianwimberger/immich-convert-originals:latest
-
-# Open http://localhost:8000, set your Immich URL/API key on the
-# Settings page, and start browsing. The URL must include the /api
-# suffix, e.g. https://photos.example.com/api.
 ```
+
+Create `data/` yourself as shown: Docker creates a missing bind-mount source as root, and the container runs as uid 1000.
 
 ### Option 2: Docker Compose (Build Locally)
 
 ```bash
 git clone https://github.com/fabianwimberger/immich-convert-originals.git
 cd immich-convert-originals
-
-# Create the host-side data directory before the first run (see Option 1 for why)
 mkdir -p data
-
 docker compose up -d
-# Open http://localhost:8000, then set your Immich URL/API key on the Settings
-# page. The URL must include the /api suffix, e.g. https://photos.example.com/api.
 ```
 
 ### Option 3: Local Development
 
-```bash
-git clone https://github.com/fabianwimberger/immich-convert-originals.git
-cd immich-convert-originals
+Needs `ffmpeg`, ImageMagick with the JXL and HEIC/AVIF delegates, `libjxl-tools`, and `exiftool` on the host.
 
+```bash
 python -m venv .venv
 .venv/bin/python -m pip install -e '.[dev]'
-
-# ffmpeg, ImageMagick (with JXL and HEIC/AVIF delegates), libjxl-tools, and
-# exiftool must be installed on the host for local (non-Docker) runs.
 
 FRONTEND_DIR=./frontend \
 DATABASE_PATH=./data/app.db \
@@ -124,14 +97,9 @@ flowchart LR
     L -.->|live progress| J
 ```
 
-Each step is verified:
-1. **Download** original to a temporary per-run directory
-2. **Transcode** based on asset type and configured target format (skip if already in the target format)
-3. **Validate** output format and integrity; retry with more compression if the output is larger than the input
-4. **Upload** new asset to Immich — or, in local output mode, write it to `<local output dir>/<year>/<month>/` instead; either way the original isn't touched until step 7
-5. **Copy metadata** (EXIF, GPS, favorite state, rating, and albums) — upload mode only
-6. **Verify** new asset is accessible — upload mode only
-7. **Delete** original (goes to Immich's trash, recoverable for 30 days) — upload mode only; never happens in local mode
+Each asset is downloaded to a per-run temporary directory, transcoded (skipped if it is already in the target format), and validated; an output larger than the input is retried with more compression.
+
+In upload mode the new asset is uploaded, its metadata is copied, and the upload is verified. Only then is the original deleted, which moves it to Immich's trash for 30 days. In local mode the file is written to `<local output dir>/<year>/<month>/` and nothing in Immich changes.
 
 If any step fails, the new asset is cleaned up and the original is preserved. The outcome is recorded either way, so a failed run shows up in History with the exact error.
 
