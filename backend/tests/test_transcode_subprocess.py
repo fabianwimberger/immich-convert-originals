@@ -858,6 +858,26 @@ class TestMotionPhotoTags:
         assert message in result.error
         assert os.listdir(tmp_path) == ["input.jpg"]
 
+    def test_strip_failure_fails_the_transcode_before_encoding(self, tmp_path):
+        input_path = tmp_path / "input.jpg"
+        input_path.write_bytes(b"\xff\xd8\xff" + b"\x00" * 29)
+        commands = []
+
+        def fake_run(cmd, **kwargs):
+            commands.append(cmd[0])
+            if "-overwrite_original" in cmd:
+                raise subprocess.CalledProcessError(1, "exiftool", stderr=b"boom")
+            return FakeCompletedProcess(stdout=b"[{}]")
+
+        with patch("app.services.transcode.subprocess.run", side_effect=fake_run):
+            result = transcode(
+                str(input_path), str(tmp_path / "o.jxl"), "jxl", 1.0, motion_photo=True
+            )
+
+        assert result.success is False
+        assert result.error == "exiftool failed: boom"
+        assert "cjxl" not in commands
+
     def _transcode_motion_photo(self, tmp_path, tags, tags_left=b""):
         """Runs transcode() on a 32-byte fake JPEG with the tools faked.
         Returns the result and what each tool was handed."""
