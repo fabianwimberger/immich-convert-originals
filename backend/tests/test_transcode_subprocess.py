@@ -1042,6 +1042,28 @@ class TestCopyMetadata:
 
         assert mock_run.call_args[1]["timeout"] == 13
 
+    @pytest.mark.parametrize(
+        ("magic", "dropped"),
+        [
+            (b"\x00\x00\x00\x18ftypheic", True),
+            (b"\x00\x00\x00\x18ftypavif", True),
+            (b"\x89PNG\r\n\x1a\n", False),
+        ],
+    )
+    def test_orientation_is_dropped_for_sources_decoded_upright(
+        self, tmp_path, magic, dropped
+    ):
+        src = tmp_path / "src.bin"
+        src.write_bytes(magic + b"\x00" * 32)
+
+        with patch("app.services.transcode.subprocess.run") as mock_run:
+            mock_run.return_value = FakeCompletedProcess(returncode=0)
+            transcode(str(src), str(tmp_path / "out.jxl"), "jxl", 1.0)
+
+        exiftool_cmd = mock_run.call_args_list[-1][0][0]
+        assert exiftool_cmd[0] == "exiftool"
+        assert ("-Orientation=" in exiftool_cmd) is dropped
+
 
 class TestValidateVideoOutput:
     def test_valid_video(self, tmp_path):

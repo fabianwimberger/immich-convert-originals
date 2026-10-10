@@ -214,7 +214,10 @@ def validate_output(path: str, expected_format: str) -> bool:
 
 
 def copy_metadata(
-    source_path: str, dest_path: str, timeouts: Timeouts = DEFAULT_TIMEOUTS
+    source_path: str,
+    dest_path: str,
+    timeouts: Timeouts = DEFAULT_TIMEOUTS,
+    drop_orientation: bool = False,
 ) -> tuple[bool, str | None]:
     """Copy EXIF/XMP metadata from source to dest using exiftool.
 
@@ -227,6 +230,11 @@ def copy_metadata(
     somewhere to hold the EXIF/XMP boxes being written -- exactly what we
     want here, but exiftool refuses to do it unless told the restructuring
     is acceptable.
+
+    drop_orientation leaves the Orientation tag out, for a destination whose
+    pixels were already rotated while decoding the source: with the tag kept,
+    readers that trust it turn the image a second time or swap its width and
+    height.
     """
     try:
         subprocess.run(
@@ -237,6 +245,7 @@ def copy_metadata(
                 "-all=",
                 "-tagsFromFile",
                 source_path,
+                *(["-Orientation="] if drop_orientation else []),
                 dest_path,
             ],
             capture_output=True,
@@ -417,8 +426,14 @@ def _transcode_with_magick(
         cmd = [magick_cmd, input_path, *quality_args, output_path]
         try:
             subprocess.run(cmd, check=True, capture_output=True, timeout=timeouts.image)
+            # HEIC and AVIF store rotation as a transform that the decoder
+            # applies, so the output is upright. Other sources keep their
+            # pixels as stored and ImageMagick carries the orientation over.
             metadata_ok, metadata_error = copy_metadata(
-                input_path, output_path, timeouts=timeouts
+                input_path,
+                output_path,
+                timeouts=timeouts,
+                drop_orientation=input_format in ("heic", "avif"),
             )
             if not metadata_ok:
                 return TranscodeResult(
