@@ -464,6 +464,71 @@ class TestUploadAsset:
         assert asset_id == "new-asset-1"
         assert error is None
 
+    def _upload_duplicate(self, client, tmp_path, existing, restore_status=200):
+        responses.add(
+            responses.POST,
+            "https://example.com/api/assets",
+            json={"id": "old-1", "status": "duplicate"},
+            status=200,
+        )
+        responses.add(responses.GET, "https://example.com/api/assets/old-1", **existing)
+        responses.add(
+            responses.POST,
+            "https://example.com/api/trash/restore/assets",
+            json={"count": 1},
+            status=restore_status,
+        )
+        file_path = tmp_path / "upload.bin"
+        file_path.write_bytes(b"data")
+        return client.upload_asset(
+            file_path=str(file_path),
+            file_created_at="2023-01-01T00:00:00Z",
+            file_modified_at="2023-01-01T00:00:00Z",
+        )
+
+    @responses.activate
+    def test_trashed_duplicate_is_restored_before_use(self, client, tmp_path):
+        result = self._upload_duplicate(
+            client, tmp_path, {"json": {"id": "old-1", "isTrashed": True}}
+        )
+
+        assert result == ("old-1", None)
+        assert json.loads(responses.calls[2].request.body) == {"ids": ["old-1"]}
+
+    @responses.activate
+    def test_live_duplicate_is_used_as_is(self, client, tmp_path):
+        result = self._upload_duplicate(
+            client, tmp_path, {"json": {"id": "old-1", "isTrashed": False}}
+        )
+
+        assert result == ("old-1", None)
+        assert len(responses.calls) == 2
+
+    @responses.activate
+    def test_trashed_duplicate_that_cannot_be_restored_fails(self, client, tmp_path):
+        result = self._upload_duplicate(
+            client,
+            tmp_path,
+            {"json": {"id": "old-1", "isTrashed": True}},
+            restore_status=400,
+        )
+
+        assert result == (None, "Restore from trash failed: HTTP 400")
+
+    @responses.activate
+    def test_unreadable_duplicate_fails(self, client, tmp_path):
+        missing = self._upload_duplicate(client, tmp_path, {"status": 404})
+        assert missing == (None, "Duplicate asset check failed: HTTP 404")
+
+    @responses.activate
+    def test_unreachable_duplicate_fails(self, client, tmp_path):
+        result = self._upload_duplicate(
+            client, tmp_path, {"body": requests.ConnectionError("down")}
+        )
+
+        assert result[0] is None
+        assert result[1].startswith("Duplicate asset check failed: ")
+
     def test_uses_upload_timeout_not_default_timeout(self, tmp_path):
         client = ImmichClient(
             api_base="https://example.com/api/",

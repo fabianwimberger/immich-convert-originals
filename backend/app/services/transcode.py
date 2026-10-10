@@ -738,6 +738,13 @@ def transcode_video(
         "-y",
         "-i",
         input_path,
+        # Encode the stream the probes above looked at. Left to itself ffmpeg
+        # picks the largest video stream, which in a Pixel motion photo is a
+        # second, frameless one that the encoder rejects.
+        "-map",
+        "0:v:0",
+        "-map",
+        "0:a:0?",
         "-c:v",
         "libsvtav1",
         "-crf",

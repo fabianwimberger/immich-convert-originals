@@ -276,7 +276,9 @@ def _convert_live_photo_video(
         )
         if not tx.success or not validate_video_output(output_path):
             if not (tx.error or "").startswith("Already "):
-                logger.warning("Keeping live photo video %s: %s", video.id, tx.error)
+                logger.warning(
+                    "Keeping live photo video %s: %s", video.id, (tx.error or "")[-300:]
+                )
             return None
         if tx.output_bytes < input_bytes:
             return _ConvertedVideo(video, input_bytes, tx.output_bytes)
