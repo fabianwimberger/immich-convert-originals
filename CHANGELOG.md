@@ -5,6 +5,19 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.6.1] - 2026-10-10
+
+Stops rotated HEIC and AVIF photos from carrying a stale orientation tag after conversion.
+
+### Fixes
+
+- A rotated HEIC or AVIF converted to JPEG XL, AVIF, or HEIC no longer keeps its EXIF `Orientation` tag. The converted pixels are already upright, so viewers that trust the tag rotated the photo a second time or swapped its width and height. JPEG sources are unchanged.
+
+### Documentation & Links
+
+- [README](https://github.com/fabianwimberger/immich-convert-originals#readme)
+- [Full changelog](https://github.com/fabianwimberger/immich-convert-originals/compare/v2.6.0...v2.6.1)
+
 ## [v2.6.0] - 2026-10-10
 
 Keeps live and motion photos intact when their still is converted, and converts assets from Immich external libraries, which previously failed at download.
