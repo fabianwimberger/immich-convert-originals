@@ -73,6 +73,8 @@ def _make_asset(
     created_at: str = "2023-01-01T00:00:00Z",
     owner_id: str | None = None,
     library_id: str | None = None,
+    visibility: str | None = None,
+    live_photo_video_id: str | None = None,
 ) -> Asset:
     return Asset(
         id=asset_id,
@@ -84,7 +86,16 @@ def _make_asset(
         file_modified_at=created_at,
         owner_id=owner_id,
         library_id=library_id,
+        visibility=visibility,
+        live_photo_video_id=live_photo_video_id,
     )
+
+
+@pytest.fixture(autouse=True)
+def no_motion_photo_tags(monkeypatch):
+    """The fake downloads aren't real images, so exiftool has nothing to
+    read. Tests about motion photos override this."""
+    monkeypatch.setattr(run_service, "has_motion_photo_tags", lambda path: False)
 
 
 BASE_CFG = {
@@ -189,13 +200,15 @@ class TestProcessAssetSyncImages:
         monkeypatch.setattr(
             run_service,
             "transcode",
-            lambda inp, out, fmt, distance, jxl_effort=7: TranscodeResult(
-                success=True,
-                input_path=inp,
-                output_path=out,
-                input_bytes=1000,
-                output_bytes=500,
-                input_format="heic",
+            lambda inp, out, fmt, distance, jxl_effort=7, motion_photo=False: (
+                TranscodeResult(
+                    success=True,
+                    input_path=inp,
+                    output_path=out,
+                    input_bytes=1000,
+                    output_bytes=500,
+                    input_format="heic",
+                )
             ),
         )
         monkeypatch.setattr(run_service, "validate_output", lambda path, fmt: True)
@@ -209,7 +222,7 @@ class TestProcessAssetSyncImages:
         cfg = {**BASE_CFG, "image_target_format": "avif", "dry_run": True}
         captured = {}
 
-        def fake_transcode(inp, out, fmt, quality, jxl_effort=7):
+        def fake_transcode(inp, out, fmt, quality, jxl_effort=7, motion_photo=False):
             captured["fmt"] = fmt
             captured["quality"] = quality
             captured["out"] = out
@@ -238,7 +251,7 @@ class TestProcessAssetSyncImages:
         cfg = {**BASE_CFG, "image_jxl_effort": 9, "dry_run": True}
         captured = {}
 
-        def fake_transcode(inp, out, fmt, quality, jxl_effort=7):
+        def fake_transcode(inp, out, fmt, quality, jxl_effort=7, motion_photo=False):
             captured["jxl_effort"] = jxl_effort
             return TranscodeResult(
                 success=True,
@@ -266,7 +279,7 @@ class TestProcessAssetSyncImages:
         cfg["dry_run"] = True
         captured = {}
 
-        def fake_transcode(inp, out, fmt, quality, jxl_effort=7):
+        def fake_transcode(inp, out, fmt, quality, jxl_effort=7, motion_photo=False):
             captured["jxl_effort"] = jxl_effort
             return TranscodeResult(
                 success=True,
@@ -304,13 +317,15 @@ class TestProcessAssetSyncImages:
         monkeypatch.setattr(
             run_service,
             "transcode",
-            lambda inp, out, fmt, distance, jxl_effort=7: TranscodeResult(
-                success=True,
-                input_path=inp,
-                output_path=out,
-                input_bytes=1000,
-                output_bytes=500,
-                input_format="jpg",
+            lambda inp, out, fmt, distance, jxl_effort=7, motion_photo=False: (
+                TranscodeResult(
+                    success=True,
+                    input_path=inp,
+                    output_path=out,
+                    input_bytes=1000,
+                    output_bytes=500,
+                    input_format="jpg",
+                )
             ),
         )
         monkeypatch.setattr(run_service, "validate_output", lambda path, fmt: True)
@@ -335,13 +350,15 @@ class TestProcessAssetSyncImages:
         monkeypatch.setattr(
             run_service,
             "transcode",
-            lambda inp, out, fmt, distance, jxl_effort=7: TranscodeResult(
-                success=True,
-                input_path=inp,
-                output_path=out,
-                input_bytes=1000,
-                output_bytes=500,
-                input_format="jpg",
+            lambda inp, out, fmt, distance, jxl_effort=7, motion_photo=False: (
+                TranscodeResult(
+                    success=True,
+                    input_path=inp,
+                    output_path=out,
+                    input_bytes=1000,
+                    output_bytes=500,
+                    input_format="jpg",
+                )
             ),
         )
         monkeypatch.setattr(run_service, "validate_output", lambda path, fmt: True)
@@ -356,7 +373,7 @@ class TestProcessAssetSyncImages:
         client = FakeClient()
         calls = []
 
-        def fake_transcode(inp, out, fmt, distance, jxl_effort=7):
+        def fake_transcode(inp, out, fmt, distance, jxl_effort=7, motion_photo=False):
             calls.append(distance)
             output = 1500 if len(calls) == 1 else 400
             return TranscodeResult(
@@ -381,13 +398,15 @@ class TestProcessAssetSyncImages:
         monkeypatch.setattr(
             run_service,
             "transcode",
-            lambda inp, out, fmt, distance, jxl_effort=7: TranscodeResult(
-                success=True,
-                input_path=inp,
-                output_path=out,
-                input_bytes=1000,
-                output_bytes=1500,
-                input_format="jpg",
+            lambda inp, out, fmt, distance, jxl_effort=7, motion_photo=False: (
+                TranscodeResult(
+                    success=True,
+                    input_path=inp,
+                    output_path=out,
+                    input_bytes=1000,
+                    output_bytes=1500,
+                    input_format="jpg",
+                )
             ),
         )
         monkeypatch.setattr(run_service, "validate_output", lambda path, fmt: True)
@@ -401,13 +420,15 @@ class TestProcessAssetSyncImages:
         monkeypatch.setattr(
             run_service,
             "transcode",
-            lambda inp, out, fmt, distance, jxl_effort=7: TranscodeResult(
-                success=True,
-                input_path=inp,
-                output_path=out,
-                input_bytes=1000,
-                output_bytes=500,
-                input_format="jpg",
+            lambda inp, out, fmt, distance, jxl_effort=7, motion_photo=False: (
+                TranscodeResult(
+                    success=True,
+                    input_path=inp,
+                    output_path=out,
+                    input_bytes=1000,
+                    output_bytes=500,
+                    input_format="jpg",
+                )
             ),
         )
         monkeypatch.setattr(run_service, "validate_output", lambda path, fmt: True)
@@ -421,13 +442,15 @@ class TestProcessAssetSyncImages:
         monkeypatch.setattr(
             run_service,
             "transcode",
-            lambda inp, out, fmt, distance, jxl_effort=7: TranscodeResult(
-                success=True,
-                input_path=inp,
-                output_path=out,
-                input_bytes=1000,
-                output_bytes=500,
-                input_format="jpg",
+            lambda inp, out, fmt, distance, jxl_effort=7, motion_photo=False: (
+                TranscodeResult(
+                    success=True,
+                    input_path=inp,
+                    output_path=out,
+                    input_bytes=1000,
+                    output_bytes=500,
+                    input_format="jpg",
+                )
             ),
         )
         monkeypatch.setattr(run_service, "validate_output", lambda path, fmt: True)
@@ -442,13 +465,15 @@ class TestProcessAssetSyncImages:
         monkeypatch.setattr(
             run_service,
             "transcode",
-            lambda inp, out, fmt, distance, jxl_effort=7: TranscodeResult(
-                success=True,
-                input_path=inp,
-                output_path=out,
-                input_bytes=1000,
-                output_bytes=500,
-                input_format="jpg",
+            lambda inp, out, fmt, distance, jxl_effort=7, motion_photo=False: (
+                TranscodeResult(
+                    success=True,
+                    input_path=inp,
+                    output_path=out,
+                    input_bytes=1000,
+                    output_bytes=500,
+                    input_format="jpg",
+                )
             ),
         )
         monkeypatch.setattr(run_service, "validate_output", lambda path, fmt: True)
@@ -463,13 +488,15 @@ class TestProcessAssetSyncImages:
         monkeypatch.setattr(
             run_service,
             "transcode",
-            lambda inp, out, fmt, distance, jxl_effort=7: TranscodeResult(
-                success=True,
-                input_path=inp,
-                output_path=out,
-                input_bytes=1000,
-                output_bytes=500,
-                input_format="jpg",
+            lambda inp, out, fmt, distance, jxl_effort=7, motion_photo=False: (
+                TranscodeResult(
+                    success=True,
+                    input_path=inp,
+                    output_path=out,
+                    input_bytes=1000,
+                    output_bytes=500,
+                    input_format="jpg",
+                )
             ),
         )
         monkeypatch.setattr(run_service, "validate_output", lambda path, fmt: True)
@@ -483,14 +510,16 @@ class TestProcessAssetSyncImages:
         monkeypatch.setattr(
             run_service,
             "transcode",
-            lambda inp, out, fmt, distance, jxl_effort=7: TranscodeResult(
-                success=False,
-                input_path=inp,
-                output_path=out,
-                input_bytes=1000,
-                output_bytes=0,
-                input_format="jpg",
-                error="bad input",
+            lambda inp, out, fmt, distance, jxl_effort=7, motion_photo=False: (
+                TranscodeResult(
+                    success=False,
+                    input_path=inp,
+                    output_path=out,
+                    input_bytes=1000,
+                    output_bytes=0,
+                    input_format="jpg",
+                    error="bad input",
+                )
             ),
         )
         result = run_service._process_asset_sync(asset, client, BASE_CFG, str(tmp_path))
@@ -503,13 +532,15 @@ class TestProcessAssetSyncImages:
         monkeypatch.setattr(
             run_service,
             "transcode",
-            lambda inp, out, fmt, distance, jxl_effort=7: TranscodeResult(
-                success=True,
-                input_path=inp,
-                output_path=out,
-                input_bytes=1000,
-                output_bytes=500,
-                input_format="jpg",
+            lambda inp, out, fmt, distance, jxl_effort=7, motion_photo=False: (
+                TranscodeResult(
+                    success=True,
+                    input_path=inp,
+                    output_path=out,
+                    input_bytes=1000,
+                    output_bytes=500,
+                    input_format="jpg",
+                )
             ),
         )
         monkeypatch.setattr(run_service, "validate_output", lambda path, fmt: True)
@@ -522,13 +553,15 @@ class TestSkipNotOwned:
         monkeypatch.setattr(
             run_service,
             "transcode",
-            lambda inp, out, fmt, distance, jxl_effort=7: TranscodeResult(
-                success=True,
-                input_path=inp,
-                output_path=out,
-                input_bytes=1000,
-                output_bytes=500,
-                input_format="jpg",
+            lambda inp, out, fmt, distance, jxl_effort=7, motion_photo=False: (
+                TranscodeResult(
+                    success=True,
+                    input_path=inp,
+                    output_path=out,
+                    input_bytes=1000,
+                    output_bytes=500,
+                    input_format="jpg",
+                )
             ),
         )
         monkeypatch.setattr(run_service, "validate_output", lambda path, fmt: True)
@@ -611,7 +644,7 @@ class TestSkipNotOwned:
 
 class TestProcessAssetSyncLocalMode:
     def _patch_transcode(self, monkeypatch, input_format="jpg"):
-        def fake_transcode(inp, out, fmt, quality, jxl_effort=7):
+        def fake_transcode(inp, out, fmt, quality, jxl_effort=7, motion_photo=False):
             # shutil.move/copy2 in the local-save path need a real file --
             # unlike upload_asset (which just reads kwargs), this is the
             # first path that actually touches output_path on disk.
@@ -737,6 +770,142 @@ class TestProcessAssetSyncLocalMode:
         assert client.upload_calls == 0
 
 
+class TestProcessAssetSyncLivePhotos:
+    def _patch_transcode(self, monkeypatch, captured):
+        def fake_transcode(inp, out, fmt, distance, jxl_effort=7, motion_photo=False):
+            captured["motion_photo"] = motion_photo
+            with open(out, "wb") as f:
+                f.write(b"x" * 500)
+            return TranscodeResult(
+                success=True,
+                input_path=inp,
+                output_path=out,
+                input_bytes=1000,
+                output_bytes=500,
+                input_format="jpg",
+            )
+
+        monkeypatch.setattr(run_service, "transcode", fake_transcode)
+        monkeypatch.setattr(run_service, "validate_output", lambda path, fmt: True)
+
+    def test_motion_photo_is_converted_as_still_and_keeps_its_video(
+        self, tmp_path, monkeypatch
+    ):
+        asset = _make_asset(live_photo_video_id="video-1")
+        client = FakeClient(
+            by_id={"new-id": _make_asset("new-id", live_photo_video_id="video-1")}
+        )
+        captured: dict[str, Any] = {}
+        self._patch_transcode(monkeypatch, captured)
+        monkeypatch.setattr(run_service, "has_motion_photo_tags", lambda path: True)
+
+        result = run_service._process_asset_sync(asset, client, BASE_CFG, str(tmp_path))
+
+        assert result["status"] == "success"
+        assert captured["motion_photo"] is True
+        assert client.deleted_ids == ["a1"]
+
+    def test_live_photo_with_separate_video_is_not_treated_as_motion_photo(
+        self, tmp_path, monkeypatch
+    ):
+        asset = _make_asset(live_photo_video_id="video-1")
+        client = FakeClient(
+            by_id={"new-id": _make_asset("new-id", live_photo_video_id="video-1")}
+        )
+        captured: dict[str, Any] = {}
+        self._patch_transcode(monkeypatch, captured)
+
+        result = run_service._process_asset_sync(asset, client, BASE_CFG, str(tmp_path))
+
+        assert result["status"] == "success"
+        assert captured["motion_photo"] is False
+
+    def test_original_is_kept_when_new_asset_is_not_linked_to_the_video(
+        self, tmp_path, monkeypatch
+    ):
+        asset = _make_asset(live_photo_video_id="video-1")
+        client = FakeClient(
+            by_id={"new-id": _make_asset("new-id", live_photo_video_id="other")}
+        )
+        self._patch_transcode(monkeypatch, {})
+
+        result = run_service._process_asset_sync(asset, client, BASE_CFG, str(tmp_path))
+
+        assert result["status"] == "failed_verification"
+        assert client.deleted_ids == ["new-id"]
+
+    def test_motion_photo_without_extracted_video_is_skipped(
+        self, tmp_path, monkeypatch
+    ):
+        asset = _make_asset()
+        client = FakeClient()
+        self._patch_transcode(monkeypatch, {})
+        monkeypatch.setattr(run_service, "has_motion_photo_tags", lambda path: True)
+
+        result = run_service._process_asset_sync(asset, client, BASE_CFG, str(tmp_path))
+
+        assert result["status"] == "skipped"
+        assert "Motion photo" in result["error"]
+        assert client.upload_calls == 0
+        assert client.deleted_ids == []
+
+    def test_unreadable_tags_fail_the_asset_instead_of_assuming_a_still(
+        self, tmp_path, monkeypatch
+    ):
+        def broken(path):
+            raise RuntimeError("exiftool not found")
+
+        client = FakeClient()
+        self._patch_transcode(monkeypatch, {})
+        monkeypatch.setattr(run_service, "has_motion_photo_tags", broken)
+
+        result = run_service._process_asset_sync(
+            _make_asset(), client, BASE_CFG, str(tmp_path)
+        )
+
+        assert result["status"] == "failed_transcode"
+        assert result["error"] == "exiftool not found"
+        assert client.upload_calls == 0
+
+    def test_local_mode_saves_the_video_next_to_the_still(self, tmp_path, monkeypatch):
+        local_dir = tmp_path / "output"
+        work_dir = tmp_path / "work"
+        work_dir.mkdir()
+        asset = _make_asset(
+            file_name="IMG_1.heic",
+            mime_type="image/heic",
+            created_at="2023-06-15T00:00:00Z",
+            live_photo_video_id="video-1",
+        )
+        video = _make_asset("video-1", file_name="IMG_1.MOV", asset_type="VIDEO")
+        client = FakeClient(by_id={"video-1": video})
+        cfg = {**BASE_CFG, "output_mode": "local", "local_output_dir": str(local_dir)}
+        self._patch_transcode(monkeypatch, {})
+
+        result = run_service._process_asset_sync(asset, client, cfg, str(work_dir))
+
+        assert result["status"] == "saved_local"
+        assert (local_dir / "2023" / "06" / "IMG_1.jxl").exists()
+        assert (local_dir / "2023" / "06" / "IMG_1.MOV").exists()
+        assert client.deleted_ids == []
+
+    def test_local_mode_fails_when_the_video_is_gone(self, tmp_path, monkeypatch):
+        asset = _make_asset(live_photo_video_id="video-1")
+        cfg = {
+            **BASE_CFG,
+            "output_mode": "local",
+            "local_output_dir": str(tmp_path / "output"),
+        }
+        self._patch_transcode(monkeypatch, {})
+
+        result = run_service._process_asset_sync(
+            asset, FakeClient(), cfg, str(tmp_path)
+        )
+
+        assert result["status"] == "failed_download"
+        assert result["error"] == "Live photo video not found"
+
+
 class TestProcessAssetSyncVideos:
     def test_dry_run_video_previews_real_size_without_upload(
         self, tmp_path, monkeypatch
@@ -820,6 +989,34 @@ class TestResolveAssets:
         cfg = {**BASE_CFG, "asset_ids": ["a1", "a2", "missing"]}
         result = await run_service._resolve_assets(client, cfg)
         assert {a.id for a in result} == {"a1", "a2"}
+
+    async def test_live_photo_videos_are_left_out(self):
+        still = _make_asset("a1", live_photo_video_id="v1")
+        hidden = _make_asset("v1", asset_type="VIDEO", visibility="hidden")
+        clip = _make_asset("v2", asset_type="VIDEO", visibility="timeline")
+        client = FakeClient(
+            by_id={"a1": still, "v1": hidden},
+            search_pages={"VIDEO": [[hidden, clip], []]},
+        )
+
+        by_ids = await run_service._resolve_assets(
+            client, {**BASE_CFG, "asset_ids": ["a1", "v1"]}
+        )
+        assert [a.id for a in by_ids] == ["a1"]
+
+        searched = await run_service._resolve_assets(
+            client,
+            {
+                **BASE_CFG,
+                "asset_ids": None,
+                "asset_types": "VIDEO",
+                "album_id": None,
+                "include_archived": True,
+                "include_deleted": False,
+                "skip_done_filter": True,
+            },
+        )
+        assert [a.id for a in searched] == ["v2"]
 
     async def test_filter_based_search(self):
         a1 = _make_asset("a1")
@@ -907,13 +1104,15 @@ class TestExecuteRun:
         monkeypatch.setattr(
             run_service,
             "transcode",
-            lambda inp, out, fmt, distance, jxl_effort=7: TranscodeResult(
-                success=True,
-                input_path=inp,
-                output_path=out,
-                input_bytes=1000,
-                output_bytes=500,
-                input_format="jpg",
+            lambda inp, out, fmt, distance, jxl_effort=7, motion_photo=False: (
+                TranscodeResult(
+                    success=True,
+                    input_path=inp,
+                    output_path=out,
+                    input_bytes=1000,
+                    output_bytes=500,
+                    input_format="jpg",
+                )
             ),
         )
         monkeypatch.setattr(run_service, "validate_output", lambda path, fmt: True)
@@ -976,7 +1175,7 @@ class TestExecuteRun:
         monkeypatch.setattr(run_service, "ImmichClient", FakeClientFactory(client))
         monkeypatch.setattr(run_service, "validate_output", lambda path, fmt: True)
 
-        def flaky_transcode(inp, out, fmt, distance, jxl_effort=7):
+        def flaky_transcode(inp, out, fmt, distance, jxl_effort=7, motion_photo=False):
             if "boom-a1" in inp:
                 raise RuntimeError("disk exploded")
             return TranscodeResult(
@@ -1050,7 +1249,9 @@ class TestExecuteRun:
 
         run_id_holder: dict[str, int] = {}
 
-        def cancel_on_first_asset(inp, out, fmt, distance, jxl_effort=7):
+        def cancel_on_first_asset(
+            inp, out, fmt, distance, jxl_effort=7, motion_photo=False
+        ):
             if "cancel-a1" in inp:
                 run_service.request_cancel(run_id_holder["id"])
             return TranscodeResult(

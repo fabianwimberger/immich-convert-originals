@@ -75,7 +75,8 @@ async def list_assets(
         raise HTTPException(status_code=502, detail=str(e)) from e
 
     return AssetListResponse(
-        items=[_to_item(a) for a in page_assets],
+        # Hidden assets are live photo videos, which runs never convert.
+        items=[_to_item(a) for a in page_assets if a.visibility != "hidden"],
         page=page,
         size=size,
         has_more=has_more,

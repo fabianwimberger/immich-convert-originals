@@ -37,6 +37,23 @@ class TestAssetFromDict:
         assert asset.id == "asset-1"
         assert asset.original_file_name == "photo.jpg"
         assert asset.original_mime_type == "image/jpeg"
+        assert asset.visibility is None
+        assert asset.live_photo_video_id is None
+
+    def test_live_photo_fields(self):
+        data = {
+            "id": "asset-1",
+            "originalFileName": "photo.jpg",
+            "originalPath": "/uploads/photo.jpg",
+            "type": "IMAGE",
+            "fileCreatedAt": "2023-01-01T00:00:00Z",
+            "fileModifiedAt": "2023-01-01T00:00:00Z",
+            "visibility": "timeline",
+            "livePhotoVideoId": "video-1",
+        }
+        asset = Asset.from_dict(data)
+        assert asset.visibility == "timeline"
+        assert asset.live_photo_video_id == "video-1"
 
     def test_missing_optional_mime_type(self):
         data = {
@@ -555,6 +572,34 @@ class TestCopyAssetData:
             "sharedLinks": False,
             "sidecar": False,
         }
+
+    @responses.activate
+    def test_live_photo_video_is_linked_to_the_target(self, client):
+        responses.add(
+            responses.GET,
+            "https://example.com/api/assets/src",
+            json={"id": "src", "livePhotoVideoId": "video-1"},
+        )
+        responses.add(responses.PUT, "https://example.com/api/assets/dst", json={})
+        responses.add(responses.PUT, "https://example.com/api/assets/copy", status=204)
+
+        assert client.copy_asset_data("src", "dst") == (True, None)
+        assert json.loads(responses.calls[1].request.body) == {
+            "livePhotoVideoId": "video-1"
+        }
+
+    @responses.activate
+    def test_live_photo_link_failure_is_reported(self, client):
+        responses.add(
+            responses.GET,
+            "https://example.com/api/assets/src",
+            json={"id": "src", "livePhotoVideoId": "video-1"},
+        )
+        responses.add(responses.PUT, "https://example.com/api/assets/dst", status=400)
+
+        success, error = client.copy_asset_data("src", "dst")
+        assert success is False
+        assert error == "Live photo link failed: HTTP 400"
 
     @responses.activate
     def test_rating_zero_sent_as_null(self, client):

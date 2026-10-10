@@ -1,9 +1,12 @@
 """Transcoding pipeline for image (JPEG XL/HEIC/AVIF) and video conversion."""
 
+import json
 import logging
 import os
+import shutil
 import subprocess
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -250,6 +253,135 @@ def copy_metadata(
         return False, "exiftool not found"
 
 
+# What Immich's metadata extraction looks at to decide that an image carries
+# an embedded video (Google MicroVideo and MotionPhoto, Samsung trailer and
+# HEIC variants).
+_MOTION_PHOTO_READ_TAGS = (
+    "-MotionPhoto",
+    "-MicroVideo",
+    "-MotionPhotoVideo",
+    "-EmbeddedVideoFile",
+)
+
+
+def has_motion_photo_tags(path: str, timeouts: Timeouts = DEFAULT_TIMEOUTS) -> bool:
+    """Whether Immich would treat the file as a motion photo.
+
+    Raises RuntimeError if exiftool can't answer: guessing "no" for a file
+    that does embed a video is what loses the video.
+    """
+    try:
+        result = subprocess.run(
+            ["exiftool", "-m", "-s3", *_MOTION_PHOTO_READ_TAGS, path],
+            capture_output=True,
+            timeout=timeouts.metadata,
+        )
+    except subprocess.TimeoutExpired as e:
+        raise RuntimeError(f"exiftool timed out after {timeouts.metadata}s") from e
+    except FileNotFoundError as e:
+        raise RuntimeError("exiftool not found") from e
+    if result.returncode != 0:
+        stderr = result.stderr.decode(errors="replace")
+        raise RuntimeError(f"exiftool failed: {stderr}")
+    # Some cameras write MotionPhoto=0 on plain stills.
+    values = result.stdout.decode(errors="replace").split("\n")
+    return any(value.strip() not in ("", "0") for value in values)
+
+
+def _embedded_video(
+    path: str, timeouts: Timeouts = DEFAULT_TIMEOUTS
+) -> tuple[int, list[dict[str, Any]]]:
+    """Where a motion photo keeps its video, from the tags Immich locates it
+    by: its length in bytes, counted from the end of the file, and the
+    container directory without its entry. The length is 0 when the tags
+    don't say (Samsung trailer, HEIC video box).
+
+    Raises RuntimeError if exiftool can't answer.
+    """
+    try:
+        result = subprocess.run(
+            [
+                "exiftool",
+                "-m",
+                "-j",
+                "-struct",
+                "-MicroVideoOffset",
+                "-XMP-GContainer:ContainerDirectory",
+                path,
+            ],
+            capture_output=True,
+            check=True,
+            timeout=timeouts.metadata,
+        )
+        tags = json.loads(result.stdout)[0]
+    except subprocess.TimeoutExpired as e:
+        raise RuntimeError(f"exiftool timed out after {timeouts.metadata}s") from e
+    except (subprocess.CalledProcessError, ValueError, LookupError) as e:
+        raise RuntimeError(f"exiftool failed: {e}") from e
+    except FileNotFoundError as e:
+        raise RuntimeError("exiftool not found") from e
+
+    length = tags.get("MicroVideoOffset") or 0
+    directory = []
+    for entry in tags.get("ContainerDirectory") or []:
+        item = entry.get("Item") or {}
+        if item.get("Semantic") == "MotionPhoto":
+            length = (item.get("Length") or 0) + (item.get("Padding") or 0)
+        else:
+            directory.append(entry)
+    return int(length), directory
+
+
+def strip_motion_photo_tags(
+    path: str,
+    directory: list[dict[str, Any]],
+    timeouts: Timeouts = DEFAULT_TIMEOUTS,
+) -> str | None:
+    """Remove the tags announcing an embedded video and replace the container
+    directory with the given one. Returns an error message, or None on
+    success.
+
+    The directory can't simply go: on an Ultra HDR photo it also lists the
+    gain map.
+    """
+    directory_path = f"{path}.json"
+    if len(directory) > 1:
+        with open(directory_path, "w") as f:
+            json.dump(
+                [{"SourceFile": "*", "XMP-GContainer:ContainerDirectory": directory}],
+                f,
+            )
+        directory_args = [f"-json={directory_path}"]
+    else:
+        directory_args = ["-ContainerDirectory="]
+    try:
+        subprocess.run(
+            [
+                "exiftool",
+                "-m",
+                "-overwrite_original",
+                "-MotionPhoto*=",
+                "-MicroVideo*=",
+                *directory_args,
+                path,
+            ],
+            capture_output=True,
+            check=True,
+            timeout=timeouts.metadata,
+        )
+        return None
+    except subprocess.TimeoutExpired:
+        return f"exiftool timed out after {timeouts.metadata}s"
+    except subprocess.CalledProcessError as e:
+        stderr = e.stderr.decode(errors="replace") if e.stderr else ""
+        return f"exiftool failed: {stderr}"
+    except FileNotFoundError:
+        return "exiftool not found"
+    finally:
+        if os.path.exists(directory_path):
+            os.remove(directory_path)
+
+
 def _transcode_with_magick(
     input_path: str,
     output_path: str,
@@ -352,6 +484,77 @@ def transcode(
     quality: float,
     jxl_effort: int = 7,
     timeouts: Timeouts = DEFAULT_TIMEOUTS,
+    motion_photo: bool = False,
+) -> TranscodeResult:
+    """Transcode an image, see _transcode_image for the per-format routing.
+
+    motion_photo: the source is a motion photo (a still with an embedded
+    video). The still is converted on its own: the video is cut off and the
+    tags announcing it are removed first, since Immich would otherwise read
+    the end of the converted file as the video and replace the real one.
+    """
+    if not motion_photo:
+        return _transcode_image(
+            input_path,
+            output_path,
+            target_format,
+            quality,
+            jxl_effort=jxl_effort,
+            timeouts=timeouts,
+        )
+
+    input_bytes = os.path.getsize(input_path)
+    input_format = detect_format(input_path)
+    still_path = f"{input_path}.still"
+    result = None
+    try:
+        video_length, directory = _embedded_video(input_path, timeouts=timeouts)
+        shutil.copyfile(input_path, still_path)
+        # Only a JPEG is known to end with the video; where it can't be cut
+        # off, the JXL repack has to drop everything after the image instead.
+        video_cut_off = input_format == "jpg" and 0 < video_length < input_bytes
+        if video_cut_off:
+            os.truncate(still_path, input_bytes - video_length)
+        error = strip_motion_photo_tags(still_path, directory, timeouts=timeouts)
+        if error is None:
+            result = _transcode_image(
+                still_path,
+                output_path,
+                target_format,
+                quality,
+                jxl_effort=jxl_effort,
+                timeouts=timeouts,
+                keep_jpeg_reconstruction=video_cut_off,
+            )
+            if result.success and has_motion_photo_tags(output_path, timeouts):
+                error = "Motion photo tags are still present in the output"
+    except RuntimeError as e:
+        error = str(e)
+    finally:
+        if os.path.exists(still_path):
+            os.remove(still_path)
+
+    if result is None or error:
+        return TranscodeResult(
+            success=False,
+            input_path=input_path,
+            output_path=output_path,
+            input_bytes=input_bytes,
+            output_bytes=0,
+            input_format=input_format or "unknown",
+            error=error,
+        )
+    return replace(result, input_path=input_path, input_bytes=input_bytes)
+
+
+def _transcode_image(
+    input_path: str,
+    output_path: str,
+    target_format: str,
+    quality: float,
+    jxl_effort: int = 7,
+    timeouts: Timeouts = DEFAULT_TIMEOUTS,
+    keep_jpeg_reconstruction: bool = True,
 ) -> TranscodeResult:
     """Transcode an image to the given target format.
 
@@ -366,6 +569,11 @@ def transcode(
     or ImageMagick's jxl:effort define otherwise. It trades encode time for
     smaller output, independent of quality/distance or the lossless
     bit-exactness of the cjxl repack. Ignored for non-JXL targets.
+
+    keep_jpeg_reconstruction=False leaves out the data cjxl stores to rebuild
+    the source JPEG byte for byte. That data includes everything after the
+    image, so this drops a trailing motion video that couldn't be cut off
+    beforehand; the pixels are still repacked losslessly.
     """
     input_bytes = os.path.getsize(input_path)
     input_format = detect_format(input_path)
@@ -404,6 +612,11 @@ def transcode(
                     "cjxl",
                     "--compress_boxes=0",
                     f"--effort={jxl_effort}",
+                    *(
+                        []
+                        if keep_jpeg_reconstruction
+                        else ["--allow_jpeg_reconstruction=0"]
+                    ),
                     input_path,
                     output_path,
                 ],

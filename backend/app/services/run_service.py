@@ -26,6 +26,7 @@ from app.models.asset_outcome import FINAL_STATUSES, AssetOutcome
 from app.models.run import Run
 from app.services.immich_client import Asset, ImmichClient
 from app.services.transcode import (
+    has_motion_photo_tags,
     transcode,
     transcode_video,
     validate_output,
@@ -216,6 +217,22 @@ def _should_skip_external(asset: Asset, cfg: dict[str, Any]) -> str | None:
     return "External library asset (enable in Settings or use local output)"
 
 
+def _save_live_photo_video(
+    client: ImmichClient, asset: Asset, still_path: str
+) -> str | None:
+    """Save a live photo's video next to the converted still, under the same
+    name. The still no longer embeds it, so local output would otherwise
+    lose it. Returns an error message, or None on success."""
+    video = client.get_asset_full(asset.live_photo_video_id or "")
+    if video is None:
+        return "Live photo video not found"
+    extension = os.path.splitext(video.original_file_name)[1] or ".mp4"
+    _, error = client.download_original(
+        video.id, os.path.splitext(still_path)[0] + extension
+    )
+    return error
+
+
 def _process_asset_sync(
     asset: Asset, client: ImmichClient, cfg: dict[str, Any], work_dir: str
 ) -> dict[str, Any]:
@@ -263,6 +280,23 @@ def _process_asset_sync(
             return result
         result["input_bytes"] = input_bytes
 
+        motion_photo = False
+        if not is_video:
+            try:
+                motion_photo = has_motion_photo_tags(input_path)
+            except RuntimeError as e:
+                result["input_bytes"] = 0
+                result["status"] = "failed_transcode"
+                result["error"] = str(e)
+                return result
+            if motion_photo and not asset.live_photo_video_id:
+                # The video only exists inside this file. Converting would
+                # drop it with nothing in Immich to link the result to.
+                result["input_bytes"] = 0
+                result["status"] = "skipped"
+                result["error"] = "Motion photo whose video Immich has not extracted"
+                return result
+
         if is_video:
             tx = transcode_video(
                 input_path,
@@ -280,6 +314,7 @@ def _process_asset_sync(
                 target_format,
                 _get_image_quality(cfg, target_format, retry=False),
                 jxl_effort=cfg.get("image_jxl_effort", 7),
+                motion_photo=motion_photo,
             )
             is_valid = validate_output(output_path, target_format)
 
@@ -324,6 +359,7 @@ def _process_asset_sync(
                         target_format,
                         _get_image_quality(cfg, target_format, retry=True),
                         jxl_effort=cfg.get("image_jxl_effort", 7),
+                        motion_photo=motion_photo,
                     )
                     is_valid = validate_output(output_path, target_format)
 
@@ -362,6 +398,13 @@ def _process_asset_sync(
                 os.makedirs(os.path.dirname(original_dest), exist_ok=True)
                 shutil.copy2(input_path, original_dest)
 
+            if asset.live_photo_video_id:
+                error = _save_live_photo_video(client, asset, dest_path)
+                if error:
+                    result["status"] = "failed_download"
+                    result["error"] = error
+                    return result
+
             result["status"] = "saved_local"
             return result
 
@@ -396,6 +439,17 @@ def _process_asset_sync(
             result["error"] = verify_error
             return result
 
+        if asset.live_photo_video_id:
+            # Deleting the original while the new asset points anywhere else
+            # makes Immich delete the video along with it.
+            new_asset = client.get_asset_full(new_asset_id)
+            linked_id = new_asset.live_photo_video_id if new_asset else None
+            if linked_id != asset.live_photo_video_id:
+                client.delete_assets([new_asset_id])
+                result["status"] = "failed_verification"
+                result["error"] = "Live photo video is not linked to the new asset"
+                return result
+
         success, error = client.delete_assets([asset.id])
         if not success:
             result["status"] = "partial_success"
@@ -414,6 +468,12 @@ def _process_asset_sync(
                     logger.warning("Failed to clean up %s: %s", path, e)
 
 
+def _is_live_photo_video(asset: Asset) -> bool:
+    """Hidden assets are the video halves of live photos. They are never
+    converted: replacing one would unlink it from its still."""
+    return asset.visibility == "hidden"
+
+
 async def _resolve_assets(client: ImmichClient, cfg: dict[str, Any]) -> list[Asset]:
     if cfg.get("asset_ids"):
         fetched = await asyncio.gather(
@@ -422,7 +482,7 @@ async def _resolve_assets(client: ImmichClient, cfg: dict[str, Any]) -> list[Ass
                 for asset_id in cfg["asset_ids"]
             ]
         )
-        return [a for a in fetched if a is not None]
+        return [a for a in fetched if a is not None and not _is_live_photo_video(a)]
 
     assets = []
     if cfg.get("album_id"):
@@ -452,6 +512,8 @@ async def _resolve_assets(client: ImmichClient, cfg: dict[str, Any]) -> list[Ass
                     break
                 assets.extend(page_assets)
                 page += 1
+
+    assets = [a for a in assets if not _is_live_photo_video(a)]
 
     if not cfg.get("skip_done_filter"):
         async with AsyncSessionLocal() as db:
