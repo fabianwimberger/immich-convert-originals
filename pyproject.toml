@@ -24,7 +24,7 @@ dev = [
     "responses==0.26.3",
     "ruff==0.16.10",
     "mypy==2.4.0",
-    "types-requests==2.33.0.20260906",
+    "types-requests==2.33.0.20261006",
 ]
 
 [tool.setuptools.packages.find]
