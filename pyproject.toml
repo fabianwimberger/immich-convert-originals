@@ -7,7 +7,7 @@ name = "immich-convert-originals"
 version = "2.6.1"
 requires-python = ">=3.13"
 dependencies = [
-    "fastapi==0.142.2",
+    "fastapi==0.143.0",
     "uvicorn[standard]==0.54.0",
     "sqlalchemy[asyncio]==2.1.2",
     "aiosqlite==0.22.1",
