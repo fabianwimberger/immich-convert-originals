@@ -11,7 +11,7 @@ dependencies = [
     "uvicorn[standard]==0.54.0",
     "sqlalchemy[asyncio]==2.1.4",
     "aiosqlite==0.22.1",
-    "websockets==17.1",
+    "websockets==17.2",
     "requests==2.34.2",
 ]
 
