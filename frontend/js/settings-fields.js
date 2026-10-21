@@ -5,7 +5,7 @@
 const SETTINGS_FIELDS = {
   immich_api_base: {
     description:
-      "Must include the /api suffix -- Immich's API lives under that path, and omitting it returns an unhelpful 404.",
+      "Must include the /api suffix; Immich's API lives under that path, and omitting it returns an unhelpful 404.",
     default: "none",
     example: "e.g. https://photos.example.com/api",
   },
@@ -23,12 +23,12 @@ const SETTINGS_FIELDS = {
   },
   convert_image_formats: {
     description:
-      "Image formats a run will touch at all -- anything unchecked is left untouched and skipped before download.",
+      "Image formats a run will touch at all; anything unchecked is left untouched and skipped before download.",
     default: "all of the below",
   },
   image_target_format: {
     description:
-      "Output image container. JPEG sources get a lossless bit-exact repack only when targeting JXL -- HEIC/AVIF have no equivalent, so JPEG sources targeting those go through a normal re-encode instead.",
+      "Output image container. JPEG sources get a lossless bit-exact repack only when targeting JXL; HEIC/AVIF have no equivalent, so JPEG sources targeting those go through a normal re-encode instead.",
     default: "JPEG XL (JXL)",
   },
   image_distance: {
@@ -43,12 +43,12 @@ const SETTINGS_FIELDS = {
   },
   image_jxl_effort: {
     description:
-      "Encoder effort for any JXL target -- higher is slower but smaller. Applies to JPEG sources via cjxl's lossless repack, and to all other sources via ImageMagick's JXL encoder.",
+      "Encoder effort for any JXL target; higher is slower but smaller. Applies to JPEG sources via cjxl's lossless repack, and to all other sources via ImageMagick's JXL encoder.",
     default: "7",
     example: "e.g. 10 for maximum compression, 3 for faster batch runs",
   },
   image_quality_heic: {
-    description: "HEIC quality (ImageMagick -quality) -- higher is better and larger.",
+    description: "HEIC quality (ImageMagick -quality); higher is better and larger.",
     default: "80",
   },
   image_quality_heic_retry: {
@@ -56,7 +56,7 @@ const SETTINGS_FIELDS = {
     default: "60",
   },
   image_quality_avif: {
-    description: "AVIF quality (ImageMagick -quality) -- higher is better and larger.",
+    description: "AVIF quality (ImageMagick -quality); higher is better and larger.",
     default: "75",
   },
   image_quality_avif_retry: {
@@ -64,7 +64,7 @@ const SETTINGS_FIELDS = {
     default: "55",
   },
   video_crf: {
-    description: "AV1 quality via SVT-AV1 -- lower is better quality and larger files.",
+    description: "AV1 quality via SVT-AV1; lower is better quality and larger files.",
     default: "36",
     example: "e.g. 30 for near-lossless, 40 for smaller files",
   },
@@ -74,7 +74,7 @@ const SETTINGS_FIELDS = {
   },
   video_preset: {
     description:
-      "SVT-AV1 speed/quality tradeoff -- lower is slower to encode but smaller/better output.",
+      "SVT-AV1 speed/quality tradeoff; lower is slower to encode but smaller/better output.",
     default: "4",
     example: "e.g. 6-8 for faster encodes on modest hardware",
   },
@@ -116,12 +116,12 @@ const SETTINGS_FIELDS = {
   },
   output_mode: {
     description:
-      "Upload replaces the original in Immich as usual. Local writes the converted file to disk instead -- nothing is ever uploaded or deleted from Immich.",
+      "Upload replaces the original in Immich as usual. Local writes the converted file to disk instead; nothing is ever uploaded or deleted from Immich.",
     default: "Upload to Immich",
   },
   local_output_dir: {
     description:
-      "Where converted files land in local mode, under <year>/<month> subfolders by capture date. Must be a path inside the container -- mount it as a volume to reach it from the host.",
+      "Where converted files land in local mode, under <year>/<month> subfolders by capture date. Must be a path inside the container; mount it as a volume to reach it from the host.",
     default: "/app/output",
     example: "e.g. /app/output",
   },
@@ -137,14 +137,14 @@ const SETTINGS_FIELDS = {
   },
 };
 
-/** "Default: X -- description (example)" hint markup for a field, or "" if
+/** "Default: X. description (example)" hint markup for a field, or "" if
  * the field has no metadata (e.g. it isn't a knob worth explaining). */
 function fieldHint(name) {
   const f = SETTINGS_FIELDS[name];
   if (!f) return "";
-  const parts = [`Default: ${f.default}`, f.description];
+  const parts = [`Default: ${f.default}.`, f.description];
   if (f.example) parts.push(f.example);
-  return `<small class="field-hint">${parts.join(" -- ")}</small>`;
+  return `<p class="field__hint">${parts.join(" ")}</p>`;
 }
 
 /** [value, label] pairs for the image-format allow-list checkbox group. */
@@ -165,7 +165,7 @@ function renderFormatCheckboxes(idPrefix, selectedCsv) {
   const selected = new Set(selectedCsv.split(","));
   return IMAGE_FORMAT_OPTIONS.map(
     ([value, label]) =>
-      `<label class="checkbox-inline"><input type="checkbox" data-format="${value}" id="${idPrefix}-${value}" ${selected.has(value) ? "checked" : ""} /> ${label}</label>`
+      `<label class="check"><input type="checkbox" data-format="${value}" id="${idPrefix}-${value}" ${selected.has(value) ? "checked" : ""} /> ${label}</label>`
   ).join("");
 }
 

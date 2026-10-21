@@ -1,43 +1,62 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-kf="immich-convert-originals" data-density="leitstand">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Immich Library Converter</title>
+  <link rel="stylesheet" href="css/kennfarbe.css" />
   <link rel="stylesheet" href="css/styles.css" />
-  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='5' fill='%2315120e'/%3E%3Cg fill='%23e2611f' transform='translate(12 12)'%3E%3Crect x='-1.15' y='-9' width='2.3' height='7' rx='1.15'/%3E%3Crect x='-1.15' y='-9' width='2.3' height='7' rx='1.15' transform='rotate(60)'/%3E%3Crect x='-1.15' y='-9' width='2.3' height='7' rx='1.15' transform='rotate(120)'/%3E%3Crect x='-1.15' y='-9' width='2.3' height='7' rx='1.15' transform='rotate(180)'/%3E%3Crect x='-1.15' y='-9' width='2.3' height='7' rx='1.15' transform='rotate(240)'/%3E%3Crect x='-1.15' y='-9' width='2.3' height='7' rx='1.15' transform='rotate(300)'/%3E%3C/g%3E%3C/svg%3E" />
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='4' fill='%23953920'/%3E%3Cg fill='%23ffffff' transform='translate(12 12)'%3E%3Crect x='-1.15' y='-9' width='2.3' height='7' rx='1.15'/%3E%3Crect x='-1.15' y='-9' width='2.3' height='7' rx='1.15' transform='rotate(60)'/%3E%3Crect x='-1.15' y='-9' width='2.3' height='7' rx='1.15' transform='rotate(120)'/%3E%3Crect x='-1.15' y='-9' width='2.3' height='7' rx='1.15' transform='rotate(180)'/%3E%3Crect x='-1.15' y='-9' width='2.3' height='7' rx='1.15' transform='rotate(240)'/%3E%3Crect x='-1.15' y='-9' width='2.3' height='7' rx='1.15' transform='rotate(300)'/%3E%3C/g%3E%3C/svg%3E" />
 </head>
 <body>
-  <header class="app-header">
-    <div class="wordmark">
-      <svg class="mark" viewBox="0 0 24 24" aria-hidden="true">
-        <g fill="currentColor" transform="translate(12 12)">
-          <rect x="-1.15" y="-9" width="2.3" height="7" rx="1.15" />
-          <rect x="-1.15" y="-9" width="2.3" height="7" rx="1.15" transform="rotate(60)" />
-          <rect x="-1.15" y="-9" width="2.3" height="7" rx="1.15" transform="rotate(120)" />
-          <rect x="-1.15" y="-9" width="2.3" height="7" rx="1.15" transform="rotate(180)" />
-          <rect x="-1.15" y="-9" width="2.3" height="7" rx="1.15" transform="rotate(240)" />
-          <rect x="-1.15" y="-9" width="2.3" height="7" rx="1.15" transform="rotate(300)" />
-        </g>
-      </svg>
-      <div class="titles">
-        <h1>Immich Library Converter</h1>
-        <p class="tagline">Originals &rarr; JPEG XL &middot; AV1</p>
-      </div>
-    </div>
-    <nav class="tabs">
-      <button class="tab-btn active" data-tab="browse">Browse</button>
-      <button class="tab-btn" data-tab="convert">Convert</button>
-      <button class="tab-btn" data-tab="history">History</button>
-      <button class="tab-btn" data-tab="settings">Settings</button>
+  <a class="skip-link" href="#app">Skip to content</a>
+  <div class="app">
+    <nav class="rail" aria-label="Views">
+      <span class="mark"><span class="mark__chip" aria-hidden="true"></span>Immich Library Converter</span>
+
+      <button class="tab-btn active" type="button" data-tab="browse" aria-current="page">
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z"/></svg>
+        Browse
+      </button>
+      <button class="tab-btn" type="button" data-tab="convert">
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12a8 8 0 0 1 13.7-5.7L20 8M20 4v4h-4M20 12a8 8 0 0 1-13.7 5.7L4 16M4 20v-4h4"/></svg>
+        Convert
+      </button>
+      <button class="tab-btn" type="button" data-tab="history">
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M12 7v5l3 2"/></svg>
+        History
+      </button>
+      <button class="tab-btn" type="button" data-tab="settings">
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/></svg>
+        Settings
+      </button>
+
+      <p class="rail__note">Originals become JPEG XL and AV1, and the original is replaced only after the upload is verified.</p>
     </nav>
-  </header>
-  <main id="app">
-    <div id="tab-browse" class="tab-panel active"></div>
-    <div id="tab-convert" class="tab-panel"></div>
-    <div id="tab-history" class="tab-panel"></div>
-    <div id="tab-settings" class="tab-panel"></div>
-  </main>
+
+    <main class="work" id="main">
+      <header class="work__head">
+        <h1 id="view-title">Browse</h1>
+        <span id="head-status"></span>
+        <span class="muted small" id="head-note"></span>
+      </header>
+
+      <div class="work__body">
+        <div class="work__main" id="app">
+          <div id="tab-browse" class="tab-panel active"></div>
+          <div id="tab-convert" class="tab-panel"></div>
+          <div id="tab-history" class="tab-panel"></div>
+          <div id="tab-settings" class="tab-panel"></div>
+        </div>
+        <aside class="side" id="side-panel" aria-label="Details"></aside>
+      </div>
+
+      <section class="live" id="live-strip" aria-label="Current run"></section>
+    </main>
+
+    <footer class="statusbar" id="statusbar"></footer>
+  </div>
+
   <script src="js/format-utils.js"></script>
   <script src="js/api.js"></script>
   <script src="js/websocket-client.js"></script>
@@ -47,6 +66,7 @@
   <script src="js/active-run.js"></script>
   <script src="js/run-panel.js"></script>
   <script src="js/run-history.js"></script>
+  <script src="js/live-strip.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>
