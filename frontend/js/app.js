@@ -62,6 +62,7 @@ function updateStatusbar() {
     <span>${isConfigured() ? '<span class="status status--ok">Configured</span>' : '<span class="status status--warn">Not configured</span>'}</span>
     <span>Output <b>${mode}</b></span>
     <span class="grow">Recent savings <b class="num">${fmtBytes(totalSaved())}</b></span>
+    <span class="statusbar__credit">Made with passion by <a href="https://fabianwimberger.at/" target="_blank" rel="noopener">Fabian Wimberger</a></span>
   `;
 
   document.getElementById("head-status").innerHTML = isConfigured()
