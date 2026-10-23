@@ -9,8 +9,8 @@ on:
     - cron: "0 6 * * 1"
 
 env:
-  PYTHON_VERSION: "3.13"
-  IMMICH_TEST_TAG_PINNED: "v3.0.3"
+  PYTHON_VERSION: "3.14"
+  IMMICH_TEST_TAG_PINNED: "v3.3.5"
 
 jobs:
   lint:
@@ -91,7 +91,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
-      IMMICH_TEST_TAG: v3.0.3
+      IMMICH_TEST_TAG: v3.3.5
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
