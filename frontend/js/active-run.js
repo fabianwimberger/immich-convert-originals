@@ -38,6 +38,7 @@ class ActiveRun {
     this._renderShell();
     this._renderSummary();
     this._renderLog();
+    if (window.liveStrip) window.liveStrip.follow(this.run);
 
     if (this._unsubscribe) this._unsubscribe();
     this._unsubscribe = wsClient.onMessage((msg) => this._handleMessage(msg));
@@ -79,6 +80,7 @@ class ActiveRun {
       this._applyCounters(msg);
       this.run.status = msg.status;
       this._renderSummary();
+      if (window.refreshShell) window.refreshShell();
     } else if (msg.type === "run_started") {
       this.run.status = "running";
       this._renderSummary();
@@ -122,11 +124,20 @@ class ActiveRun {
     this.root.innerHTML = `
       <section class="panel" id="run-summary"></section>
       <section class="panel">
-        <h3>Live Log</h3>
-        <div class="table-wrap log-scroll" id="run-log-scroll">
-          <table class="run-table">
+        <div class="panel__head">
+          <h2 class="h4">Per-asset log</h2>
+        </div>
+        <div class="table-scroll log-scroll" id="run-log-scroll">
+          <table class="data-table">
             <thead>
-              <tr><th>Filename</th><th>Status</th><th>Format</th><th>Size</th><th>Saved</th><th>Error</th></tr>
+              <tr>
+                <th>File</th>
+                <th>State</th>
+                <th class="col-wide">Format</th>
+                <th class="col-wide r">Size</th>
+                <th class="r">Saved</th>
+                <th class="col-wide">Error</th>
+              </tr>
             </thead>
             <tbody id="run-log-body"></tbody>
           </table>
@@ -142,21 +153,26 @@ class ActiveRun {
     const summary = this.root.querySelector("#run-summary");
 
     summary.innerHTML = `
-      <h2>Run #${r.id} <span class="run-status status-${r.status}">${r.status}</span></h2>
-      ${r.dry_run ? '<p class="placeholder">Dry run &mdash; no changes will be made.</p>' : ""}
-      <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>
-      <p>${r.processed_count} / ${r.total_assets} processed (${pct}%)</p>
-      <div class="row run-counts">
-        <span class="status-ok">${r.success_count} succeeded</span>
-        <span>${r.skipped_count} skipped</span>
-        <span class="status-error">${r.failed_count} failed</span>
+      <div class="panel__head">
+        <h2 class="h4">Run #${r.id}</h2>
+        <span class="${runStatusClass(r.status)}">${prettyRunStatus(r.status)}</span>
       </div>
-      ${r.error_message ? `<p class="status-error">${r.error_message}</p>` : ""}
-      <div class="row">
+      ${r.dry_run ? '<p class="muted small">Dry run, no changes will be made.</p>' : ""}
+      <div class="run-progress">
+        <div class="progress"><span style="width:${pct}%"></span></div>
+        <p class="small num muted">${r.processed_count} / ${r.total_assets} processed (${pct}%)</p>
+      </div>
+      <div class="run-counts">
+        <span class="status status--ok">${r.success_count} succeeded</span>
+        <span class="status">${r.skipped_count} skipped</span>
+        <span class="status status--fail">${r.failed_count} failed</span>
+      </div>
+      ${r.error_message ? `<p class="${statusClass("failed_error")}">${r.error_message}</p>` : ""}
+      <div class="actions">
         ${
           canCancel
-            ? '<button id="btn-cancel-run">Cancel</button>'
-            : '<button id="btn-back-to-config" class="primary">Start Another Run</button>'
+            ? '<button id="btn-cancel-run" class="btn btn--quiet btn--small" type="button">Cancel run</button>'
+            : '<button id="btn-back-to-config" class="btn btn--small" type="button">Start another run</button>'
         }
       </div>
     `;
@@ -170,17 +186,17 @@ class ActiveRun {
   _renderLog() {
     const body = this.root.querySelector("#run-log-body");
     if (!body) return;
-    body.innerHTML = `<tr><td colspan="6" class="placeholder">Waiting for the first asset&hellip;</td></tr>`;
+    body.innerHTML = `<tr><td colspan="6" class="muted">Waiting for the first asset…</td></tr>`;
   }
 
   _rowCells(o) {
     return `
       <td>${o.filename}</td>
-      <td class="${statusTextClass(o.status)}">${prettyStatus(o.status)}</td>
-      <td>${o.target_format || ""}</td>
-      <td>${o.input_bytes ? `${fmtBytes(o.input_bytes)} &rarr; ${fmtBytes(o.output_bytes)}` : ""}</td>
-      <td>${savedLabel(o.input_bytes, o.output_bytes)}</td>
-      <td>${o.error || ""}</td>
+      <td><span class="${statusClass(o.status)}">${prettyStatus(o.status)}</span></td>
+      <td class="col-wide">${o.target_format || ""}</td>
+      <td class="col-wide r num">${o.input_bytes ? `${fmtBytes(o.input_bytes)} &rarr; ${fmtBytes(o.output_bytes)}` : ""}</td>
+      <td class="r num">${savedLabel(o.input_bytes, o.output_bytes)}</td>
+      <td class="col-wide wrap">${o.error || ""}</td>
     `;
   }
 

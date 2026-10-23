@@ -1,0 +1,14 @@
+FW Grotesk font notice
+
+FW Grotesk is a renamed, subset and axis-limited webfont based on Mona Sans.
+It is renamed because the original reserves the font name "Mona".
+
+Original font:
+Mona Sans, version 2.000
+Copyright 2022 The Mona Sans Project Authors (https://github.com/github/mona-sans),
+with Reserved Font Name "Mona"
+License: SIL Open Font License, Version 1.1
+
+The published webfont is served as FW Grotesk and distributed with the
+SIL Open Font License text in OFL-1.1.txt. scripts/build-fw-grotesk.py
+rebuilds it from the upstream file.

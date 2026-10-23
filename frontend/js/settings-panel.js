@@ -17,173 +17,234 @@ class SettingsPanel {
   render() {
     const s = this.settings;
     this.root.innerHTML = `
-      <section class="panel">
-        <h2>Connection</h2>
-        <label>API Base URL
-          <input id="set-api-base" type="text" value="${s.immich_api_base}" placeholder="https://photos.example.com/api" />
-        </label>
-        ${fieldHint("immich_api_base")}
-        <label>API Key
-          <input id="set-api-key" type="password" placeholder="${s.immich_api_key_set ? "•••••••• (set)" : "not set"}" />
-        </label>
-        <div class="row">
-          <button id="btn-test-connection">Test Connection</button>
-          <button id="btn-save-connection" class="primary">Save</button>
-          <span id="connection-status"></span>
-        </div>
-      </section>
+      <div class="settings-grid">
+        <section class="panel">
+          <div class="panel__head">
+            <h2 class="h4">Connection</h2>
+          </div>
+          <div class="form">
+            <div class="field">
+              <label class="label" for="set-api-base">API base URL</label>
+              <input id="set-api-base" class="input" type="text" value="${s.immich_api_base}" placeholder="https://photos.example.com/api" />
+              ${fieldHint("immich_api_base")}
+            </div>
+            <div class="field">
+              <label class="label" for="set-api-key">API key</label>
+              <input id="set-api-key" class="input" type="password" placeholder="${s.immich_api_key_set ? "•••••••• (set)" : "Not set"}" />
+            </div>
+            <div class="actions">
+              <button id="btn-save-connection" class="btn btn--quiet btn--small" type="button">Save connection</button>
+              <button id="btn-test-connection" class="btn btn--quiet btn--small" type="button">Test connection</button>
+              <span id="connection-status"></span>
+            </div>
+          </div>
+        </section>
 
-      <section class="panel">
-        <h2>Filters</h2>
-        <label>Asset types
-          <select id="set-asset-types">
-            <option value="IMAGE,VIDEO" ${s.asset_types === "IMAGE,VIDEO" ? "selected" : ""}>Images + Videos</option>
-            <option value="IMAGE" ${s.asset_types === "IMAGE" ? "selected" : ""}>Images only</option>
-            <option value="VIDEO" ${s.asset_types === "VIDEO" ? "selected" : ""}>Videos only</option>
-          </select>
-          ${fieldHint("asset_types")}
-        </label>
-        <label><input id="set-include-archived" type="checkbox" ${s.include_archived ? "checked" : ""} /> Include archived assets</label>
-        ${fieldHint("include_archived")}
-        <label><input id="set-include-deleted" type="checkbox" ${s.include_deleted ? "checked" : ""} /> Include deleted assets</label>
-        ${fieldHint("include_deleted")}
-        <label>Image formats to convert</label>
-        <div class="checkbox-group" id="set-convert-formats">
-          ${renderFormatCheckboxes("set-fmt", s.convert_image_formats)}
-        </div>
-        ${fieldHint("convert_image_formats")}
-        <div class="row">
-          <button id="btn-save-filters" class="primary">Save</button>
-          <span id="filters-status"></span>
-        </div>
-      </section>
+        <section class="panel">
+          <div class="panel__head">
+            <h2 class="h4">Filters</h2>
+          </div>
+          <div class="form">
+            <div class="field">
+              <label class="label" for="set-asset-types">Asset types</label>
+              <select id="set-asset-types" class="select">
+                <option value="IMAGE,VIDEO" ${s.asset_types === "IMAGE,VIDEO" ? "selected" : ""}>Images and videos</option>
+                <option value="IMAGE" ${s.asset_types === "IMAGE" ? "selected" : ""}>Images only</option>
+                <option value="VIDEO" ${s.asset_types === "VIDEO" ? "selected" : ""}>Videos only</option>
+              </select>
+              ${fieldHint("asset_types")}
+            </div>
+            <div class="field">
+              <label class="check"><input id="set-include-archived" type="checkbox" ${s.include_archived ? "checked" : ""} /> Include archived assets</label>
+              ${fieldHint("include_archived")}
+            </div>
+            <div class="field">
+              <label class="check"><input id="set-include-deleted" type="checkbox" ${s.include_deleted ? "checked" : ""} /> Include deleted assets</label>
+              ${fieldHint("include_deleted")}
+            </div>
+            <div class="field">
+              <span class="label">Image formats to convert</span>
+              <div class="checkbox-group" id="set-convert-formats">
+                ${renderFormatCheckboxes("set-fmt", s.convert_image_formats)}
+              </div>
+              ${fieldHint("convert_image_formats")}
+            </div>
+            <div class="actions">
+              <button id="btn-save-filters" class="btn btn--quiet btn--small" type="button">Save filters</button>
+              <span id="filters-status"></span>
+            </div>
+          </div>
+        </section>
 
-      <section class="panel">
-        <h2>Images</h2>
-        <label>Target format
-          <select id="set-image-target-format">
-            <option value="jxl" ${s.image_target_format === "jxl" ? "selected" : ""}>JPEG XL (JXL)</option>
-            <option value="heic" ${s.image_target_format === "heic" ? "selected" : ""}>HEIC</option>
-            <option value="avif" ${s.image_target_format === "avif" ? "selected" : ""}>AVIF</option>
-          </select>
-          ${fieldHint("image_target_format")}
-        </label>
-        <div class="format-fields" data-format="jxl" style="${s.image_target_format === "jxl" ? "" : "display:none"}">
-          <label>Distance (0-25)
-            <input id="set-image-distance" type="number" step="0.1" min="0" max="25" value="${s.image_distance}" />
-            ${fieldHint("image_distance")}
-          </label>
-          <label>Distance on retry
-            <input id="set-image-distance-retry" type="number" step="0.1" min="0" max="25" value="${s.image_distance_retry}" />
-            ${fieldHint("image_distance_retry")}
-          </label>
-          <label>JXL encoder effort (1-10)
-            <input id="set-image-jxl-effort" type="number" step="1" min="1" max="10" value="${s.image_jxl_effort}" />
-            ${fieldHint("image_jxl_effort")}
-          </label>
-        </div>
-        <div class="format-fields" data-format="heic" style="${s.image_target_format === "heic" ? "" : "display:none"}">
-          <label>Quality (0-100)
-            <input id="set-image-quality-heic" type="number" min="0" max="100" value="${s.image_quality_heic}" />
-            ${fieldHint("image_quality_heic")}
-          </label>
-          <label>Quality on retry
-            <input id="set-image-quality-heic-retry" type="number" min="0" max="100" value="${s.image_quality_heic_retry}" />
-            ${fieldHint("image_quality_heic_retry")}
-          </label>
-        </div>
-        <div class="format-fields" data-format="avif" style="${s.image_target_format === "avif" ? "" : "display:none"}">
-          <label>Quality (0-100)
-            <input id="set-image-quality-avif" type="number" min="0" max="100" value="${s.image_quality_avif}" />
-            ${fieldHint("image_quality_avif")}
-          </label>
-          <label>Quality on retry
-            <input id="set-image-quality-avif-retry" type="number" min="0" max="100" value="${s.image_quality_avif_retry}" />
-            ${fieldHint("image_quality_avif_retry")}
-          </label>
-        </div>
-        <div class="row">
-          <button id="btn-save-images" class="primary">Save</button>
-          <span id="images-status"></span>
-        </div>
-      </section>
+        <section class="panel">
+          <div class="panel__head">
+            <h2 class="h4">Images</h2>
+          </div>
+          <div class="form">
+            <div class="field">
+              <label class="label" for="set-image-target-format">Target format</label>
+              <select id="set-image-target-format" class="select">
+                <option value="jxl" ${s.image_target_format === "jxl" ? "selected" : ""}>JPEG XL (JXL)</option>
+                <option value="heic" ${s.image_target_format === "heic" ? "selected" : ""}>HEIC</option>
+                <option value="avif" ${s.image_target_format === "avif" ? "selected" : ""}>AVIF</option>
+              </select>
+              ${fieldHint("image_target_format")}
+            </div>
+            <div class="format-fields form" data-format="jxl" style="${s.image_target_format === "jxl" ? "" : "display:none"}">
+              <div class="field">
+                <label class="label" for="set-image-distance">Distance (0-25)</label>
+                <input id="set-image-distance" class="input" type="number" step="0.1" min="0" max="25" value="${s.image_distance}" />
+                ${fieldHint("image_distance")}
+              </div>
+              <div class="field">
+                <label class="label" for="set-image-distance-retry">Distance on retry</label>
+                <input id="set-image-distance-retry" class="input" type="number" step="0.1" min="0" max="25" value="${s.image_distance_retry}" />
+                ${fieldHint("image_distance_retry")}
+              </div>
+              <div class="field">
+                <label class="label" for="set-image-jxl-effort">JXL encoder effort (1-10)</label>
+                <input id="set-image-jxl-effort" class="input" type="number" step="1" min="1" max="10" value="${s.image_jxl_effort}" />
+                ${fieldHint("image_jxl_effort")}
+              </div>
+            </div>
+            <div class="format-fields form" data-format="heic" style="${s.image_target_format === "heic" ? "" : "display:none"}">
+              <div class="field">
+                <label class="label" for="set-image-quality-heic">Quality (0-100)</label>
+                <input id="set-image-quality-heic" class="input" type="number" min="0" max="100" value="${s.image_quality_heic}" />
+                ${fieldHint("image_quality_heic")}
+              </div>
+              <div class="field">
+                <label class="label" for="set-image-quality-heic-retry">Quality on retry</label>
+                <input id="set-image-quality-heic-retry" class="input" type="number" min="0" max="100" value="${s.image_quality_heic_retry}" />
+                ${fieldHint("image_quality_heic_retry")}
+              </div>
+            </div>
+            <div class="format-fields form" data-format="avif" style="${s.image_target_format === "avif" ? "" : "display:none"}">
+              <div class="field">
+                <label class="label" for="set-image-quality-avif">Quality (0-100)</label>
+                <input id="set-image-quality-avif" class="input" type="number" min="0" max="100" value="${s.image_quality_avif}" />
+                ${fieldHint("image_quality_avif")}
+              </div>
+              <div class="field">
+                <label class="label" for="set-image-quality-avif-retry">Quality on retry</label>
+                <input id="set-image-quality-avif-retry" class="input" type="number" min="0" max="100" value="${s.image_quality_avif_retry}" />
+                ${fieldHint("image_quality_avif_retry")}
+              </div>
+            </div>
+            <div class="actions">
+              <button id="btn-save-images" class="btn btn--quiet btn--small" type="button">Save image settings</button>
+              <span id="images-status"></span>
+            </div>
+          </div>
+        </section>
 
-      <section class="panel">
-        <h2>Videos</h2>
-        <label>CRF (0-63, lower=better)
-          <input id="set-video-crf" type="number" min="0" max="63" value="${s.video_crf}" />
-          ${fieldHint("video_crf")}
-        </label>
-        <label>CRF on retry
-          <input id="set-video-crf-retry" type="number" min="0" max="63" value="${s.video_crf_retry}" />
-          ${fieldHint("video_crf_retry")}
-        </label>
-        <label>Preset (0-13, lower=slower)
-          <input id="set-video-preset" type="number" min="0" max="13" value="${s.video_preset}" />
-          ${fieldHint("video_preset")}
-        </label>
-        <label>Max dimension in pixels, short side (0=disabled)
-          <input id="set-video-max-dimension" type="number" min="0" placeholder="e.g. 1080" value="${s.video_max_dimension}" />
-          ${fieldHint("video_max_dimension")}
-        </label>
-        <label>Audio bitrate
-          <input id="set-video-audio-bitrate" type="text" placeholder="e.g. 64k" value="${s.video_audio_bitrate}" />
-          ${fieldHint("video_audio_bitrate")}
-        </label>
-        <div>
-          <label><input id="set-convert-live-photo-videos" type="checkbox" ${s.convert_live_photo_videos ? "checked" : ""} /> Convert live photo videos</label>
-          ${fieldHint("convert_live_photo_videos")}
-        </div>
-        <div class="row">
-          <button id="btn-save-videos" class="primary">Save</button>
-          <span id="videos-status"></span>
-        </div>
-      </section>
+        <section class="panel">
+          <div class="panel__head">
+            <h2 class="h4">Videos</h2>
+          </div>
+          <div class="form">
+            <div class="field">
+              <label class="label" for="set-video-crf">CRF (0-63, lower is better)</label>
+              <input id="set-video-crf" class="input" type="number" min="0" max="63" value="${s.video_crf}" />
+              ${fieldHint("video_crf")}
+            </div>
+            <div class="field">
+              <label class="label" for="set-video-crf-retry">CRF on retry</label>
+              <input id="set-video-crf-retry" class="input" type="number" min="0" max="63" value="${s.video_crf_retry}" />
+              ${fieldHint("video_crf_retry")}
+            </div>
+            <div class="field">
+              <label class="label" for="set-video-preset">Preset (0-13, lower is slower)</label>
+              <input id="set-video-preset" class="input" type="number" min="0" max="13" value="${s.video_preset}" />
+              ${fieldHint("video_preset")}
+            </div>
+            <div class="field">
+              <label class="label" for="set-video-max-dimension">Max dimension in pixels, short side (0 disables)</label>
+              <input id="set-video-max-dimension" class="input" type="number" min="0" placeholder="e.g. 1080" value="${s.video_max_dimension}" />
+              ${fieldHint("video_max_dimension")}
+            </div>
+            <div class="field">
+              <label class="label" for="set-video-audio-bitrate">Audio bitrate</label>
+              <input id="set-video-audio-bitrate" class="input" type="text" placeholder="e.g. 64k" value="${s.video_audio_bitrate}" />
+              ${fieldHint("video_audio_bitrate")}
+            </div>
+            <div class="field">
+              <label class="check"><input id="set-convert-live-photo-videos" type="checkbox" ${s.convert_live_photo_videos ? "checked" : ""} /> Convert live photo videos</label>
+              ${fieldHint("convert_live_photo_videos")}
+            </div>
+            <div class="actions">
+              <button id="btn-save-videos" class="btn btn--quiet btn--small" type="button">Save video settings</button>
+              <span id="videos-status"></span>
+            </div>
+          </div>
+        </section>
 
-      <section class="panel">
-        <h2>Output</h2>
-        <label>Mode
-          <select id="set-output-mode">
-            <option value="upload" ${s.output_mode === "upload" ? "selected" : ""}>Upload to Immich</option>
-            <option value="local" ${s.output_mode === "local" ? "selected" : ""}>Save locally (no upload)</option>
-          </select>
-          ${fieldHint("output_mode")}
-        </label>
-        <div class="output-local-fields" style="${s.output_mode === "local" ? "" : "display:none"}">
-          <label>Local output directory
-            <input id="set-local-output-dir" type="text" placeholder="/app/output" value="${s.local_output_dir}" />
-            ${fieldHint("local_output_dir")}
-          </label>
-          <label><input id="set-local-keep-originals" type="checkbox" ${s.local_keep_originals ? "checked" : ""} /> Keep a copy of the original alongside</label>
-          ${fieldHint("local_keep_originals")}
-        </div>
-        <div class="output-upload-fields" style="${s.output_mode === "local" ? "display:none" : ""}">
-          <label><input id="set-upload-external-assets" type="checkbox" ${s.upload_external_assets ? "checked" : ""} /> Convert external library assets</label>
-          ${fieldHint("upload_external_assets")}
-        </div>
-        <div class="row">
-          <button id="btn-save-output" class="primary">Save</button>
-          <span id="output-status"></span>
-        </div>
-      </section>
+        <section class="panel">
+          <div class="panel__head">
+            <h2 class="h4">Output</h2>
+          </div>
+          <div class="form">
+            <div class="field">
+              <label class="label" for="set-output-mode">Mode</label>
+              <select id="set-output-mode" class="select">
+                <option value="upload" ${s.output_mode === "upload" ? "selected" : ""}>Upload to Immich</option>
+                <option value="local" ${s.output_mode === "local" ? "selected" : ""}>Save locally, no upload</option>
+              </select>
+              ${fieldHint("output_mode")}
+            </div>
+            <div class="output-local-fields form" style="${s.output_mode === "local" ? "" : "display:none"}">
+              <div class="field">
+                <label class="label" for="set-local-output-dir">Local output directory</label>
+                <input id="set-local-output-dir" class="input" type="text" placeholder="/app/output" value="${s.local_output_dir}" />
+                ${fieldHint("local_output_dir")}
+              </div>
+              <div class="field">
+                <label class="check"><input id="set-local-keep-originals" type="checkbox" ${s.local_keep_originals ? "checked" : ""} /> Keep a copy of the original alongside</label>
+                ${fieldHint("local_keep_originals")}
+              </div>
+            </div>
+            <div class="output-upload-fields form" style="${s.output_mode === "local" ? "display:none" : ""}">
+              <div class="field">
+                <label class="check"><input id="set-upload-external-assets" type="checkbox" ${s.upload_external_assets ? "checked" : ""} /> Convert external library assets</label>
+                ${fieldHint("upload_external_assets")}
+              </div>
+            </div>
+            <div class="actions">
+              <button id="btn-save-output" class="btn btn--quiet btn--small" type="button">Save output</button>
+              <span id="output-status"></span>
+            </div>
+          </div>
+        </section>
 
-      <section class="panel">
-        <h2>Safety &amp; Retry</h2>
-        <label><input id="set-enable-retry" type="checkbox" ${s.enable_retry ? "checked" : ""} /> Retry with more compression if output is larger</label>
-        ${fieldHint("enable_retry")}
-        <label><input id="set-accept-retry-output" type="checkbox" ${s.accept_retry_output ? "checked" : ""} /> Accept retry output even if still larger</label>
-        ${fieldHint("accept_retry_output")}
-        <label><input id="set-allow-larger" type="checkbox" ${s.allow_larger ? "checked" : ""} /> Allow larger output without retry</label>
-        ${fieldHint("allow_larger")}
-        <label>Concurrency
-          <input id="set-concurrency" type="number" min="1" max="32" value="${s.concurrency}" />
-          ${fieldHint("concurrency")}
-        </label>
-        <div class="row">
-          <button id="btn-save-retry" class="primary">Save</button>
-          <span id="retry-status"></span>
-        </div>
-      </section>
+        <section class="panel">
+          <div class="panel__head">
+            <h2 class="h4">Safety and retry</h2>
+          </div>
+          <div class="form">
+            <div class="field">
+              <label class="check"><input id="set-enable-retry" type="checkbox" ${s.enable_retry ? "checked" : ""} /> Retry with more compression if output is larger</label>
+              ${fieldHint("enable_retry")}
+            </div>
+            <div class="field">
+              <label class="check"><input id="set-accept-retry-output" type="checkbox" ${s.accept_retry_output ? "checked" : ""} /> Accept retry output even if still larger</label>
+              ${fieldHint("accept_retry_output")}
+            </div>
+            <div class="field">
+              <label class="check"><input id="set-allow-larger" type="checkbox" ${s.allow_larger ? "checked" : ""} /> Allow larger output without retry</label>
+              ${fieldHint("allow_larger")}
+            </div>
+            <div class="field">
+              <label class="label" for="set-concurrency">Concurrency</label>
+              <input id="set-concurrency" class="input" type="number" min="1" max="32" value="${s.concurrency}" />
+              ${fieldHint("concurrency")}
+            </div>
+            <div class="actions">
+              <button id="btn-save-retry" class="btn btn--quiet btn--small" type="button">Save safety settings</button>
+              <span id="retry-status"></span>
+            </div>
+          </div>
+        </section>
+      </div>
     `;
 
     this.root.querySelector("#btn-test-connection").addEventListener("click", () =>
@@ -225,7 +286,7 @@ class SettingsPanel {
   async testConnection() {
     const statusEl = this.root.querySelector("#connection-status");
     statusEl.textContent = "Testing…";
-    statusEl.className = "";
+    statusEl.className = "status status--run";
     const apiBase = this.root.querySelector("#set-api-base").value.trim();
     const apiKey = this.root.querySelector("#set-api-key").value.trim();
     try {
@@ -234,12 +295,12 @@ class SettingsPanel {
       if (apiKey) body.immich_api_key = apiKey;
       const result = await api.post("/settings/test-connection", body);
       statusEl.textContent = result.ok
-        ? `Connected (Immich v${result.server_version})`
+        ? `Connected, Immich v${result.server_version}`
         : `Failed: ${result.error}`;
-      statusEl.className = result.ok ? "status-ok" : "status-error";
+      statusEl.className = result.ok ? "status status--ok" : "status status--fail";
     } catch (err) {
       statusEl.textContent = `Error: ${err.message}`;
-      statusEl.className = "status-error";
+      statusEl.className = "status status--fail";
     }
   }
 
@@ -250,10 +311,11 @@ class SettingsPanel {
       this.render();
       const el = this.root.querySelector(`#${statusElId}`);
       el.textContent = "Saved";
-      el.className = "status-ok";
+      el.className = "status status--ok";
+      if (window.refreshShell) window.refreshShell();
     } catch (err) {
       statusEl.textContent = err.message;
-      statusEl.className = "status-error";
+      statusEl.className = "status status--fail";
     }
   }
 
