@@ -38,10 +38,10 @@ class AssetBrowser {
   renderNotConfigured() {
     this.root.innerHTML = `
       <section class="panel">
-        <p class="placeholder">
-          Connect to Immich before browsing your library.
-        </p>
-        <button id="btn-goto-settings" class="primary">Go to Settings</button>
+        <div class="empty">
+          <p>Connect to Immich before browsing your library.</p>
+          <button id="btn-goto-settings" class="btn" type="button">Open settings</button>
+        </div>
       </section>
     `;
     this.root
@@ -64,32 +64,32 @@ class AssetBrowser {
       .join("");
 
     this.root.innerHTML = `
-      <section class="panel">
-        <div class="row filters">
-          <select id="filter-type">
-            <option value="IMAGE">Images</option>
-            <option value="VIDEO">Videos</option>
-          </select>
-          <select id="filter-album">
-            <option value="">All albums</option>
-            ${albumOptions}
-          </select>
-          <label><input id="filter-archived" type="checkbox" /> Archived</label>
-          <label><input id="filter-deleted" type="checkbox" /> Deleted</label>
-          <button id="btn-refresh">Search</button>
-        </div>
-        <div class="row selection-bar">
-          <span id="selection-count">0 selected</span>
-          <button id="btn-select-page">Select all on page</button>
-          <button id="btn-clear-selection">Clear selection</button>
-        </div>
-        <div id="asset-grid" class="asset-grid"></div>
-        <div class="row pager">
-          <button id="btn-prev" disabled>Previous</button>
-          <span id="page-label">Page 1</span>
-          <button id="btn-next" disabled>Next</button>
-        </div>
-      </section>
+      <div class="toolbar">
+        <label class="visually-hidden" for="filter-type">Asset type</label>
+        <select id="filter-type" class="select">
+          <option value="IMAGE">Images</option>
+          <option value="VIDEO">Videos</option>
+        </select>
+        <label class="visually-hidden" for="filter-album">Album</label>
+        <select id="filter-album" class="select">
+          <option value="">All albums</option>
+          ${albumOptions}
+        </select>
+        <label class="check"><input id="filter-archived" type="checkbox" /> Archived</label>
+        <label class="check"><input id="filter-deleted" type="checkbox" /> Deleted</label>
+        <button id="btn-refresh" class="btn btn--quiet btn--small" type="button">Search</button>
+        <span id="selection-count" class="table-count end">0 selected</span>
+      </div>
+      <div class="toolbar">
+        <button id="btn-select-page" class="btn btn--quiet btn--small" type="button">Select page</button>
+        <button id="btn-clear-selection" class="btn btn--text btn--small" type="button">Clear selection</button>
+      </div>
+      <div id="asset-grid" class="asset-grid"></div>
+      <div class="pager">
+        <button id="btn-prev" class="btn btn--quiet btn--small" type="button" disabled>Previous</button>
+        <span id="page-label" class="small">Page 1</span>
+        <button id="btn-next" class="btn btn--quiet btn--small" type="button" disabled>Next</button>
+      </div>
     `;
 
     this.root.querySelector("#btn-refresh").addEventListener("click", () => this.search(1));
@@ -103,7 +103,7 @@ class AssetBrowser {
 
   async search(page) {
     const grid = this.root.querySelector("#asset-grid");
-    grid.innerHTML = `<p class="placeholder">Loading…</p>`;
+    grid.innerHTML = `<p class="empty">Loading…</p>`;
 
     const filters = this.currentFilters();
     const params = new URLSearchParams({
@@ -122,27 +122,38 @@ class AssetBrowser {
       this.hasMore = result.has_more;
       this.renderGrid();
       this.updatePager();
+      this.updateHeadNote();
     } catch (err) {
-      grid.innerHTML = `<p class="status-error">${err.message}</p>`;
+      grid.innerHTML = `
+        <p class="empty grid-message">
+          <span class="status status--fail">Could not load the library</span>
+          <span class="error-detail">${err.message}</span>
+        </p>
+      `;
     }
   }
 
   renderGrid() {
     const grid = this.root.querySelector("#asset-grid");
     if (this.items.length === 0) {
-      grid.innerHTML = `<p class="placeholder">No assets match these filters.</p>`;
+      grid.innerHTML = `<p class="empty">No assets match these filters.</p>`;
       return;
     }
     grid.innerHTML = this.items
       .map((asset) => {
         const checked = this.selected.has(asset.id) ? "checked" : "";
-        const badge = asset.already_jxl ? `<span class="badge">JXL</span>` : "";
+        const flag = asset.already_jxl ? `<span class="asset-flag">JXL</span>` : "";
+        const meta = [formatOf(asset), shortDate(asset.file_created_at)]
+          .filter(Boolean)
+          .map((part) => `<span>${part}</span>`)
+          .join("");
         return `
           <label class="asset-tile" data-id="${asset.id}">
             <input type="checkbox" class="asset-select" data-id="${asset.id}" ${checked} />
             <img loading="lazy" src="/api/assets/${asset.id}/thumbnail" alt="${asset.original_file_name}" />
-            ${badge}
+            ${flag}
             <span class="asset-name" title="${asset.original_file_name}">${asset.original_file_name}</span>
+            <span class="asset-meta">${meta}</span>
           </label>
         `;
       })
@@ -173,11 +184,18 @@ class AssetBrowser {
 
   updateSelectionCount() {
     this.root.querySelector("#selection-count").textContent = `${this.selected.size} selected`;
+    if (window.refreshShell) window.refreshShell();
   }
 
   updatePager() {
     this.root.querySelector("#page-label").textContent = `Page ${this.page}`;
     this.root.querySelector("#btn-prev").disabled = this.page <= 1;
     this.root.querySelector("#btn-next").disabled = !this.hasMore;
+  }
+
+  updateHeadNote() {
+    const note = document.getElementById("head-note");
+    if (!note) return;
+    note.textContent = `${this.items.length} assets · page ${this.page}`;
   }
 }

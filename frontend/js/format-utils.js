@@ -4,7 +4,7 @@
 const STATUS_LABELS = {
   processing: "Processing…",
   success: "Converted",
-  partial_success: "Converted (cleanup needed)",
+  partial_success: "Converted, cleanup needed",
   saved_local: "Saved locally",
   dry_run_preview: "Would convert",
   skipped: "Skipped",
@@ -16,22 +16,63 @@ const STATUS_LABELS = {
   failed_error: "Failed: unexpected error",
 };
 
+const RUN_STATUS_LABELS = {
+  queued: "Queued",
+  running: "Running",
+  completed: "Completed",
+  failed: "Failed",
+  cancelled: "Cancelled",
+};
+
 function prettyStatus(status) {
   return STATUS_LABELS[status] || status.replace(/_/g, " ");
 }
 
-function statusTextClass(status) {
-  if (status === "processing") return "status-pending";
+function prettyRunStatus(status) {
+  return RUN_STATUS_LABELS[status] || status;
+}
+
+/** Kennfarbe status class for one asset outcome. */
+function statusClass(status) {
+  if (status === "processing") return "status status--run";
   if (
     status === "success" ||
     status === "partial_success" ||
     status === "saved_local" ||
     status === "dry_run_preview"
   ) {
-    return "status-ok";
+    return "status status--ok";
   }
-  if (status && status.startsWith("failed")) return "status-error";
-  return "placeholder";
+  if (status && status.startsWith("failed")) return "status status--fail";
+  return "status";
+}
+
+/** Kennfarbe status class for a run's own state. */
+function runStatusClass(status) {
+  if (status === "running" || status === "queued") return "status status--run";
+  if (status === "completed") return "status status--ok";
+  if (status === "failed" || status === "cancelled") return "status status--fail";
+  return "status";
+}
+
+/** Format label from the filename, falling back to the MIME subtype. */
+function formatOf(asset) {
+  const name = asset.original_file_name || "";
+  const ext = name.includes(".") ? name.split(".").pop() : "";
+  if (ext && ext.length <= 5) return ext.toUpperCase();
+  const subtype = (asset.original_mime_type || "").split("/").pop();
+  return (subtype || asset.type || "").toUpperCase();
+}
+
+/** Short date for asset tiles; the API returns ISO strings. */
+function shortDate(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleDateString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
 }
 
 function fmtBytes(n) {
