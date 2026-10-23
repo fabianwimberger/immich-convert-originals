@@ -8,7 +8,7 @@ name: immich-convert-test-faults
 
 services:
   upload-fault-proxy:
-    image: docker.io/nginx:1.27-alpine
+    image: docker.io/nginx:1.30-alpine
     container_name: immich-test-upload-fault
     networks:
       - immich-test-net
