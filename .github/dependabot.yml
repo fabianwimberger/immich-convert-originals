@@ -27,6 +27,10 @@ updates:
     labels:
       - "dependencies"
       - "docker"
+    ignore:
+      # The postgres image ships with the Immich release; it moves with the
+      # server image, not on its own.
+      - dependency-name: "ghcr.io/immich-app/postgres"
 
   # GitHub Actions
   - package-ecosystem: "github-actions"
