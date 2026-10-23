@@ -5,6 +5,28 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.7.0] - 2026-10-23
+
+Ships a redesigned web UI.
+
+### Features
+
+- New web UI with a side rail for Browse, Convert, History and Settings, a thumbnail grid with format and size, and a live strip that follows download, transcode, upload and verify for the running conversion. It follows the system light or dark theme and becomes a bottom tab bar on phones.
+
+### Testing
+
+- Integration tests pass against Immich v3.3.5.
+
+### Dependencies
+
+- FastAPI 0.142.2 → 0.161.1, SQLAlchemy 2.1.2 → 2.1.6, websockets 17.1 → 17.3.
+- Ruff 0.16.10 → 0.17.2, types-requests 2.33.0.20260906 → 2.33.0.20261006, setuptools ≥ 84.0.0 → ≥ 84.2.1.
+
+### Documentation & Links
+
+- [README](https://github.com/fabianwimberger/immich-convert-originals#readme)
+- [Full changelog](https://github.com/fabianwimberger/immich-convert-originals/compare/v2.6.1...v2.7.0)
+
 ## [v2.6.1] - 2026-10-10
 
 Stops rotated HEIC and AVIF photos from carrying a stale orientation tag after conversion.
@@ -55,6 +77,30 @@ Keeps live and motion photos intact when their still is converted, and converts 
 
 - [README](https://github.com/fabianwimberger/immich-convert-originals#readme)
 - [Full changelog](https://github.com/fabianwimberger/immich-convert-originals/compare/v2.5.2...v2.6.0)
+
+## [v2.5.2] - 2026-10-03
+
+Consolidates Python dependencies across local development, CI, the runtime image, and the integration runner.
+
+### Fixes
+
+- Keep runtime and development dependencies in one configuration with the existing pinned versions.
+- Use virtual environments for local commands, CI, and container installations.
+
+### Features
+
+- Add multi-stage runtime and integration runner builds.
+- Add a local type-check command alongside lint, format, and test commands.
+
+### Dependencies
+
+- SQLAlchemy 2.0.54 → 2.1.0, retaining the asyncio extra.
+- Ruff 0.16.8 → 0.16.9, retaining the existing lint rules.
+
+### Documentation & Links
+
+- [README](https://github.com/fabianwimberger/immich-convert-originals#readme)
+- [Full changelog](https://github.com/fabianwimberger/immich-convert-originals/compare/v2.5.1...v2.5.2)
 
 ## [v2.5.1] - 2026-10-01
 
