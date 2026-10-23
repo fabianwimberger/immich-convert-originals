@@ -7,11 +7,11 @@ name = "immich-convert-originals"
 version = "2.6.1"
 requires-python = ">=3.13"
 dependencies = [
-    "fastapi==0.143.0",
+    "fastapi==0.161.1",
     "uvicorn[standard]==0.54.0",
-    "sqlalchemy[asyncio]==2.1.4",
+    "sqlalchemy[asyncio]==2.1.6",
     "aiosqlite==0.22.1",
-    "websockets==17.2",
+    "websockets==17.3",
     "requests==2.34.2",
 ]
 
@@ -22,7 +22,7 @@ dev = [
     "pytest-cov==7.1.0",
     "httpx==0.28.1",
     "responses==0.26.3",
-    "ruff==0.16.10",
+    "ruff==0.17.2",
     "mypy==2.4.0",
     "types-requests==2.33.0.20261006",
 ]
