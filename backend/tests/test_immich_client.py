@@ -365,12 +365,7 @@ class TestGetThumbnail:
 class TestDownloadOriginal:
     @responses.activate
     def test_streams_bytes_and_returns_size(self, client, tmp_path):
-        responses.add(
-            responses.GET,
-            "https://example.com/api/assets/a1/original",
-            body=b"hello world",
-            status=200,
-        )
+        self._add_asset(b"hello world")
         out_path = str(tmp_path / "downloaded.bin")
         size, error = client.download_original("a1", out_path)
         assert size == 11
@@ -379,13 +374,17 @@ class TestDownloadOriginal:
             assert f.read() == b"hello world"
 
     @staticmethod
-    def _add_asset(body: bytes, **metadata):
+    def _add_metadata(**metadata):
         responses.add(
             responses.GET,
             "https://example.com/api/assets/a1",
             json={"id": "a1", **metadata},
             status=200,
         )
+
+    @classmethod
+    def _add_asset(cls, body: bytes, **metadata):
+        cls._add_metadata(**metadata)
         responses.add(
             responses.GET,
             "https://example.com/api/assets/a1/original",
@@ -421,6 +420,7 @@ class TestDownloadOriginal:
 
     @responses.activate
     def test_404_returns_error_tuple(self, client, tmp_path):
+        self._add_metadata()
         responses.add(
             responses.GET,
             "https://example.com/api/assets/a1/original",
@@ -433,6 +433,7 @@ class TestDownloadOriginal:
 
     @responses.activate
     def test_500_returns_error_tuple(self, client, tmp_path):
+        self._add_metadata()
         responses.add(
             responses.GET,
             "https://example.com/api/assets/a1/original",
@@ -442,6 +443,30 @@ class TestDownloadOriginal:
         size, error = client.download_original("a1", out_path)
         assert size == 0
         assert "Download failed: HTTP 500" in error
+
+    @responses.activate
+    def test_failed_asset_lookup_aborts_download(self, client, tmp_path, monkeypatch):
+        monkeypatch.setattr("app.services.immich_client.time.sleep", lambda s: None)
+        responses.add(responses.GET, "https://example.com/api/assets/a1", status=500)
+        size, error = client.download_original("a1", str(tmp_path / "out.bin"))
+        assert size == 0
+        assert error == "Asset lookup failed: HTTP 500"
+        assert all("/original" not in c.request.url for c in responses.calls)
+
+    @responses.activate
+    def test_asset_lookup_exception_aborts_download(
+        self, client, tmp_path, monkeypatch
+    ):
+        monkeypatch.setattr("app.services.immich_client.time.sleep", lambda s: None)
+        responses.add(
+            responses.GET,
+            "https://example.com/api/assets/a1",
+            body=requests.ConnectionError("refused"),
+        )
+        size, error = client.download_original("a1", str(tmp_path / "out.bin"))
+        assert size == 0
+        assert error.startswith("Asset lookup failed")
+        assert all("/original" not in c.request.url for c in responses.calls)
 
 
 class TestUploadAsset:
@@ -977,6 +1002,12 @@ class TestDownloadOriginalException:
     @responses.activate
     def test_connection_error_returns_tuple(self, client, tmp_path, monkeypatch):
         monkeypatch.setattr("app.services.immich_client.time.sleep", lambda s: None)
+        responses.add(
+            responses.GET,
+            "https://example.com/api/assets/a1",
+            json={"id": "a1"},
+            status=200,
+        )
         responses.add(
             responses.GET,
             "https://example.com/api/assets/a1/original",

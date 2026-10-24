@@ -200,7 +200,9 @@ class ImmichClient:
         """
         url = urljoin(self.api_base, f"assets/{asset_id}/original")
 
-        expected_checksum = self._get_asset_checksum(asset_id)
+        expected_checksum, error = self._get_asset_checksum(asset_id)
+        if error:
+            return 0, error
 
         try:
             response = self._request_with_retry("GET", url, stream=True)
@@ -232,23 +234,25 @@ class ImmichClient:
         except Exception as e:
             return 0, f"Download failed: {e}"
 
-    def _get_asset_checksum(self, asset_id: str) -> str | None:
-        """Return the SHA1 content checksum reported by Immich for an asset,
-        or None if there is none to verify against."""
+    def _get_asset_checksum(self, asset_id: str) -> tuple[str | None, str | None]:
+        """Return (checksum, error). The checksum is the SHA1 content checksum
+        reported by Immich, or None if there is none to verify against. A
+        failed lookup is an error, not a skipped check: the original gets
+        deleted after conversion."""
         url = urljoin(self.api_base, f"assets/{asset_id}")
         try:
             response = self._request_with_retry("GET", url)
-            if response.status_code == 200:
-                data = response.json()
-                # Immich doesn't hash external library files: their checksum
-                # is the SHA1 of "path:<file path>", which never matches the
-                # file's content.
-                if data.get("libraryId"):
-                    return None
-                return data.get("checksum")
-        except Exception:
-            pass
-        return None
+            if response.status_code != 200:
+                return None, f"Asset lookup failed: HTTP {response.status_code}"
+            data = response.json()
+            # Immich doesn't hash external library files: their checksum
+            # is the SHA1 of "path:<file path>", which never matches the
+            # file's content.
+            if data.get("libraryId"):
+                return None, None
+            return data.get("checksum"), None
+        except Exception as e:
+            return None, f"Asset lookup failed: {e}"
 
     @staticmethod
     def _sha1_file(path: str) -> str:
