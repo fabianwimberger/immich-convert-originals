@@ -26,10 +26,11 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v7
+
       - name: Install dependencies
-        run: |
-          python -m venv .venv
-          .venv/bin/python -m pip install -e '.[dev]'
+        run: uv sync --frozen --extra dev
 
       - name: Lint with ruff
         run: make lint
@@ -53,10 +54,11 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v7
+
       - name: Install dependencies
-        run: |
-          python -m venv .venv
-          .venv/bin/python -m pip install -e '.[dev]'
+        run: uv sync --frozen --extra dev
 
       - name: Run unit tests
         run: make test
