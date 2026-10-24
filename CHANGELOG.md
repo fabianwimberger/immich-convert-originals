@@ -5,6 +5,23 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.7.1] - 2026-10-24
+
+A failed checksum lookup no longer lets a conversion through unverified.
+
+### Fixes
+
+- Fail closed when the asset checksum lookup fails: a non-200 response, timeout or connection error aborts the asset instead of treating it as "no checksum to verify" and deleting the original afterwards. External library assets still skip verification on purpose.
+
+### Dependencies
+
+- FastAPI 0.161.1 → 0.162.0.
+
+### Documentation & Links
+
+- [README](https://github.com/fabianwimberger/immich-convert-originals#readme)
+- [Full changelog](https://github.com/fabianwimberger/immich-convert-originals/compare/v2.7.0...v2.7.1)
+
 ## [v2.7.0] - 2026-10-23
 
 Ships a redesigned web UI.
