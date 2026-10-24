@@ -69,8 +69,7 @@ docker compose up -d
 Needs `ffmpeg`, ImageMagick with the JXL and HEIC/AVIF delegates, `libjxl-tools`, and `exiftool` on the host.
 
 ```bash
-python -m venv .venv
-.venv/bin/python -m pip install -e '.[dev]'
+uv sync --extra dev
 
 FRONTEND_DIR=./frontend \
 DATABASE_PATH=./data/app.db \
