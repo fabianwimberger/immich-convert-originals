@@ -4,6 +4,7 @@ import base64
 import hashlib
 import os
 import random
+import threading
 import time
 from dataclasses import dataclass
 from typing import Any
@@ -48,6 +49,13 @@ class Asset:
 class ImmichClient:
     """Client for Immich HTTP API."""
 
+    # One pooled session for the process: every thumbnail used to pay a fresh
+    # TCP+TLS handshake through here (~20 ms on LAN). Reusing connections
+    # drops that to a couple of ms. Sessions are safe to share across the
+    # worker threads; only GET-style calls below use it.
+    _session: requests.Session | None = None
+    _session_lock = threading.Lock()
+
     def __init__(
         self,
         api_base: str,
@@ -66,15 +74,30 @@ class ImmichClient:
         self._upload_timeout = upload_timeout
         self._current_user_id: str | None = None
 
+    @classmethod
+    def _shared_session(cls) -> requests.Session:
+        if cls._session is None:
+            with cls._session_lock:
+                if cls._session is None:
+                    session = requests.Session()
+                    adapter = requests.adapters.HTTPAdapter(
+                        pool_connections=10, pool_maxsize=32
+                    )
+                    session.mount("http://", adapter)
+                    session.mount("https://", adapter)
+                    cls._session = session
+        return cls._session
+
     def _request_with_retry(self, method: str, url: str, **kwargs) -> requests.Response:
         last_error = None
         extra_headers = kwargs.pop("headers", {})
         merged_headers = {**self._default_headers, **extra_headers}
+        session = self._shared_session()
 
         for attempt in range(self.retry_max + 1):
             response = None
             try:
-                response = requests.request(
+                response = session.request(
                     method, url, headers=merged_headers, timeout=self._timeout, **kwargs
                 )
 
