@@ -22,6 +22,28 @@ def client() -> ImmichClient:
     )
 
 
+class TestSharedSession:
+    def test_creates_and_reuses_single_session(self):
+        ImmichClient._session = None
+        try:
+            first = ImmichClient._shared_session()
+            assert isinstance(first, requests.Session)
+            assert (
+                first.get_adapter(
+                    "https://example.com"
+                ).poolmanager.connection_pool_kw.get("maxsize")
+                == 32
+            )
+            assert ImmichClient._shared_session() is first
+        finally:
+            ImmichClient._session = None
+
+    def test_returns_preset_session_untouched(self, monkeypatch):
+        preset = requests.Session()
+        monkeypatch.setattr(ImmichClient, "_session", preset)
+        assert ImmichClient._shared_session() is preset
+
+
 class TestAssetFromDict:
     def test_full_dict(self):
         data = {
