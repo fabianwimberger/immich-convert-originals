@@ -3,9 +3,11 @@ class AssetBrowser {
   constructor(root) {
     this.root = root;
     this.page = 1;
+    this.pageSize = 120;
     this.items = [];
     this.hasMore = false;
     this.selected = new Set();
+    this.lastIndex = null;
     this.albums = [];
     this.configured = false;
   }
@@ -89,6 +91,14 @@ class AssetBrowser {
         <button id="btn-prev" class="btn btn--quiet btn--small" type="button" disabled>Previous</button>
         <span id="page-label" class="small">Page 1</span>
         <button id="btn-next" class="btn btn--quiet btn--small" type="button" disabled>Next</button>
+        <label class="small" for="page-size">Per page</label>
+        <select id="page-size" class="select">
+          <option value="60">60</option>
+          <option value="120" selected>120</option>
+          <option value="250">250</option>
+          <option value="500">500</option>
+          <option value="1000">1000</option>
+        </select>
       </div>
     `;
 
@@ -99,6 +109,10 @@ class AssetBrowser {
     this.root.querySelector("#btn-next").addEventListener("click", () => this.search(this.page + 1));
     this.root.querySelector("#btn-select-page").addEventListener("click", () => this.selectPage());
     this.root.querySelector("#btn-clear-selection").addEventListener("click", () => this.clearSelection());
+    this.root.querySelector("#page-size").addEventListener("change", (e) => {
+      this.pageSize = parseInt(e.target.value, 10);
+      this.search(1);
+    });
   }
 
   async search(page) {
@@ -109,7 +123,7 @@ class AssetBrowser {
     const params = new URLSearchParams({
       asset_type: filters.asset_type,
       page: String(page),
-      size: "120",
+      size: String(this.pageSize),
       include_archived: String(filters.include_archived),
       include_deleted: String(filters.include_deleted),
     });
@@ -120,6 +134,7 @@ class AssetBrowser {
       this.page = result.page;
       this.items = result.items;
       this.hasMore = result.has_more;
+      this.lastIndex = null;
       this.renderGrid();
       this.updatePager();
       this.updateHeadNote();
@@ -141,16 +156,18 @@ class AssetBrowser {
     }
     grid.innerHTML = this.items
       .map((asset) => {
-        const checked = this.selected.has(asset.id) ? "checked" : "";
+        const isSelected = this.selected.has(asset.id);
+        const checked = isSelected ? "checked" : "";
+        const selectedClass = isSelected ? " selected" : "";
         const flag = asset.already_jxl ? `<span class="asset-flag">JXL</span>` : "";
         const meta = [formatOf(asset), shortDate(asset.file_created_at)]
           .filter(Boolean)
           .map((part) => `<span>${part}</span>`)
           .join("");
         return `
-          <label class="asset-tile" data-id="${asset.id}">
+          <label class="asset-tile${selectedClass}" data-id="${asset.id}">
             <input type="checkbox" class="asset-select" data-id="${asset.id}" ${checked} />
-            <img loading="lazy" src="/api/assets/${asset.id}/thumbnail" alt="${asset.original_file_name}" />
+            <img loading="lazy" decoding="async" src="/api/assets/${asset.id}/thumbnail" alt="${asset.original_file_name}" />
             ${flag}
             <span class="asset-name" title="${asset.original_file_name}">${asset.original_file_name}</span>
             <span class="asset-meta">${meta}</span>
@@ -159,14 +176,98 @@ class AssetBrowser {
       })
       .join("");
 
-    grid.querySelectorAll(".asset-select").forEach((el) => {
-      el.addEventListener("change", (e) => this.toggleSelection(e.target.dataset.id, e.target.checked));
+    grid.querySelectorAll(".asset-tile").forEach((tile, index) => {
+      tile.addEventListener("click", (e) => this.onTileClick(e, index));
+      tile.querySelector(".asset-select").addEventListener("change", () => this.syncFromCheckbox(index));
     });
+    this.schedulePrefetch();
   }
 
-  toggleSelection(id, isSelected) {
-    if (isSelected) this.selected.add(id);
-    else this.selected.delete(id);
+  syncFromCheckbox(index) {
+    // Keyboard toggles reach the box natively (pointer input cannot, see
+    // the CSS). Mirror it into the selection set and tile highlight.
+    const tile = this.root.querySelectorAll("#asset-grid .asset-tile")[index];
+    if (!tile) return;
+    const box = tile.querySelector(".asset-select");
+    if (box.checked) this.selected.add(this.items[index].id);
+    else this.selected.delete(this.items[index].id);
+    tile.classList.toggle("selected", box.checked);
+    this.lastIndex = index;
+    this.updateSelectionCount();
+  }
+
+  schedulePrefetch() {
+    // Warm the browser cache during idle time so scrolling never waits on
+    // demand fetches. Stays to 2 parallel requests and pauses while the
+    // user scrolls, so visible tiles always win the connection pool.
+    this._prefetchToken = (this._prefetchToken || 0) + 1;
+    const token = this._prefetchToken;
+    this._lastScrollAt = 0;
+    const scroller = this.root.closest(".work__main") || window;
+    if (this._prefetchScrollOff) this._prefetchScrollOff();
+    const onScroll = () => {
+      this._lastScrollAt = Date.now();
+    };
+    scroller.addEventListener("scroll", onScroll, { passive: true });
+    this._prefetchScrollOff = () => scroller.removeEventListener("scroll", onScroll);
+    const queue = [...this.root.querySelectorAll("#asset-grid img")]
+      .filter((im) => !im.complete)
+      .map((im) => im.getAttribute("src"));
+    const pump = () => {
+      if (token !== this._prefetchToken || document.hidden) return;
+      if (Date.now() - this._lastScrollAt < 2000) {
+        setTimeout(pump, 500);
+        return;
+      }
+      const batch = [];
+      const pending = new Set(
+        [...this.root.querySelectorAll("#asset-grid img")]
+          .filter((im) => !im.complete)
+          .map((im) => im.getAttribute("src"))
+      );
+      while (queue.length > 0 && batch.length < 2) {
+        const src = queue.shift();
+        if (pending.has(src)) batch.push(src);
+      }
+      if (batch.length === 0) return;
+      Promise.allSettled(batch.map((src) => fetch(src))).then(() => {
+        if ("requestIdleCallback" in window) requestIdleCallback(pump, { timeout: 2000 });
+        else setTimeout(pump, 500);
+      });
+    };
+    if ("requestIdleCallback" in window) requestIdleCallback(pump, { timeout: 2000 });
+    else setTimeout(pump, 500);
+  }
+
+  onTileClick(event, index) {
+    // Take over from the label so shift-click selects a range. Updates the
+    // affected tiles in place: rebuilding the whole grid per click janks
+    // scrolling on large pages.
+    event.preventDefault();
+    const id = this.items[index].id;
+    const next = !this.selected.has(id);
+    let indices;
+    if (event.shiftKey && this.lastIndex !== null && this.lastIndex !== index) {
+      const from = Math.min(this.lastIndex, index);
+      const to = Math.max(this.lastIndex, index);
+      indices = [];
+      for (let i = from; i <= to; i++) indices.push(i);
+    } else {
+      indices = [index];
+    }
+    const grid = this.root.querySelector("#asset-grid");
+    for (const i of indices) {
+      const itemId = this.items[i].id;
+      if (next) this.selected.add(itemId);
+      else this.selected.delete(itemId);
+      const tile = grid.children[i];
+      if (tile) {
+        tile.classList.toggle("selected", next);
+        const box = tile.querySelector(".asset-select");
+        if (box) box.checked = next;
+      }
+    }
+    this.lastIndex = index;
     this.updateSelectionCount();
   }
 

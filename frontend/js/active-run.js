@@ -20,7 +20,68 @@ class ActiveRun {
     this._summaryDirty = false;
     this._flushHandle = null;
     this._unsubscribe = null;
+    this._unsubscribeReconnect = null;
+    this._pollHandle = null;
     this.onBack = null; // set by RunPanel: return to the config screen
+  }
+
+  _stopPoll() {
+    if (this._pollHandle !== null) {
+      clearInterval(this._pollHandle);
+      this._pollHandle = null;
+    }
+  }
+
+  _startPoll() {
+    this._stopPoll();
+    // Backstop for a dropped or blocked update stream: the summary can
+    // never freeze longer than one interval. Rebuilds the per-asset log
+    // from persisted outcomes once the run finishes.
+    this._pollHandle = setInterval(() => this._resync(false), 5000);
+  }
+
+  async _resync(rebuildLog) {
+    if (this.runId === null) return;
+    try {
+      this.run = await api.get(`/runs/${this.runId}`);
+    } catch (err) {
+      return;
+    }
+    this._renderSummary();
+    if (this.run.status !== "queued" && this.run.status !== "running") {
+      this._stopPoll();
+      if (rebuildLog) await this._rebuildLog();
+      else this._summaryDirty = false;
+    }
+    if (window.liveStrip && this.run.status !== "queued" && this.run.status !== "running") {
+      window.liveStrip.follow(this.run);
+    }
+  }
+
+  async _rebuildLog() {
+    try {
+      const resp = await api.get(`/runs/${this.runId}/assets?limit=1000`);
+      this.log = [];
+      this._logIndex.clear();
+      this._rowEls.clear();
+      // Endpoint returns newest first; the log reads oldest first.
+      for (const o of [...resp.items].reverse()) {
+        this._logIndex.set(o.asset_id, this.log.length);
+        this.log.push({
+          asset_id: o.asset_id,
+          filename: o.filename,
+          status: o.status,
+          error: o.error,
+          target_format: o.target_format,
+          input_bytes: o.input_bytes,
+          output_bytes: o.output_bytes,
+        });
+        this._dirtyRows.add(o.asset_id);
+      }
+      this._scheduleFlush();
+    } catch (err) {
+      // Keep whatever live rows arrived; next poll retries.
+    }
   }
 
   async show(runId) {
@@ -42,9 +103,17 @@ class ActiveRun {
 
     if (this._unsubscribe) this._unsubscribe();
     this._unsubscribe = wsClient.onMessage((msg) => this._handleMessage(msg));
+    if (this._unsubscribeReconnect) this._unsubscribeReconnect();
+    this._unsubscribeReconnect = wsClient.onReconnect(() => this._resync(true));
+    if (this.run.status === "queued" || this.run.status === "running") {
+      this._startPoll();
+    } else {
+      this._stopPoll();
+      await this._rebuildLog();
+    }
   }
 
-  _handleMessage(msg) {
+  async _handleMessage(msg) {
     if (msg.run_id !== this.runId) return;
 
     if (msg.type === "asset_progress") {
@@ -80,6 +149,8 @@ class ActiveRun {
       this._applyCounters(msg);
       this.run.status = msg.status;
       this._renderSummary();
+      this._stopPoll();
+      await this._rebuildLog();
       if (window.refreshShell) window.refreshShell();
     } else if (msg.type === "run_started") {
       this.run.status = "running";

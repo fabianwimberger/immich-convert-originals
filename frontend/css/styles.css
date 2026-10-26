@@ -429,6 +429,8 @@ body {
   border-radius: var(--r-control);
   color: var(--ink-muted);
   cursor: pointer;
+  content-visibility: auto;
+  contain-intrinsic-size: auto 18rem;
   transition: border-color var(--t-fast) var(--ease), background var(--t-fast) var(--ease);
 }
 
@@ -436,7 +438,7 @@ body {
   border-color: var(--line-strong);
 }
 
-.asset-tile:has(input:checked) {
+.asset-tile.selected {
   border-color: var(--accent);
   background: var(--accent-wash);
 }
@@ -453,6 +455,11 @@ body {
   top: var(--s-3);
   left: var(--s-3);
   z-index: 1;
+  /* All pointer input goes to the tile so selection has exactly one code
+  path; Firefox applies a natively-clicked checkbox toggle after bubble
+  listeners ran, which desynced the box from the tile. Keyboard still
+  toggles the box itself and syncs back via the change listener. */
+  pointer-events: none;
 }
 
 .asset-flag {
@@ -492,6 +499,11 @@ body {
   justify-content: center;
   gap: var(--s-3);
   margin-top: var(--s-4);
+}
+
+.pager .select {
+  width: auto;
+  min-height: 2.25rem;
 }
 
 #page-label {

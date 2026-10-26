@@ -5,6 +5,29 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.8.0] - 2026-10-26
+
+Faster browsing and a Convert view that stays accurate when the live connection drops.
+
+### Features
+
+- Shift-click selects a whole range of assets in Browse, and the page size goes up to 1000.
+- The Convert view re-syncs when its live-update connection drops: the summary refreshes on reconnect and on a timer, and the per-asset log rebuilds from stored outcomes.
+- Thumbnails scroll faster: the server caches them in memory, the browser keeps them for a day, and offscreen tiles skip rendering.
+
+### Fixes
+
+- Clicking a tile's checkbox directly no longer leaves the tile highlighted with the box unchecked.
+
+### Testing
+
+- Integration tests pass against Immich v3.3.5.
+
+### Documentation & Links
+
+- [README](https://github.com/fabianwimberger/immich-convert-originals#readme)
+- [Full changelog](https://github.com/fabianwimberger/immich-convert-originals/compare/v2.7.1...v2.8.0)
+
 ## [v2.7.1] - 2026-10-24
 
 A failed checksum lookup no longer lets a conversion through unverified.
