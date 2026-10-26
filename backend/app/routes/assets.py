@@ -38,7 +38,7 @@ def _to_item(asset: Asset) -> AssetItem:
 async def list_assets(
     asset_type: str = Query("IMAGE", pattern="^(IMAGE|VIDEO)$"),
     page: int = Query(1, ge=1),
-    size: int = Query(50, ge=1, le=500),
+    size: int = Query(50, ge=1, le=1000),
     include_archived: bool = False,
     include_deleted: bool = False,
     album_id: str | None = None,
