@@ -120,7 +120,9 @@ async def get_thumbnail(
             client.get_thumbnail, asset_id
         )
         if error or content is None:
-            raise HTTPException(status_code=502, detail=error or "Thumbnail unavailable")
+            raise HTTPException(
+                status_code=502, detail=error or "Thumbnail unavailable"
+            )
         _store_thumbnail(asset_id, content, content_type or "image/jpeg")
     else:
         content, content_type = cached
