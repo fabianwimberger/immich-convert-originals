@@ -156,14 +156,16 @@ class AssetBrowser {
     }
     grid.innerHTML = this.items
       .map((asset) => {
-        const checked = this.selected.has(asset.id) ? "checked" : "";
+        const isSelected = this.selected.has(asset.id);
+        const checked = isSelected ? "checked" : "";
+        const selectedClass = isSelected ? " selected" : "";
         const flag = asset.already_jxl ? `<span class="asset-flag">JXL</span>` : "";
         const meta = [formatOf(asset), shortDate(asset.file_created_at)]
           .filter(Boolean)
           .map((part) => `<span>${part}</span>`)
           .join("");
         return `
-          <label class="asset-tile" data-id="${asset.id}">
+          <label class="asset-tile${selectedClass}" data-id="${asset.id}">
             <input type="checkbox" class="asset-select" data-id="${asset.id}" ${checked} />
             <img loading="lazy" decoding="async" src="/api/assets/${asset.id}/thumbnail" alt="${asset.original_file_name}" />
             ${flag}
@@ -180,24 +182,34 @@ class AssetBrowser {
   }
 
   onTileClick(event, index) {
-    // Take over from the label so shift-click selects a range.
+    // Take over from the label so shift-click selects a range. Updates the
+    // affected tiles in place: rebuilding the whole grid per click janks
+    // scrolling on large pages.
     event.preventDefault();
     const id = this.items[index].id;
     const next = !this.selected.has(id);
+    let indices;
     if (event.shiftKey && this.lastIndex !== null && this.lastIndex !== index) {
       const from = Math.min(this.lastIndex, index);
       const to = Math.max(this.lastIndex, index);
-      for (let i = from; i <= to; i++) {
-        if (next) this.selected.add(this.items[i].id);
-        else this.selected.delete(this.items[i].id);
-      }
-    } else if (next) {
-      this.selected.add(id);
+      indices = [];
+      for (let i = from; i <= to; i++) indices.push(i);
     } else {
-      this.selected.delete(id);
+      indices = [index];
+    }
+    const grid = this.root.querySelector("#asset-grid");
+    for (const i of indices) {
+      const itemId = this.items[i].id;
+      if (next) this.selected.add(itemId);
+      else this.selected.delete(itemId);
+      const tile = grid.children[i];
+      if (tile) {
+        tile.classList.toggle("selected", next);
+        const box = tile.querySelector(".asset-select");
+        if (box) box.checked = next;
+      }
     }
     this.lastIndex = index;
-    this.renderGrid();
     this.updateSelectionCount();
   }
 
