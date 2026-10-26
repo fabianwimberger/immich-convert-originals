@@ -494,6 +494,11 @@ body {
   margin-top: var(--s-4);
 }
 
+.pager .select {
+  width: auto;
+  min-height: 2.25rem;
+}
+
 #page-label {
   color: var(--ink-muted);
   font-variant-numeric: tabular-nums;
