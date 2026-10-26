@@ -179,6 +179,50 @@ class AssetBrowser {
     grid.querySelectorAll(".asset-tile").forEach((tile, index) => {
       tile.addEventListener("click", (e) => this.onTileClick(e, index));
     });
+    this.schedulePrefetch();
+  }
+
+  schedulePrefetch() {
+    // Warm the browser cache during idle time so scrolling never waits on
+    // demand fetches. Stays to 2 parallel requests and pauses while the
+    // user scrolls, so visible tiles always win the connection pool.
+    this._prefetchToken = (this._prefetchToken || 0) + 1;
+    const token = this._prefetchToken;
+    this._lastScrollAt = 0;
+    const scroller = this.root.closest(".work__main") || window;
+    if (this._prefetchScrollOff) this._prefetchScrollOff();
+    const onScroll = () => {
+      this._lastScrollAt = Date.now();
+    };
+    scroller.addEventListener("scroll", onScroll, { passive: true });
+    this._prefetchScrollOff = () => scroller.removeEventListener("scroll", onScroll);
+    const queue = [...this.root.querySelectorAll("#asset-grid img")]
+      .filter((im) => !im.complete)
+      .map((im) => im.getAttribute("src"));
+    const pump = () => {
+      if (token !== this._prefetchToken || document.hidden) return;
+      if (Date.now() - this._lastScrollAt < 2000) {
+        setTimeout(pump, 500);
+        return;
+      }
+      const batch = [];
+      const pending = new Set(
+        [...this.root.querySelectorAll("#asset-grid img")]
+          .filter((im) => !im.complete)
+          .map((im) => im.getAttribute("src"))
+      );
+      while (queue.length > 0 && batch.length < 2) {
+        const src = queue.shift();
+        if (pending.has(src)) batch.push(src);
+      }
+      if (batch.length === 0) return;
+      Promise.allSettled(batch.map((src) => fetch(src))).then(() => {
+        if ("requestIdleCallback" in window) requestIdleCallback(pump, { timeout: 2000 });
+        else setTimeout(pump, 500);
+      });
+    };
+    if ("requestIdleCallback" in window) requestIdleCallback(pump, { timeout: 2000 });
+    else setTimeout(pump, 500);
   }
 
   onTileClick(event, index) {
