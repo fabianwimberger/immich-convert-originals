@@ -76,17 +76,16 @@ class ImmichClient:
 
     @classmethod
     def _shared_session(cls) -> requests.Session:
-        if cls._session is None:
-            with cls._session_lock:
-                if cls._session is None:
-                    session = requests.Session()
-                    adapter = requests.adapters.HTTPAdapter(
-                        pool_connections=10, pool_maxsize=32
-                    )
-                    session.mount("http://", adapter)
-                    session.mount("https://", adapter)
-                    cls._session = session
-        return cls._session
+        with cls._session_lock:
+            if cls._session is None:
+                session = requests.Session()
+                adapter = requests.adapters.HTTPAdapter(
+                    pool_connections=10, pool_maxsize=32
+                )
+                session.mount("http://", adapter)
+                session.mount("https://", adapter)
+                cls._session = session
+            return cls._session
 
     def _request_with_retry(self, method: str, url: str, **kwargs) -> requests.Response:
         last_error = None
