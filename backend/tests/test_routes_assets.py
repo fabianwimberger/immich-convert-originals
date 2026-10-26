@@ -132,6 +132,52 @@ class TestThumbnail:
         assert resp.status_code == 200
         assert resp.content == b"fake-image-bytes"
         assert resp.headers["content-type"] == "image/jpeg"
+        assert resp.headers["cache-control"] == "public, max-age=86400, immutable"
+
+    @responses.activate
+    async def test_second_request_served_from_cache(self, client):
+        await _configure_connection(client)
+        responses.add(
+            responses.GET,
+            "https://immich.example.com/api/assets/a1/thumbnail",
+            body=b"fake-image-bytes",
+            content_type="image/jpeg",
+        )
+        first = await client.get("/api/assets/a1/thumbnail")
+        assert first.status_code == 200
+        assert len(responses.calls) == 1
+        second = await client.get("/api/assets/a1/thumbnail")
+        assert second.status_code == 200
+        assert second.content == b"fake-image-bytes"
+        assert len(responses.calls) == 1
+
+    @responses.activate
+    async def test_evicts_least_recently_used(self, client, monkeypatch):
+        await _configure_connection(client)
+        monkeypatch.setattr(assets_route, "_THUMBNAIL_CACHE_SIZE", 2)
+        for asset_id in ("a1", "a2", "a3"):
+            responses.add(
+                responses.GET,
+                f"https://immich.example.com/api/assets/{asset_id}/thumbnail",
+                body=asset_id.encode(),
+                content_type="image/jpeg",
+            )
+            resp = await client.get(f"/api/assets/{asset_id}/thumbnail")
+            assert resp.status_code == 200
+        assert set(assets_route._thumbnail_cache) == {"a2", "a3"}
+
+    @responses.activate
+    async def test_missing_content_type_defaults_to_jpeg(self, client):
+        await _configure_connection(client)
+        responses.add(
+            responses.GET,
+            "https://immich.example.com/api/assets/a1/thumbnail",
+            body=b"fake-image-bytes",
+            content_type="",
+        )
+        resp = await client.get("/api/assets/a1/thumbnail")
+        assert resp.status_code == 200
+        assert resp.headers["content-type"] == "image/jpeg"
 
     @responses.activate
     async def test_upstream_failure_returns_502(self, client):
