@@ -429,6 +429,8 @@ body {
   border-radius: var(--r-control);
   color: var(--ink-muted);
   cursor: pointer;
+  content-visibility: auto;
+  contain-intrinsic-size: auto 18rem;
   transition: border-color var(--t-fast) var(--ease), background var(--t-fast) var(--ease);
 }
 
@@ -436,7 +438,7 @@ body {
   border-color: var(--line-strong);
 }
 
-.asset-tile:has(input:checked) {
+.asset-tile.selected {
   border-color: var(--accent);
   background: var(--accent-wash);
 }
@@ -492,6 +494,11 @@ body {
   justify-content: center;
   gap: var(--s-3);
   margin-top: var(--s-4);
+}
+
+.pager .select {
+  width: auto;
+  min-height: 2.25rem;
 }
 
 #page-label {
