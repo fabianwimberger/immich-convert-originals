@@ -1,6 +1,16 @@
 """Tests for the asset browsing API routes."""
 
+import pytest
 import responses
+
+from app.routes import assets as assets_route
+
+
+@pytest.fixture(autouse=True)
+def _clear_thumbnail_cache():
+    assets_route._thumbnail_cache.clear()
+    yield
+    assets_route._thumbnail_cache.clear()
 
 
 async def _configure_connection(client):

@@ -9,6 +9,9 @@ from app.dependencies import get_immich_client
 from app.models.schemas import AssetItem, AssetListResponse
 from app.services.immich_client import Asset, ImmichClient
 
+from collections import OrderedDict
+from threading import Lock
+
 router = APIRouter()
 
 
@@ -32,6 +35,30 @@ def _to_item(asset: Asset) -> AssetItem:
         file_modified_at=asset.file_modified_at,
         already_jxl=_already_jxl(asset),
     )
+
+
+# Thumbnails are stable per asset id and tiny (~4 KB): keep recent ones in
+# memory so paging back or re-browsing never re-hits Immich. The browser
+# additionally caches them for a day (see get_thumbnail).
+_THUMBNAIL_CACHE_SIZE = 5000
+_thumbnail_cache: OrderedDict[str, tuple[bytes, str]] = OrderedDict()
+_thumbnail_cache_lock = Lock()
+
+
+def _cached_thumbnail(asset_id: str) -> tuple[bytes, str] | None:
+    with _thumbnail_cache_lock:
+        entry = _thumbnail_cache.get(asset_id)
+        if entry is not None:
+            _thumbnail_cache.move_to_end(asset_id)
+        return entry
+
+
+def _store_thumbnail(asset_id: str, content: bytes, content_type: str) -> None:
+    with _thumbnail_cache_lock:
+        _thumbnail_cache[asset_id] = (content, content_type)
+        _thumbnail_cache.move_to_end(asset_id)
+        while len(_thumbnail_cache) > _THUMBNAIL_CACHE_SIZE:
+            _thumbnail_cache.popitem(last=False)
 
 
 @router.get("", response_model=AssetListResponse)
@@ -87,13 +114,18 @@ async def list_assets(
 async def get_thumbnail(
     asset_id: str, client: ImmichClient = Depends(get_immich_client)
 ):
-    content, content_type, error = await asyncio.to_thread(
-        client.get_thumbnail, asset_id
-    )
-    if error or content is None:
-        raise HTTPException(status_code=502, detail=error or "Thumbnail unavailable")
+    cached = _cached_thumbnail(asset_id)
+    if cached is None:
+        content, content_type, error = await asyncio.to_thread(
+            client.get_thumbnail, asset_id
+        )
+        if error or content is None:
+            raise HTTPException(status_code=502, detail=error or "Thumbnail unavailable")
+        _store_thumbnail(asset_id, content, content_type or "image/jpeg")
+    else:
+        content, content_type = cached
     return Response(
         content=content,
-        media_type=content_type or "image/jpeg",
-        headers={"Cache-Control": "private, max-age=3600"},
+        media_type=content_type,
+        headers={"Cache-Control": "public, max-age=86400, immutable"},
     )

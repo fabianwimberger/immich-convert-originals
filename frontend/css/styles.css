@@ -429,6 +429,8 @@ body {
   border-radius: var(--r-control);
   color: var(--ink-muted);
   cursor: pointer;
+  content-visibility: auto;
+  contain-intrinsic-size: auto 18rem;
   transition: border-color var(--t-fast) var(--ease), background var(--t-fast) var(--ease);
 }
 

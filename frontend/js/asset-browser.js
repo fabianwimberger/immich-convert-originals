@@ -165,7 +165,7 @@ class AssetBrowser {
         return `
           <label class="asset-tile" data-id="${asset.id}">
             <input type="checkbox" class="asset-select" data-id="${asset.id}" ${checked} />
-            <img loading="lazy" src="/api/assets/${asset.id}/thumbnail" alt="${asset.original_file_name}" />
+            <img loading="lazy" decoding="async" src="/api/assets/${asset.id}/thumbnail" alt="${asset.original_file_name}" />
             ${flag}
             <span class="asset-name" title="${asset.original_file_name}">${asset.original_file_name}</span>
             <span class="asset-meta">${meta}</span>
