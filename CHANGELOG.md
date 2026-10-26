@@ -15,6 +15,10 @@ Faster browsing and a Convert view that stays accurate when the live connection 
 - The Convert view re-syncs when its live-update connection drops: the summary refreshes on reconnect and on a timer, and the per-asset log rebuilds from stored outcomes.
 - Thumbnails scroll faster: the server caches them in memory, the browser keeps them for a day, and offscreen tiles skip rendering.
 
+### Fixes
+
+- Clicking a tile's checkbox directly no longer leaves the tile highlighted with the box unchecked.
+
 ### Testing
 
 - Integration tests pass against Immich v3.3.5.
