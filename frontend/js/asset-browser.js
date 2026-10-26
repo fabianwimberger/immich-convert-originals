@@ -178,8 +178,22 @@ class AssetBrowser {
 
     grid.querySelectorAll(".asset-tile").forEach((tile, index) => {
       tile.addEventListener("click", (e) => this.onTileClick(e, index));
+      tile.querySelector(".asset-select").addEventListener("change", () => this.syncFromCheckbox(index));
     });
     this.schedulePrefetch();
+  }
+
+  syncFromCheckbox(index) {
+    // Keyboard toggles reach the box natively (pointer input cannot, see
+    // the CSS). Mirror it into the selection set and tile highlight.
+    const tile = this.root.querySelectorAll("#asset-grid .asset-tile")[index];
+    if (!tile) return;
+    const box = tile.querySelector(".asset-select");
+    if (box.checked) this.selected.add(this.items[index].id);
+    else this.selected.delete(this.items[index].id);
+    tile.classList.toggle("selected", box.checked);
+    this.lastIndex = index;
+    this.updateSelectionCount();
   }
 
   schedulePrefetch() {
