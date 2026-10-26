@@ -3,9 +3,11 @@ class AssetBrowser {
   constructor(root) {
     this.root = root;
     this.page = 1;
+    this.pageSize = 120;
     this.items = [];
     this.hasMore = false;
     this.selected = new Set();
+    this.lastIndex = null;
     this.albums = [];
     this.configured = false;
   }
@@ -89,6 +91,13 @@ class AssetBrowser {
         <button id="btn-prev" class="btn btn--quiet btn--small" type="button" disabled>Previous</button>
         <span id="page-label" class="small">Page 1</span>
         <button id="btn-next" class="btn btn--quiet btn--small" type="button" disabled>Next</button>
+        <label class="small" for="page-size">Per page</label>
+        <select id="page-size" class="select">
+          <option value="60">60</option>
+          <option value="120" selected>120</option>
+          <option value="250">250</option>
+          <option value="500">500</option>
+        </select>
       </div>
     `;
 
@@ -99,6 +108,10 @@ class AssetBrowser {
     this.root.querySelector("#btn-next").addEventListener("click", () => this.search(this.page + 1));
     this.root.querySelector("#btn-select-page").addEventListener("click", () => this.selectPage());
     this.root.querySelector("#btn-clear-selection").addEventListener("click", () => this.clearSelection());
+    this.root.querySelector("#page-size").addEventListener("change", (e) => {
+      this.pageSize = parseInt(e.target.value, 10);
+      this.search(1);
+    });
   }
 
   async search(page) {
@@ -109,7 +122,7 @@ class AssetBrowser {
     const params = new URLSearchParams({
       asset_type: filters.asset_type,
       page: String(page),
-      size: "120",
+      size: String(this.pageSize),
       include_archived: String(filters.include_archived),
       include_deleted: String(filters.include_deleted),
     });
@@ -120,6 +133,7 @@ class AssetBrowser {
       this.page = result.page;
       this.items = result.items;
       this.hasMore = result.has_more;
+      this.lastIndex = null;
       this.renderGrid();
       this.updatePager();
       this.updateHeadNote();
@@ -159,14 +173,30 @@ class AssetBrowser {
       })
       .join("");
 
-    grid.querySelectorAll(".asset-select").forEach((el) => {
-      el.addEventListener("change", (e) => this.toggleSelection(e.target.dataset.id, e.target.checked));
+    grid.querySelectorAll(".asset-tile").forEach((tile, index) => {
+      tile.addEventListener("click", (e) => this.onTileClick(e, index));
     });
   }
 
-  toggleSelection(id, isSelected) {
-    if (isSelected) this.selected.add(id);
-    else this.selected.delete(id);
+  onTileClick(event, index) {
+    // Take over from the label so shift-click selects a range.
+    event.preventDefault();
+    const id = this.items[index].id;
+    const next = !this.selected.has(id);
+    if (event.shiftKey && this.lastIndex !== null && this.lastIndex !== index) {
+      const from = Math.min(this.lastIndex, index);
+      const to = Math.max(this.lastIndex, index);
+      for (let i = from; i <= to; i++) {
+        if (next) this.selected.add(this.items[i].id);
+        else this.selected.delete(this.items[i].id);
+      }
+    } else if (next) {
+      this.selected.add(id);
+    } else {
+      this.selected.delete(id);
+    }
+    this.lastIndex = index;
+    this.renderGrid();
     this.updateSelectionCount();
   }
 
