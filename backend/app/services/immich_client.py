@@ -64,6 +64,7 @@ class ImmichClient:
         retry_backoff: int = 2,
         timeout: tuple[int, int] = (10, 300),
         upload_timeout: tuple[int, int] = (60, 300),
+        verify_ssl: bool = True,
     ):
         self.api_base = api_base
         self.api_key = api_key
@@ -72,6 +73,7 @@ class ImmichClient:
         self._default_headers = {"x-api-key": api_key}
         self._timeout = timeout  # (connect_timeout, read_timeout)
         self._upload_timeout = upload_timeout
+        self._verify_ssl = verify_ssl
         self._current_user_id: str | None = None
 
     @classmethod
@@ -97,7 +99,12 @@ class ImmichClient:
             response = None
             try:
                 response = session.request(
-                    method, url, headers=merged_headers, timeout=self._timeout, **kwargs
+                    method,
+                    url,
+                    headers=merged_headers,
+                    timeout=self._timeout,
+                    verify=self._verify_ssl,
+                    **kwargs,
                 )
 
                 if response.status_code == 401:
@@ -359,6 +366,7 @@ class ImmichClient:
                         files=files,
                         data=data,
                         timeout=self._upload_timeout,
+                        verify=self._verify_ssl,
                     )
 
                     if response.status_code == 401:

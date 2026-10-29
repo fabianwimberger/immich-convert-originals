@@ -29,4 +29,5 @@ async def get_immich_client(db: AsyncSession = Depends(get_db)) -> ImmichClient:
     # A lower retry count than the default (3, tuned for long batch runs)
     # keeps interactive browse/thumbnail requests from hanging for ~20s
     # on a broken connection.
-    return ImmichClient(api_base=api_base, api_key=row.immich_api_key, retry_max=1)
+    return ImmichClient(api_base=api_base, api_key=row.immich_api_key, retry_max=1,
+        verify_ssl=not row.immich_allow_insecure_ssl)

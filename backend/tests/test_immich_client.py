@@ -44,6 +44,44 @@ class TestSharedSession:
         assert ImmichClient._shared_session() is preset
 
 
+class TestSslVerification:
+    def test_api_requests_verify_certificates_by_default(self, client):
+        response = requests.Response()
+        response.status_code = 200
+        with patch.object(
+            client._shared_session(), "request", return_value=response
+        ) as request:
+            client._request_with_retry("GET", "https://example.com/api/test")
+        assert request.call_args.kwargs["verify"] is True
+
+    def test_api_requests_can_skip_certificate_verification(self, client):
+        client._verify_ssl = False
+        response = requests.Response()
+        response.status_code = 200
+        with patch.object(
+            client._shared_session(), "request", return_value=response
+        ) as request:
+            client._request_with_retry("GET", "https://example.com/api/test")
+        assert request.call_args.kwargs["verify"] is False
+
+    def test_uploads_can_skip_certificate_verification(self, client, tmp_path):
+        client._verify_ssl = False
+        upload = tmp_path / "asset.jpg"
+        upload.write_bytes(b"asset")
+        response = requests.Response()
+        response.status_code = 201
+        response._content = b'{"id":"new-asset"}'
+        with patch(
+            "app.services.immich_client.requests.request", return_value=response
+        ) as request:
+            asset_id, error = client.upload_asset(
+                str(upload), "created", "modified"
+            )
+        assert asset_id == "new-asset"
+        assert error is None
+        assert request.call_args.kwargs["verify"] is False
+
+
 class TestAssetFromDict:
     def test_full_dict(self):
         data = {

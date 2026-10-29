@@ -764,7 +764,11 @@ async def execute_run(run_id: int) -> None:
     api_base = cfg["immich_api_base"]
     if not api_base.endswith("/"):
         api_base += "/"
-    client = ImmichClient(api_base=api_base, api_key=cfg["immich_api_key"])
+    client = ImmichClient(
+        api_base=api_base,
+        api_key=cfg["immich_api_key"],
+        verify_ssl=not cfg.get("immich_allow_insecure_ssl", False),
+    )
 
     async with AsyncSessionLocal() as db:
         await db.execute(

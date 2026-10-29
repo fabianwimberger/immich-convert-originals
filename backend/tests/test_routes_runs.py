@@ -53,6 +53,25 @@ class TestCreateRun:
             # Unset override falls back to the saved Settings default.
             assert cfg["video_preset"] == 4
 
+    async def test_insecure_ssl_setting_is_stored_in_run_snapshot(self, client):
+        await client.put(
+            "/api/settings",
+            json={
+                "immich_api_base": "https://immich.example.com/api/",
+                "immich_api_key": "key",
+                "immich_allow_insecure_ssl": True,
+            },
+        )
+        resp = await client.post("/api/runs", json={"dry_run": True})
+        assert resp.status_code == 200
+        async with AsyncSessionLocal() as db:
+            from sqlalchemy import select
+
+            result = await db.execute(select(Run).where(Run.id == resp.json()["id"]))
+            run = result.scalar_one()
+            cfg = json.loads(run.config_snapshot)
+            assert cfg["immich_allow_insecure_ssl"] is True
+
     async def test_convert_image_formats_override_stored_in_snapshot(self, client):
         await _configure_connection(client)
         resp = await client.post(
