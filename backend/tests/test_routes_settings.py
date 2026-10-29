@@ -17,6 +17,7 @@ class TestReadSettings:
         data = resp.json()
         assert data["immich_api_base"] == ""
         assert data["immich_api_key_set"] is False
+        assert data["immich_allow_insecure_ssl"] is False
         assert data["asset_types"] == "IMAGE,VIDEO"
         assert data["concurrency"] == 2
         assert data["convert_image_formats"] == "jpg,png,webp,heic,avif,tiff,gif,bmp"
@@ -48,6 +49,10 @@ class TestUpdateSettings:
         resp = await client.put("/api/settings", json={"immich_api_key": "secret-key"})
         assert resp.json()["immich_api_key_set"] is True
         assert "secret-key" not in resp.text
+
+    async def test_allow_insecure_ssl_persists(self, client):
+        resp = await client.put("/api/settings", json={"immich_allow_insecure_ssl": True})
+        assert resp.json()["immich_allow_insecure_ssl"] is True
 
     async def test_out_of_range_video_crf_rejected(self, client):
         resp = await client.put("/api/settings", json={"video_crf": 999})
@@ -111,6 +116,32 @@ class TestConnectionCheck:
         data = resp.json()
         assert data["ok"] is False
         assert "required" in data["error"]
+
+    async def test_insecure_ssl_override_is_passed_to_client(self, client, monkeypatch):
+        await client.put(
+            "/api/settings",
+            json={
+                "immich_api_base": "https://saved.example.com/api/",
+                "immich_api_key": "key",
+                "immich_allow_insecure_ssl": True,
+            },
+        )
+        captured = {}
+
+        class FakeImmichClient:
+            def __init__(self, **kwargs):
+                captured.update(kwargs)
+
+            def test_connection(self):
+                return False, "connection failed"
+
+        monkeypatch.setattr("app.routes.settings.ImmichClient", FakeImmichClient)
+        resp = await client.post(
+            "/api/settings/test-connection",
+            json={"immich_allow_insecure_ssl": False},
+        )
+        assert resp.json()["ok"] is False
+        assert captured["verify_ssl"] is True
 
     @responses.activate
     async def test_success_reports_server_version(self, client):

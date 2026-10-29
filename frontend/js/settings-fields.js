@@ -9,6 +9,10 @@ const SETTINGS_FIELDS = {
     default: "none",
     example: "e.g. https://photos.example.com/api",
   },
+  immich_allow_insecure_ssl: {
+    description: "Disables certificate verification for the Immich API connection. Only enable this for a trusted server.",
+    default: "off"
+  },
   asset_types: {
     description: "Which asset types a filtered run considers by default.",
     default: "Images + Videos",

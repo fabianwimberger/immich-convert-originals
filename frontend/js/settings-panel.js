@@ -32,6 +32,13 @@ class SettingsPanel {
               <label class="label" for="set-api-key">API key</label>
               <input id="set-api-key" class="input" type="password" placeholder="${s.immich_api_key_set ? "•••••••• (set)" : "Not set"}" />
             </div>
+            <div class="field">
+              <label class="check">
+                <input id="set-allow-insecure-ssl" type="checkbox" ${s.immich_allow_insecure_ssl ? "checked" : ""} />
+                Allow insecure SSL certificates (self-signed)
+              </label>
+              ${fieldHint("immich_allow_insecure_ssl")}
+            </div>
             <div class="actions">
               <button id="btn-save-connection" class="btn btn--quiet btn--small" type="button">Save connection</button>
               <button id="btn-test-connection" class="btn btn--quiet btn--small" type="button">Test connection</button>
@@ -293,6 +300,9 @@ class SettingsPanel {
       const body = {};
       if (apiBase) body.immich_api_base = apiBase;
       if (apiKey) body.immich_api_key = apiKey;
+      body.immich_allow_insecure_ssl = this.root.querySelector(
+        "#set-allow-insecure-ssl"
+      ).checked;
       const result = await api.post("/settings/test-connection", body);
       statusEl.textContent = result.ok
         ? `Connected, Immich v${result.server_version}`
@@ -322,7 +332,12 @@ class SettingsPanel {
   async saveConnection() {
     const apiBase = this.root.querySelector("#set-api-base").value.trim();
     const apiKey = this.root.querySelector("#set-api-key").value.trim();
-    const body = { immich_api_base: apiBase };
+    const body = {
+      immich_api_base: apiBase,
+      immich_allow_insecure_ssl: this.root.querySelector(
+        "#set-allow-insecure-ssl"
+      ).checked,
+    };
     if (apiKey) body.immich_api_key = apiKey;
     await this._save("connection-status", body);
   }

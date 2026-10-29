@@ -58,7 +58,17 @@ async def test_connection(
     if not api_base.endswith("/"):
         api_base += "/"
 
-    client = ImmichClient(api_base=api_base, api_key=api_key, retry_max=0)
+    allow_insecure_ssl = (
+        data.immich_allow_insecure_ssl
+        if data.immich_allow_insecure_ssl is not None
+        else row.immich_allow_insecure_ssl
+    )
+    client = ImmichClient(
+        api_base=api_base,
+        api_key=api_key,
+        retry_max=0,
+        verify_ssl=not allow_insecure_ssl
+    )
     ok, error = await asyncio.to_thread(client.test_connection)
     if not ok:
         if error and "404" in error and "/api" not in api_base.rstrip("/").lower():
