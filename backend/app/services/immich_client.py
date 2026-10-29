@@ -6,6 +6,7 @@ import os
 import random
 import threading
 import time
+import warnings
 from dataclasses import dataclass
 from typing import Any
 from urllib.parse import urljoin
@@ -74,6 +75,13 @@ class ImmichClient:
         self._timeout = timeout  # (connect_timeout, read_timeout)
         self._upload_timeout = upload_timeout
         self._verify_ssl = verify_ssl
+        if not verify_ssl:
+            warnings.filterwarnings(
+                "ignore",
+                message="Unverified HTTPS request is being made",
+                category=Warning,
+                module=r"urllib3\.connectionpool",
+            )
         self._current_user_id: str | None = None
 
     @classmethod

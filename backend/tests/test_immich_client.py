@@ -45,6 +45,20 @@ class TestSharedSession:
 
 
 class TestSslVerification:
+    def test_insecure_ssl_disables_urllib3_warning(self):
+        with patch("app.services.immich_client.warnings.filterwarnings") as filter_warning:
+            ImmichClient(
+                api_base="https://example.com/api/",
+                api_key="test_key",
+                verify_ssl=False,
+            )
+        filter_warning.assert_called_once_with(
+            "ignore",
+            message="Unverified HTTPS request is being made",
+            category=Warning,
+            module=r"urllib3\.connectionpool",
+        )
+
     def test_api_requests_verify_certificates_by_default(self, client):
         response = requests.Response()
         response.status_code = 200
