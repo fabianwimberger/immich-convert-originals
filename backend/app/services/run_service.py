@@ -13,6 +13,7 @@ import asyncio
 import json
 import logging
 import os
+import shlex
 import shutil
 import time
 import uuid
@@ -67,6 +68,11 @@ def _get_target_format(asset: Asset, cfg: dict[str, Any]) -> str:
     if asset.type == "VIDEO":
         return "mp4"
     return cfg.get("image_target_format", "jxl")
+
+
+def _custom_args(cfg: dict[str, Any], key: str) -> list[str]:
+    # .get: snapshots of runs created before these settings existed lack the key.
+    return shlex.split(cfg.get(key) or "")
 
 
 def _get_image_quality(
@@ -273,6 +279,7 @@ def _convert_live_photo_video(
             preset=str(cfg["video_preset"]),
             max_dimension=cfg["video_max_dimension"],
             audio_bitrate=cfg["video_audio_bitrate"],
+            extra_args=_custom_args(cfg, "video_ffmpeg_args"),
         )
         if not tx.success or not validate_video_output(output_path):
             if not (tx.error or "").startswith("Already "):
@@ -359,6 +366,7 @@ def _process_asset_sync(
                 preset=str(cfg["video_preset"]),
                 max_dimension=cfg["video_max_dimension"],
                 audio_bitrate=cfg["video_audio_bitrate"],
+                extra_args=_custom_args(cfg, "video_ffmpeg_args"),
             )
             is_valid = validate_video_output(output_path)
         else:
@@ -369,6 +377,8 @@ def _process_asset_sync(
                 _get_image_quality(cfg, target_format, retry=False),
                 jxl_effort=cfg.get("image_jxl_effort", 7),
                 motion_photo=motion_photo,
+                cjxl_args=_custom_args(cfg, "image_cjxl_args"),
+                magick_args=_custom_args(cfg, "image_magick_args"),
             )
             is_valid = validate_output(output_path, target_format)
 
@@ -404,6 +414,7 @@ def _process_asset_sync(
                         preset=str(cfg["video_preset"]),
                         max_dimension=cfg["video_max_dimension"],
                         audio_bitrate=cfg["video_audio_bitrate"],
+                        extra_args=_custom_args(cfg, "video_ffmpeg_args"),
                     )
                     is_valid = validate_video_output(output_path)
                 else:
@@ -414,6 +425,8 @@ def _process_asset_sync(
                         _get_image_quality(cfg, target_format, retry=True),
                         jxl_effort=cfg.get("image_jxl_effort", 7),
                         motion_photo=motion_photo,
+                        cjxl_args=_custom_args(cfg, "image_cjxl_args"),
+                        magick_args=_custom_args(cfg, "image_magick_args"),
                     )
                     is_valid = validate_output(output_path, target_format)
 

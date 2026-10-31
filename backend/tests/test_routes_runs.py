@@ -127,6 +127,37 @@ class TestCreateRun:
             assert cfg["local_output_dir"] == "/data/converted"
             assert cfg["local_keep_originals"] is True
 
+    async def test_custom_args_inherit_override_and_clear(self, client):
+        await _configure_connection(client)
+        await client.put(
+            "/api/settings",
+            json={"video_ffmpeg_args": "-an", "image_magick_args": "-strip"},
+        )
+        resp = await client.post(
+            "/api/runs",
+            json={
+                "asset_types": "IMAGE",
+                "video_ffmpeg_args": "",
+                "image_cjxl_args": "--faster_decoding=1",
+            },
+        )
+        data = resp.json()
+        async with AsyncSessionLocal() as db:
+            from sqlalchemy import select
+
+            result = await db.execute(select(Run).where(Run.id == data["id"]))
+            cfg = json.loads(result.scalar_one().config_snapshot)
+            assert cfg["video_ffmpeg_args"] == ""  # "" overrides to none
+            assert cfg["image_cjxl_args"] == "--faster_decoding=1"  # override
+            assert cfg["image_magick_args"] == "-strip"  # inherited
+
+    async def test_custom_args_with_unbalanced_quote_rejected(self, client):
+        await _configure_connection(client)
+        resp = await client.post(
+            "/api/runs", json={"asset_types": "IMAGE", "image_magick_args": "-x 'oops"}
+        )
+        assert resp.status_code == 422
+
     async def test_explicit_asset_ids_stored_in_snapshot(self, client):
         await _configure_connection(client)
         resp = await client.post(

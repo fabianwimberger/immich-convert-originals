@@ -29,6 +29,9 @@ class TestReadSettings:
         assert data["local_keep_originals"] is False
         assert data["convert_live_photo_videos"] is False
         assert data["upload_external_assets"] is False
+        assert data["image_cjxl_args"] == ""
+        assert data["image_magick_args"] == ""
+        assert data["video_ffmpeg_args"] == ""
 
 
 class TestUpdateSettings:
@@ -102,6 +105,38 @@ class TestUpdateSettings:
         assert data["output_mode"] == "local"
         assert data["local_output_dir"] == "/data/converted"
         assert data["local_keep_originals"] is True
+
+    async def test_custom_args_persist(self, client):
+        resp = await client.put(
+            "/api/settings",
+            json={
+                "image_cjxl_args": "--faster_decoding=1",
+                "image_magick_args": "-strip -set comment 'a b'",
+                "video_ffmpeg_args": "-svtav1-params film-grain=8",
+            },
+        )
+        data = resp.json()
+        assert data["image_cjxl_args"] == "--faster_decoding=1"
+        assert data["image_magick_args"] == "-strip -set comment 'a b'"
+        assert data["video_ffmpeg_args"] == "-svtav1-params film-grain=8"
+
+    async def test_custom_args_can_be_cleared(self, client):
+        await client.put("/api/settings", json={"video_ffmpeg_args": "-an"})
+        resp = await client.put("/api/settings", json={"video_ffmpeg_args": ""})
+        assert resp.status_code == 200
+        assert resp.json()["video_ffmpeg_args"] == ""
+
+    async def test_custom_args_with_unbalanced_quote_rejected(self, client):
+        resp = await client.put("/api/settings", json={"video_ffmpeg_args": "-x 'oops"})
+        assert resp.status_code == 422
+
+    async def test_custom_args_too_long_rejected(self, client):
+        resp = await client.put("/api/settings", json={"image_magick_args": "-a " * 1000})
+        assert resp.status_code == 422
+
+    async def test_custom_args_with_null_byte_rejected(self, client):
+        resp = await client.put("/api/settings", json={"image_cjxl_args": "-a\u0000b"})
+        assert resp.status_code == 422
 
 
 class TestConnectionCheck:

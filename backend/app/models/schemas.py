@@ -1,12 +1,34 @@
 """Pydantic schemas for API requests and responses."""
 
+import shlex
 from datetime import datetime
+from typing import Annotated
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import AfterValidator, BaseModel, ConfigDict, Field
 
 from app.models.asset_outcome import AssetOutcome as AssetOutcomeRow
 from app.models.run import Run as RunRow
 from app.models.settings import Settings as SettingsRow
+
+MAX_CUSTOM_ARGS_LENGTH = 2000
+
+
+def _validate_custom_args(value: str | None) -> str | None:
+    if value is None:
+        return value
+    if len(value) > MAX_CUSTOM_ARGS_LENGTH:
+        raise ValueError(f"must be at most {MAX_CUSTOM_ARGS_LENGTH} characters")
+    if "\x00" in value:
+        raise ValueError("must not contain null bytes")
+    try:
+        shlex.split(value)
+    except ValueError as e:
+        raise ValueError(f"could not be parsed: {e}") from e
+    return value
+
+
+# None = inherit / leave unchanged, "" = explicitly no extra args.
+CustomArgs = Annotated[str | None, AfterValidator(_validate_custom_args)]
 
 
 class SettingsResponse(BaseModel):
@@ -42,6 +64,9 @@ class SettingsResponse(BaseModel):
     local_output_dir: str
     local_keep_originals: bool
     upload_external_assets: bool
+    image_cjxl_args: str
+    image_magick_args: str
+    video_ffmpeg_args: str
 
     @classmethod
     def from_settings(cls, settings: SettingsRow) -> "SettingsResponse":
@@ -74,6 +99,9 @@ class SettingsResponse(BaseModel):
             local_output_dir=settings.local_output_dir,
             local_keep_originals=settings.local_keep_originals,
             upload_external_assets=settings.upload_external_assets,
+            image_cjxl_args=settings.image_cjxl_args,
+            image_magick_args=settings.image_magick_args,
+            video_ffmpeg_args=settings.video_ffmpeg_args,
         )
 
 
@@ -113,6 +141,9 @@ class SettingsUpdate(BaseModel):
     local_output_dir: str | None = None
     local_keep_originals: bool | None = None
     upload_external_assets: bool | None = None
+    image_cjxl_args: CustomArgs = None
+    image_magick_args: CustomArgs = None
+    video_ffmpeg_args: CustomArgs = None
 
 
 class TestConnectionRequest(BaseModel):
@@ -195,6 +226,9 @@ class RunCreate(BaseModel):
     local_output_dir: str | None = None
     local_keep_originals: bool | None = None
     upload_external_assets: bool | None = None
+    image_cjxl_args: CustomArgs = None
+    image_magick_args: CustomArgs = None
+    video_ffmpeg_args: CustomArgs = None
 
 
 class RunResponse(BaseModel):

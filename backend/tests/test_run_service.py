@@ -216,7 +216,7 @@ class TestProcessAssetSyncImages:
         monkeypatch.setattr(
             run_service,
             "transcode",
-            lambda inp, out, fmt, distance, jxl_effort=7, motion_photo=False: (
+            lambda inp, out, fmt, distance, jxl_effort=7, motion_photo=False, **_: (
                 TranscodeResult(
                     success=True,
                     input_path=inp,
@@ -238,7 +238,9 @@ class TestProcessAssetSyncImages:
         cfg = {**BASE_CFG, "image_target_format": "avif", "dry_run": True}
         captured = {}
 
-        def fake_transcode(inp, out, fmt, quality, jxl_effort=7, motion_photo=False):
+        def fake_transcode(
+            inp, out, fmt, quality, jxl_effort=7, motion_photo=False, **_
+        ):
             captured["fmt"] = fmt
             captured["quality"] = quality
             captured["out"] = out
@@ -267,7 +269,9 @@ class TestProcessAssetSyncImages:
         cfg = {**BASE_CFG, "image_jxl_effort": 9, "dry_run": True}
         captured = {}
 
-        def fake_transcode(inp, out, fmt, quality, jxl_effort=7, motion_photo=False):
+        def fake_transcode(
+            inp, out, fmt, quality, jxl_effort=7, motion_photo=False, **_
+        ):
             captured["jxl_effort"] = jxl_effort
             return TranscodeResult(
                 success=True,
@@ -295,7 +299,9 @@ class TestProcessAssetSyncImages:
         cfg["dry_run"] = True
         captured = {}
 
-        def fake_transcode(inp, out, fmt, quality, jxl_effort=7, motion_photo=False):
+        def fake_transcode(
+            inp, out, fmt, quality, jxl_effort=7, motion_photo=False, **_
+        ):
             captured["jxl_effort"] = jxl_effort
             return TranscodeResult(
                 success=True,
@@ -311,6 +317,41 @@ class TestProcessAssetSyncImages:
 
         run_service._process_asset_sync(asset, client, cfg, str(tmp_path))
         assert captured["jxl_effort"] == 7
+
+    def test_custom_image_args_reach_initial_and_retry_passes(
+        self, tmp_path, monkeypatch
+    ):
+        asset = _make_asset()
+        client = FakeClient()
+        seen = []
+
+        def fake_transcode(
+            inp,
+            out,
+            fmt,
+            quality,
+            jxl_effort=7,
+            motion_photo=False,
+            cjxl_args=(),
+            magick_args=(),
+        ):
+            seen.append((list(cjxl_args), list(magick_args)))
+            return TranscodeResult(
+                True, inp, out, 1000, 1500 if len(seen) == 1 else 500, "jpg"
+            )
+
+        monkeypatch.setattr(run_service, "transcode", fake_transcode)
+        monkeypatch.setattr(run_service, "validate_output", lambda path, fmt: True)
+        cfg = {
+            **BASE_CFG,
+            "image_cjxl_args": "--faster_decoding=1",
+            "image_magick_args": "-set comment 'a b'",
+        }
+
+        result = run_service._process_asset_sync(asset, client, cfg, str(tmp_path))
+
+        assert result["status"] == "success"
+        assert seen == [(["--faster_decoding=1"], ["-set", "comment", "a b"])] * 2
 
     def test_missing_convert_image_formats_key_defaults_to_all(self, tmp_path):
         """A config_snapshot persisted before this setting existed (e.g. a
@@ -333,7 +374,7 @@ class TestProcessAssetSyncImages:
         monkeypatch.setattr(
             run_service,
             "transcode",
-            lambda inp, out, fmt, distance, jxl_effort=7, motion_photo=False: (
+            lambda inp, out, fmt, distance, jxl_effort=7, motion_photo=False, **_: (
                 TranscodeResult(
                     success=True,
                     input_path=inp,
@@ -366,7 +407,7 @@ class TestProcessAssetSyncImages:
         monkeypatch.setattr(
             run_service,
             "transcode",
-            lambda inp, out, fmt, distance, jxl_effort=7, motion_photo=False: (
+            lambda inp, out, fmt, distance, jxl_effort=7, motion_photo=False, **_: (
                 TranscodeResult(
                     success=True,
                     input_path=inp,
@@ -389,7 +430,9 @@ class TestProcessAssetSyncImages:
         client = FakeClient()
         calls = []
 
-        def fake_transcode(inp, out, fmt, distance, jxl_effort=7, motion_photo=False):
+        def fake_transcode(
+            inp, out, fmt, distance, jxl_effort=7, motion_photo=False, **_
+        ):
             calls.append(distance)
             output = 1500 if len(calls) == 1 else 400
             return TranscodeResult(
@@ -414,7 +457,7 @@ class TestProcessAssetSyncImages:
         monkeypatch.setattr(
             run_service,
             "transcode",
-            lambda inp, out, fmt, distance, jxl_effort=7, motion_photo=False: (
+            lambda inp, out, fmt, distance, jxl_effort=7, motion_photo=False, **_: (
                 TranscodeResult(
                     success=True,
                     input_path=inp,
@@ -436,7 +479,7 @@ class TestProcessAssetSyncImages:
         monkeypatch.setattr(
             run_service,
             "transcode",
-            lambda inp, out, fmt, distance, jxl_effort=7, motion_photo=False: (
+            lambda inp, out, fmt, distance, jxl_effort=7, motion_photo=False, **_: (
                 TranscodeResult(
                     success=True,
                     input_path=inp,
@@ -458,7 +501,7 @@ class TestProcessAssetSyncImages:
         monkeypatch.setattr(
             run_service,
             "transcode",
-            lambda inp, out, fmt, distance, jxl_effort=7, motion_photo=False: (
+            lambda inp, out, fmt, distance, jxl_effort=7, motion_photo=False, **_: (
                 TranscodeResult(
                     success=True,
                     input_path=inp,
@@ -481,7 +524,7 @@ class TestProcessAssetSyncImages:
         monkeypatch.setattr(
             run_service,
             "transcode",
-            lambda inp, out, fmt, distance, jxl_effort=7, motion_photo=False: (
+            lambda inp, out, fmt, distance, jxl_effort=7, motion_photo=False, **_: (
                 TranscodeResult(
                     success=True,
                     input_path=inp,
@@ -504,7 +547,7 @@ class TestProcessAssetSyncImages:
         monkeypatch.setattr(
             run_service,
             "transcode",
-            lambda inp, out, fmt, distance, jxl_effort=7, motion_photo=False: (
+            lambda inp, out, fmt, distance, jxl_effort=7, motion_photo=False, **_: (
                 TranscodeResult(
                     success=True,
                     input_path=inp,
@@ -526,7 +569,7 @@ class TestProcessAssetSyncImages:
         monkeypatch.setattr(
             run_service,
             "transcode",
-            lambda inp, out, fmt, distance, jxl_effort=7, motion_photo=False: (
+            lambda inp, out, fmt, distance, jxl_effort=7, motion_photo=False, **_: (
                 TranscodeResult(
                     success=False,
                     input_path=inp,
@@ -548,7 +591,7 @@ class TestProcessAssetSyncImages:
         monkeypatch.setattr(
             run_service,
             "transcode",
-            lambda inp, out, fmt, distance, jxl_effort=7, motion_photo=False: (
+            lambda inp, out, fmt, distance, jxl_effort=7, motion_photo=False, **_: (
                 TranscodeResult(
                     success=True,
                     input_path=inp,
@@ -569,7 +612,7 @@ class TestSkipNotOwned:
         monkeypatch.setattr(
             run_service,
             "transcode",
-            lambda inp, out, fmt, distance, jxl_effort=7, motion_photo=False: (
+            lambda inp, out, fmt, distance, jxl_effort=7, motion_photo=False, **_: (
                 TranscodeResult(
                     success=True,
                     input_path=inp,
@@ -660,7 +703,9 @@ class TestSkipNotOwned:
 
 class TestProcessAssetSyncLocalMode:
     def _patch_transcode(self, monkeypatch, input_format="jpg"):
-        def fake_transcode(inp, out, fmt, quality, jxl_effort=7, motion_photo=False):
+        def fake_transcode(
+            inp, out, fmt, quality, jxl_effort=7, motion_photo=False, **_
+        ):
             # shutil.move/copy2 in the local-save path need a real file --
             # unlike upload_asset (which just reads kwargs), this is the
             # first path that actually touches output_path on disk.
@@ -764,7 +809,9 @@ class TestProcessAssetSyncLocalMode:
         client = FakeClient()
         cfg = {**BASE_CFG, "output_mode": "local", "local_output_dir": str(local_dir)}
 
-        def fake_transcode_video(inp, out, crf, preset, max_dimension, audio_bitrate):
+        def fake_transcode_video(
+            inp, out, crf, preset, max_dimension, audio_bitrate, **_
+        ):
             with open(out, "wb") as f:
                 f.write(b"x" * 500)
             return TranscodeResult(
@@ -788,7 +835,9 @@ class TestProcessAssetSyncLocalMode:
 
 class TestProcessAssetSyncLivePhotos:
     def _patch_transcode(self, monkeypatch, captured):
-        def fake_transcode(inp, out, fmt, distance, jxl_effort=7, motion_photo=False):
+        def fake_transcode(
+            inp, out, fmt, distance, jxl_effort=7, motion_photo=False, **_
+        ):
             captured["motion_photo"] = motion_photo
             with open(out, "wb") as f:
                 f.write(b"x" * 500)
@@ -940,12 +989,16 @@ class TestProcessAssetSyncLivePhotoVideoConversion:
         crfs: list[int] = []
         sizes = iter(video_sizes)
 
-        def fake_transcode(inp, out, fmt, distance, jxl_effort=7, motion_photo=False):
+        def fake_transcode(
+            inp, out, fmt, distance, jxl_effort=7, motion_photo=False, **_
+        ):
             with open(out, "wb") as f:
                 f.write(b"x" * 500)
             return TranscodeResult(True, inp, out, 1000, 500, "heic")
 
-        def fake_transcode_video(inp, out, crf, preset, max_dimension, audio_bitrate):
+        def fake_transcode_video(
+            inp, out, crf, preset, max_dimension, audio_bitrate, **_
+        ):
             crfs.append(crf)
             if video_error:
                 return TranscodeResult(False, inp, out, 1000, 0, "hevc", video_error)
@@ -975,6 +1028,25 @@ class TestProcessAssetSyncLivePhotoVideoConversion:
         assert client.deleted_ids == ["a1"]
         assert crfs == [36]
         assert os.listdir(tmp_path) == []
+
+    def test_video_custom_args_apply_to_live_photo_video(self, tmp_path, monkeypatch):
+        asset, client, _ = self._setup(monkeypatch)
+        seen = []
+
+        def capturing_transcode_video(
+            inp, out, crf, preset, max_dimension, audio_bitrate, extra_args=()
+        ):
+            seen.append(list(extra_args))
+            with open(out, "wb") as f:
+                f.write(b"v" * 300)
+            return TranscodeResult(True, inp, out, 1000, 300, "hevc")
+
+        monkeypatch.setattr(run_service, "transcode_video", capturing_transcode_video)
+        cfg = {**self.CFG, "video_ffmpeg_args": "-an"}
+
+        run_service._process_asset_sync(asset, client, cfg, str(tmp_path))
+
+        assert seen == [["-an"]]
 
     def test_setting_off_keeps_the_video(self, tmp_path, monkeypatch):
         asset, client, crfs = self._setup(monkeypatch)
@@ -1111,7 +1183,7 @@ class TestProcessAssetSyncVideos:
         monkeypatch.setattr(
             run_service,
             "transcode_video",
-            lambda inp, out, crf, preset, max_dimension, audio_bitrate: TranscodeResult(
+            lambda inp, out, crf, preset, max_dimension, audio_bitrate, **_: TranscodeResult(
                 success=True,
                 input_path=inp,
                 output_path=out,
@@ -1136,7 +1208,7 @@ class TestProcessAssetSyncVideos:
         monkeypatch.setattr(
             run_service,
             "transcode_video",
-            lambda inp, out, crf, preset, max_dimension, audio_bitrate: TranscodeResult(
+            lambda inp, out, crf, preset, max_dimension, audio_bitrate, **_: TranscodeResult(
                 success=False,
                 input_path=inp,
                 output_path=out,
@@ -1159,7 +1231,7 @@ class TestProcessAssetSyncVideos:
         monkeypatch.setattr(
             run_service,
             "transcode_video",
-            lambda inp, out, crf, preset, max_dimension, audio_bitrate: TranscodeResult(
+            lambda inp, out, crf, preset, max_dimension, audio_bitrate, **_: TranscodeResult(
                 success=True,
                 input_path=inp,
                 output_path=out,
@@ -1172,6 +1244,53 @@ class TestProcessAssetSyncVideos:
 
         result = run_service._process_asset_sync(asset, client, BASE_CFG, str(tmp_path))
         assert result["status"] == "success"
+
+    def test_video_custom_args_reach_initial_and_retry_passes(
+        self, tmp_path, monkeypatch
+    ):
+        asset = _make_asset(
+            asset_type="VIDEO", file_name="clip.mp4", mime_type="video/mp4"
+        )
+        client = FakeClient()
+        seen = []
+
+        def fake_transcode_video(
+            inp, out, crf, preset, max_dimension, audio_bitrate, extra_args=()
+        ):
+            seen.append(list(extra_args))
+            return TranscodeResult(
+                True, inp, out, 1000, 1500 if len(seen) == 1 else 500, "h264"
+            )
+
+        monkeypatch.setattr(run_service, "transcode_video", fake_transcode_video)
+        monkeypatch.setattr(run_service, "validate_video_output", lambda path: True)
+        cfg = {**BASE_CFG, "video_ffmpeg_args": "-svtav1-params 'film-grain=8'"}
+
+        result = run_service._process_asset_sync(asset, client, cfg, str(tmp_path))
+
+        assert result["status"] == "success"
+        assert seen == [["-svtav1-params", "film-grain=8"]] * 2
+
+    def test_missing_custom_args_keys_pass_no_extra_args(self, tmp_path, monkeypatch):
+        """A config_snapshot from before these settings existed has no keys."""
+        asset = _make_asset(
+            asset_type="VIDEO", file_name="clip.mp4", mime_type="video/mp4"
+        )
+        client = FakeClient()
+        seen = []
+
+        def fake_transcode_video(
+            inp, out, crf, preset, max_dimension, audio_bitrate, extra_args=()
+        ):
+            seen.append(list(extra_args))
+            return TranscodeResult(True, inp, out, 1000, 500, "h264")
+
+        monkeypatch.setattr(run_service, "transcode_video", fake_transcode_video)
+        monkeypatch.setattr(run_service, "validate_video_output", lambda path: True)
+
+        run_service._process_asset_sync(asset, client, BASE_CFG, str(tmp_path))
+
+        assert seen == [[]]
 
 
 @pytest.mark.asyncio
@@ -1298,7 +1417,7 @@ class TestExecuteRun:
         monkeypatch.setattr(
             run_service,
             "transcode",
-            lambda inp, out, fmt, distance, jxl_effort=7, motion_photo=False: (
+            lambda inp, out, fmt, distance, jxl_effort=7, motion_photo=False, **_: (
                 TranscodeResult(
                     success=True,
                     input_path=inp,
@@ -1369,7 +1488,9 @@ class TestExecuteRun:
         monkeypatch.setattr(run_service, "ImmichClient", FakeClientFactory(client))
         monkeypatch.setattr(run_service, "validate_output", lambda path, fmt: True)
 
-        def flaky_transcode(inp, out, fmt, distance, jxl_effort=7, motion_photo=False):
+        def flaky_transcode(
+            inp, out, fmt, distance, jxl_effort=7, motion_photo=False, **_
+        ):
             if "boom-a1" in inp:
                 raise RuntimeError("disk exploded")
             return TranscodeResult(
@@ -1444,7 +1565,7 @@ class TestExecuteRun:
         run_id_holder: dict[str, int] = {}
 
         def cancel_on_first_asset(
-            inp, out, fmt, distance, jxl_effort=7, motion_photo=False
+            inp, out, fmt, distance, jxl_effort=7, motion_photo=False, **_
         ):
             if "cancel-a1" in inp:
                 run_service.request_cancel(run_id_holder["id"])

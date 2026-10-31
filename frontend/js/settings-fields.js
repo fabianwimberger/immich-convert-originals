@@ -89,6 +89,24 @@ const SETTINGS_FIELDS = {
     default: "64k",
     example: "e.g. 96k, 128k",
   },
+  image_cjxl_args: {
+    description:
+      "Extra cjxl arguments, added just before the input file when a JPEG is repacked to JXL. They are passed as typed and you are responsible for them: a bad flag fails the conversion. A JPEG that falls back to ImageMagick uses the ImageMagick field instead.",
+    default: "none",
+    example: "e.g. --faster_decoding=1",
+  },
+  image_magick_args: {
+    description:
+      "Extra ImageMagick arguments, added just before the output file for every conversion that goes through ImageMagick, including the JPEG-to-JXL fallback. They are passed as typed and you are responsible for them: a bad flag fails the conversion.",
+    default: "none",
+    example: "e.g. -strip",
+  },
+  video_ffmpeg_args: {
+    description:
+      "Extra ffmpeg output arguments, added just before the output file. They are passed as typed and you are responsible for them: a bad flag fails the conversion. A custom -svtav1-params or -map replaces the built-in one rather than merging with it, which can break HDR handling or stream selection.",
+    default: "none",
+    example: "e.g. -svtav1-params film-grain=8",
+  },
   convert_live_photo_videos: {
     description:
       "Off keeps the video of a live or motion photo exactly as it is when its still is converted. On re-encodes it to AV1 with the settings above, which is lossy, and keeps the original video only if the result isn't smaller.",

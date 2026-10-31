@@ -101,6 +101,9 @@ async def _build_config_snapshot(data: RunCreate, db: AsyncSession) -> dict[str,
         "upload_external_assets": _pick(
             data.upload_external_assets, settings.upload_external_assets
         ),
+        "image_cjxl_args": _pick(data.image_cjxl_args, settings.image_cjxl_args),
+        "image_magick_args": _pick(data.image_magick_args, settings.image_magick_args),
+        "video_ffmpeg_args": _pick(data.video_ffmpeg_args, settings.video_ffmpeg_args),
     }
 
 
