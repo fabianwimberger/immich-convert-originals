@@ -96,6 +96,7 @@ class SettingsPanel {
                 <option value="avif" ${s.image_target_format === "avif" ? "selected" : ""}>AVIF</option>
               </select>
               ${fieldHint("image_target_format")}
+              <div id="set-image-format-note">${formatNote(s.image_target_format)}</div>
             </div>
             <div class="format-fields form" data-format="jxl" style="${s.image_target_format === "jxl" ? "" : "display:none"}">
               <div class="field">
@@ -272,6 +273,9 @@ class SettingsPanel {
         this.root.querySelectorAll(".format-fields").forEach((el) => {
           el.style.display = el.dataset.format === e.target.value ? "" : "none";
         });
+        this.root.querySelector("#set-image-format-note").innerHTML = formatNote(
+          e.target.value
+        );
       });
     this.root.querySelector("#btn-save-videos").addEventListener("click", () =>
       this.saveVideos()

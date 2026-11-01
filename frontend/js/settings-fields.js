@@ -32,8 +32,7 @@ const SETTINGS_FIELDS = {
     default: "all of the below",
   },
   image_target_format: {
-    description:
-      "Output image container. JPEG sources get a lossless bit-exact repack only when targeting JXL; HEIC/AVIF have no equivalent, so JPEG sources targeting those go through a normal re-encode instead.",
+    description: "Output container for converted images.",
     default: "JPEG XL (JXL)",
   },
   image_distance: {
@@ -141,6 +140,22 @@ const SETTINGS_FIELDS = {
     default: "off",
   },
 };
+
+/** What each target format means for an original once it leaves Immich:
+ * whether the pixels survive untouched, and which apps can open it. */
+const FORMAT_NOTES = {
+  jxl: "JPEG sources keep their exact pixels and every other source is re-encoded lossily. Browsers and desktop viewers open JXL, while iOS and most Android apps cannot, so a downloaded original needs a converter there.",
+  heic: "Every source is re-encoded lossily. Apple devices and Windows 10+ with the HEIF codec open HEIC; many Android apps and desktop viewers cannot.",
+  avif: "Every source is re-encoded lossily. Current browsers and Windows 11 open AVIF; older viewers and some phones cannot.",
+};
+
+/** Compatibility note for the selected target format, or "" when the format
+ * has no note yet. Purely informational -- no format is restricted by it. */
+function formatNote(format) {
+  const note = FORMAT_NOTES[format];
+  if (!note) return "";
+  return `<p class="field__hint">${note} <a href="https://github.com/fabianwimberger/immich-convert-originals#image-formats" target="_blank" rel="noopener">Format guidance</a></p>`;
+}
 
 /** "Default: X. description (example)" hint markup for a field, or "" if
  * the field has no metadata (e.g. it isn't a knob worth explaining). */
