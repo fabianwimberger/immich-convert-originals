@@ -125,6 +125,7 @@ class RunPanel {
           <div class="pair"><dt>Retry if larger</dt><dd>${s.enable_retry ? "On" : "Off"}</dd></div>
           <div class="pair"><dt>Concurrency</dt><dd>${s.concurrency}</dd></div>
         </dl>
+        ${formatNote(s.image_target_format)}
       </section>
     `;
   }

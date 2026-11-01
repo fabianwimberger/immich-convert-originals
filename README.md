@@ -113,6 +113,18 @@ Everything behavioral — Immich connection, encoding defaults, filters, output 
 | `LOG_LEVEL` | Log verbosity | `INFO` |
 | `CORS_ORIGINS` | Comma-separated origins allowed to call the API | `http://localhost:8000,http://127.0.0.1:8000` |
 
+## Image formats
+
+Target format decides two things: whether the pixels survive untouched, and how easily the converted original opens outside Immich once it is downloaded or shared.
+
+| Target | Source pixels | Opens outside Immich |
+|--------|---------------|----------------------|
+| JPEG XL (JXL) | JPEG sources are repacked losslessly; every other source is re-encoded lossily | Browsers and desktop viewers handle JXL; iOS and most Android apps do not, so a downloaded original needs another app or a converter |
+| HEIC | Always re-encoded lossily | Apple devices and Windows 10+ with the HEIF codec; many Android apps and desktop viewers cannot read it |
+| AVIF | Always re-encoded lossily | Current browsers and Windows 11; older viewers and some phones cannot |
+
+Within Immich all three are served through the browser's own transcoding, so the choice only shows up when an original leaves the library. Videos are always AV1 in MP4.
+
 ## Security & Safety
 
 **USE AT YOUR OWN RISK.** In upload mode this tool deletes originals after conversion (recoverable via Immich trash for 30 days) — always back up first and test on a small selection before converting a whole library. The web UI has no built-in authentication — it's intended for a trusted home network or behind your own reverse-proxy auth; don't expose it directly to the internet.
