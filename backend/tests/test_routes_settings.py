@@ -51,7 +51,9 @@ class TestUpdateSettings:
         assert "secret-key" not in resp.text
 
     async def test_allow_insecure_ssl_persists(self, client):
-        resp = await client.put("/api/settings", json={"immich_allow_insecure_ssl": True})
+        resp = await client.put(
+            "/api/settings", json={"immich_allow_insecure_ssl": True}
+        )
         assert resp.json()["immich_allow_insecure_ssl"] is True
 
     async def test_out_of_range_video_crf_rejected(self, client):

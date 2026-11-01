@@ -67,7 +67,7 @@ async def test_connection(
         api_base=api_base,
         api_key=api_key,
         retry_max=0,
-        verify_ssl=not allow_insecure_ssl
+        verify_ssl=not allow_insecure_ssl,
     )
     ok, error = await asyncio.to_thread(client.test_connection)
     if not ok:
