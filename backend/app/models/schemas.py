@@ -16,6 +16,7 @@ class SettingsResponse(BaseModel):
 
     immich_api_base: str
     immich_api_key_set: bool
+    immich_allow_insecure_ssl: bool
     asset_types: str
     include_archived: bool
     include_deleted: bool
@@ -48,6 +49,7 @@ class SettingsResponse(BaseModel):
         return cls(
             immich_api_base=settings.immich_api_base,
             immich_api_key_set=bool(settings.immich_api_key),
+            immich_allow_insecure_ssl=settings.immich_allow_insecure_ssl,
             asset_types=settings.asset_types,
             include_archived=settings.include_archived,
             include_deleted=settings.include_deleted,
@@ -87,6 +89,7 @@ class SettingsUpdate(BaseModel):
 
     immich_api_base: str | None = None
     immich_api_key: str | None = None
+    immich_allow_insecure_ssl: bool | None = None
     asset_types: str | None = None
     include_archived: bool | None = None
     include_deleted: bool | None = None
@@ -120,6 +123,7 @@ class TestConnectionRequest(BaseModel):
 
     immich_api_base: str | None = None
     immich_api_key: str | None = None
+    immich_allow_insecure_ssl: bool | None = None
 
 
 class TestConnectionResponse(BaseModel):

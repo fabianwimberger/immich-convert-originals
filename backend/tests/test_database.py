@@ -35,17 +35,24 @@ class TestSyncSettingsColumns:
                 assert "concurrency" in columns
                 assert "image_distance" in columns
                 assert "convert_image_formats" in columns
+                assert "immich_allow_insecure_ssl" in columns
 
                 row = await conn.execute(
                     text(
-                        "SELECT concurrency, image_distance, convert_image_formats "
+                        "SELECT concurrency, image_distance, convert_image_formats, immich_allow_insecure_ssl "
                         "FROM settings WHERE id=1"
                     )
                 )
-                concurrency, image_distance, convert_image_formats = row.fetchone()
+                (
+                    concurrency,
+                    image_distance,
+                    convert_image_formats,
+                    immich_allow_insecure_ssl,
+                ) = row.fetchone()
                 assert concurrency == 2
                 assert image_distance == 1.0
                 assert convert_image_formats == "jpg,png,webp,heic,avif,tiff,gif,bmp"
+                assert immich_allow_insecure_ssl == 0
         finally:
             await engine.dispose()
 

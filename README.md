@@ -122,6 +122,7 @@ Everything behavioral — Immich connection, encoding defaults, filters, output 
 | Symptom | Cause / fix |
 |---------|-------------|
 | Connection test fails with a 404 | The Immich URL must point at the API root and include the `/api` suffix, e.g. `http://immich:2283/api` or `https://photos.example.com/api`. |
+| Connection fails on a self-signed certificate | Enable **Allow insecure SSL certificates (self-signed)** in Settings → Connection. This disables TLS certificate verification. Only use it for a trusted server. |
 | Connection test or uploads fail with 401/403 | The API key is missing a needed scope. Create it with asset read **and** asset upload permissions in Immich → Account Settings → API Keys; a read-only key authenticates but fails on upload. |
 | Assets shared by a partner are skipped | They belong to another account, so the API key can't replace them in upload mode; they're skipped instead of failing. Local output mode can still convert them. |
 | External library assets are skipped | An upload can't be written into an external library's folder. Use local output mode, or enable **Convert external library assets** in Settings → Output: the converted file then moves into Immich's own storage and the original is deleted from the external folder when Immich empties its trash. |

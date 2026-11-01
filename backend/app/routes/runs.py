@@ -42,6 +42,7 @@ async def _build_config_snapshot(data: RunCreate, db: AsyncSession) -> dict[str,
     return {
         "immich_api_base": settings.immich_api_base,
         "immich_api_key": settings.immich_api_key,
+        "immich_allow_insecure_ssl": settings.immich_allow_insecure_ssl,
         "asset_ids": data.asset_ids,
         "asset_types": _pick(data.asset_types, settings.asset_types),
         "album_id": data.album_id,
