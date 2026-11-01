@@ -38,7 +38,7 @@ test:
 
 frontend-test:
 	@echo "Running frontend checks..."
-	@node --test frontend/tests/
+	@node --test frontend/tests/*.test.mjs
 
 integration:
 	@echo "Running integration tests..."
