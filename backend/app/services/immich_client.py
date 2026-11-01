@@ -2,16 +2,18 @@
 
 import base64
 import hashlib
+import logging
 import os
 import random
 import threading
 import time
-import warnings
 from dataclasses import dataclass
 from typing import Any
 from urllib.parse import urljoin
 
 import requests
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -75,13 +77,10 @@ class ImmichClient:
         self._timeout = timeout  # (connect_timeout, read_timeout)
         self._upload_timeout = upload_timeout
         self._verify_ssl = verify_ssl
+        # urllib3 prints an InsecureRequestWarning on every request; one line at
+        # construction says the same and stays scoped to this connection.
         if not verify_ssl:
-            warnings.filterwarnings(
-                "ignore",
-                message="Unverified HTTPS request is being made",
-                category=Warning,
-                module=r"urllib3\.connectionpool",
-            )
+            logger.warning("TLS certificate verification disabled for %s", api_base)
         self._current_user_id: str | None = None
 
     @classmethod
