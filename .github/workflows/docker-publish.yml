@@ -64,7 +64,9 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
-          cache-to: type=gha,mode=max
+          # Dependabot and fork pull requests run with a read-only token, and
+          # writing the cache then fails the build.
+          cache-to: ${{ github.event_name != 'pull_request' && 'type=gha,mode=max' || '' }}
           platforms: linux/amd64,linux/arm64
 
       - name: Generate artifact attestation
