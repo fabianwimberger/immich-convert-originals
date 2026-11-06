@@ -172,6 +172,12 @@ body {
   margin: 0;
 }
 
+/* A hint that follows a compact pair list (e.g. the run defaults) needs the
+   gap the pairs grid would otherwise provide. */
+.pairs + .field__hint {
+  margin: var(--s-3) 0 0;
+}
+
 .pair {
   display: flex;
   justify-content: space-between;

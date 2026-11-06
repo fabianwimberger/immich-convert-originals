@@ -44,6 +44,14 @@ jobs:
       - name: Type check with mypy
         run: make typecheck
 
+      - name: Set up Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+
+      - name: Frontend checks
+        run: make frontend-test
+
   test:
     name: Test
     runs-on: ubuntu-latest

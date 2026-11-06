@@ -1,4 +1,4 @@
-.PHONY: all build up down clean lint format typecheck test integration
+.PHONY: all build up down clean lint format typecheck test frontend-test integration
 
 PYTHON ?= .venv/bin/python
 
@@ -35,6 +35,10 @@ typecheck:
 test:
 	@echo "Running unit tests..."
 	@$(PYTHON) -m pytest -m "not integration" -v --cov-fail-under=85
+
+frontend-test:
+	@echo "Running frontend checks..."
+	@node --test frontend/tests/*.test.mjs
 
 integration:
 	@echo "Running integration tests..."
