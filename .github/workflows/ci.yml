@@ -103,6 +103,9 @@ jobs:
     name: Integration Tests
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: read
     env:
       IMMICH_TEST_TAG: v3.3.6
     steps:
@@ -128,6 +131,15 @@ jobs:
           for tar in ~/immich-image-cache/*.tar; do
             docker load -i "$tar"
           done
+
+      # Anonymous pulls of ghcr images are rate limited per runner IP; an
+      # authenticated pull is attributed to the token instead.
+      - name: Log in to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Pull images (cache miss)
         if: steps.img-cache.outputs.cache-hit != 'true'
