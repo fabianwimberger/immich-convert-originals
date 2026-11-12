@@ -83,6 +83,8 @@ The MIT-licensed application invokes `ffmpeg`, `magick`, `cjxl`, and `exiftool` 
 
 The [2.9.0 source and notices](https://github.com/fabianwimberger/immich-convert-originals/releases/download/v2.9.0/immich-convert-originals-v2.9.0-source-notices.md) list the installed GPL and LGPL packages and their exact Alpine packaging commits for both image architectures. Each linked `APKBUILD` identifies the upstream source archives and their checksums. The Alpine packaging directory includes the patches and build files.
 
+For new releases, the tagged image build attaches the matching notice to the [GitHub release](https://github.com/fabianwimberger/immich-convert-originals/releases). If the build creates a draft, add the release notes and publish the draft once the notice is attached.
+
 ## License Texts
 
 Full license texts are included in the image at `/usr/share/licenses/` (where available) or can be found at:

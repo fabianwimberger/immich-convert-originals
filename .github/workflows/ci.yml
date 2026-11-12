@@ -41,6 +41,9 @@ jobs:
       - name: Format check with ruff
         run: .venv/bin/python -m ruff format --check backend/
 
+      - name: Check source notice generation
+        run: python -m unittest discover -s scripts
+
       - name: Type check with mypy
         run: make typecheck
 
