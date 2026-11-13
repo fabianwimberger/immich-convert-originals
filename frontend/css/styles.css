@@ -602,10 +602,20 @@ body {
 /* ---------- Settings ---------- */
 
 .settings-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(24rem, 1fr));
+  /* Columns stack on their own, so a short card leaves no hole beside a tall
+   * one, and they wrap from three to two to one as the window narrows. */
+  display: flex;
+  flex-wrap: wrap;
   gap: var(--s-4);
-  align-items: start;
+  align-items: flex-start;
+}
+
+.settings-col {
+  display: flex;
+  flex: 1 1 20rem;
+  flex-direction: column;
+  gap: var(--s-4);
+  min-width: 0;
 }
 
 .settings-grid .panel {
@@ -625,8 +635,8 @@ body {
     grid-template-columns: minmax(0, 1fr) 18rem;
   }
 
-  .settings-grid {
-    grid-template-columns: minmax(0, 1fr);
+  .settings-col {
+    flex-basis: 100%;
   }
 }
 
