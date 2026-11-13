@@ -57,9 +57,10 @@ class Settings(Base):
     image_cjxl_args: Mapped[str] = mapped_column(default="")
     image_magick_args: Mapped[str] = mapped_column(default="")
     video_ffmpeg_args: Mapped[str] = mapped_column(default="")
-    # A live photo's video is otherwise kept as it is: re-encoding it is
-    # lossy while its still may be a lossless repack, so it's opt-in.
-    convert_live_photo_videos: Mapped[bool] = mapped_column(default=False)
+    # On by default: a live photo whose still is converted is otherwise left
+    # half-converted. The re-encode is lossy, but the original video is kept
+    # when the result isn't smaller.
+    convert_live_photo_videos: Mapped[bool] = mapped_column(default=True)
 
     enable_retry: Mapped[bool] = mapped_column(default=True)
     accept_retry_output: Mapped[bool] = mapped_column(default=False)

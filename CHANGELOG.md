@@ -13,6 +13,10 @@ Adds an extra-arguments field per encoder, for flags the settings don't cover.
 
 - Custom encoder arguments for `cjxl`, ImageMagick and `ffmpeg`, set on the Settings page. They are appended to the built-in command, apply to retry passes and live photo videos, and can be overridden per run through the API.
 
+### Changes
+
+- Live photo videos are converted by default, so a live photo does not end up with a converted still next to an untouched video. The original video is kept when the re-encode comes out larger.
+
 ### Fixes
 
 - A settings update that sends an explicit `null` field no longer fails with a server error; the field keeps its stored value, as an omitted field already did.
