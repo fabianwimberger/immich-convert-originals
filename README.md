@@ -157,7 +157,7 @@ They apply to both the first pass and the retry pass, and to live photo videos w
 
 ## Docker Image Tags
 
-Images are available from `ghcr.io/fabianwimberger/immich-convert-originals`. Use `latest` for the latest release, or pin to a release tag (`v2`, `v2.0`, `v2.0.0`).
+Images are available from `ghcr.io/fabianwimberger/immich-convert-originals`. Use `latest` for the latest release, or pin to a release tag without the `v` prefix (`2`, `2.10`, `2.10.0`).
 
 ## License
 
