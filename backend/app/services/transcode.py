@@ -5,6 +5,7 @@ import logging
 import os
 import shutil
 import subprocess
+from collections.abc import Sequence
 from dataclasses import dataclass, replace
 from typing import Any
 
@@ -398,6 +399,7 @@ def _transcode_with_magick(
     quality: float,
     jxl_effort: int = 7,
     timeouts: Timeouts = DEFAULT_TIMEOUTS,
+    magick_args: Sequence[str] = (),
 ) -> TranscodeResult:
     """Transcode using ImageMagick.
 
@@ -423,7 +425,8 @@ def _transcode_with_magick(
     )
 
     for magick_cmd in ("magick", "convert"):
-        cmd = [magick_cmd, input_path, *quality_args, output_path]
+        cmd = [magick_cmd, input_path, *quality_args, *magick_args, output_path]
+        logger.debug("Running: %s", cmd)
         try:
             subprocess.run(cmd, check=True, capture_output=True, timeout=timeouts.image)
             # HEIC and AVIF store rotation as a transform that the decoder
@@ -500,6 +503,8 @@ def transcode(
     jxl_effort: int = 7,
     timeouts: Timeouts = DEFAULT_TIMEOUTS,
     motion_photo: bool = False,
+    cjxl_args: Sequence[str] = (),
+    magick_args: Sequence[str] = (),
 ) -> TranscodeResult:
     """Transcode an image, see _transcode_image for the per-format routing.
 
@@ -516,6 +521,8 @@ def transcode(
             quality,
             jxl_effort=jxl_effort,
             timeouts=timeouts,
+            cjxl_args=cjxl_args,
+            magick_args=magick_args,
         )
 
     input_bytes = os.path.getsize(input_path)
@@ -540,6 +547,8 @@ def transcode(
                 jxl_effort=jxl_effort,
                 timeouts=timeouts,
                 keep_jpeg_reconstruction=video_cut_off,
+                cjxl_args=cjxl_args,
+                magick_args=magick_args,
             )
             if result.success and has_motion_photo_tags(output_path, timeouts):
                 error = "Motion photo tags are still present in the output"
@@ -570,6 +579,8 @@ def _transcode_image(
     jxl_effort: int = 7,
     timeouts: Timeouts = DEFAULT_TIMEOUTS,
     keep_jpeg_reconstruction: bool = True,
+    cjxl_args: Sequence[str] = (),
+    magick_args: Sequence[str] = (),
 ) -> TranscodeResult:
     """Transcode an image to the given target format.
 
@@ -622,19 +633,22 @@ def _transcode_image(
         # cjxl preserves EXIF APP markers natively; running exiftool afterwards
         # is unnecessary and can accidentally downgrade metadata.
         try:
+            cjxl_cmd = [
+                "cjxl",
+                "--compress_boxes=0",
+                f"--effort={jxl_effort}",
+                *(
+                    []
+                    if keep_jpeg_reconstruction
+                    else ["--allow_jpeg_reconstruction=0"]
+                ),
+                *cjxl_args,
+                input_path,
+                output_path,
+            ]
+            logger.debug("Running: %s", cjxl_cmd)
             result = subprocess.run(
-                [
-                    "cjxl",
-                    "--compress_boxes=0",
-                    f"--effort={jxl_effort}",
-                    *(
-                        []
-                        if keep_jpeg_reconstruction
-                        else ["--allow_jpeg_reconstruction=0"]
-                    ),
-                    input_path,
-                    output_path,
-                ],
+                cjxl_cmd,
                 capture_output=True,
                 timeout=timeouts.image,
             )
@@ -657,6 +671,7 @@ def _transcode_image(
                 quality,
                 jxl_effort=jxl_effort,
                 timeouts=timeouts,
+                magick_args=magick_args,
             )
 
         if result.returncode == 0:
@@ -680,6 +695,7 @@ def _transcode_image(
                 quality,
                 jxl_effort=jxl_effort,
                 timeouts=timeouts,
+                magick_args=magick_args,
             )
     else:
         return _transcode_with_magick(
@@ -689,6 +705,7 @@ def _transcode_image(
             quality,
             jxl_effort=jxl_effort,
             timeouts=timeouts,
+            magick_args=magick_args,
         )
 
 
@@ -700,6 +717,7 @@ def transcode_video(
     max_dimension: int,
     audio_bitrate: str,
     timeouts: Timeouts = DEFAULT_TIMEOUTS,
+    extra_args: Sequence[str] = (),
 ) -> TranscodeResult:
     """Transcode a video to MP4/AV1 using ffmpeg + SVT-AV1.
 
@@ -821,10 +839,12 @@ def transcode_video(
             "0",
             "-movflags",
             "+faststart",
+            *extra_args,
             output_path,
         ]
     )
 
+    logger.debug("Running: %s", cmd)
     try:
         subprocess.run(cmd, check=True, capture_output=True, timeout=timeouts.video)
         output_bytes = (

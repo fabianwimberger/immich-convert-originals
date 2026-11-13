@@ -10,6 +10,7 @@ on:
       - 'Dockerfile'
       - 'pyproject.toml'
       - '.github/workflows/docker-publish.yml'
+      - 'scripts/source_notices.py'
       - 'backend/**'
       - 'frontend/**'
 
@@ -22,6 +23,8 @@ jobs:
     name: Build and Push Docker Image
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    outputs:
+      digest: ${{ steps.push.outputs.digest }}
     permissions:
       contents: read
       packages: write
@@ -81,3 +84,45 @@ jobs:
         if: github.event_name != 'pull_request'
         run: |
           echo "Image digest: ${{ steps.push.outputs.digest }}"
+
+  source-notices:
+    name: Attach release source notices
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: docker/setup-buildx-action@v4
+
+      - name: Generate source notices
+        env:
+          IMAGE_DIGEST: ${{ needs.build-and-push.outputs.digest }}
+        run: |
+          python3 scripts/source_notices.py "$REGISTRY/$IMAGE_NAME@$IMAGE_DIGEST" "$GITHUB_REF_NAME" \
+            "${GITHUB_REPOSITORY#*/}-$GITHUB_REF_NAME-source-notices.md"
+
+      - name: Attach to release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          notice="${GITHUB_REPOSITORY#*/}-$GITHUB_REF_NAME-source-notices.md"
+          if ! gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            if gh release create "$GITHUB_REF_NAME" "$notice" --draft --verify-tag --title "$GITHUB_REF_NAME" --notes ""; then
+              exit 0
+            fi
+          fi
+          assets=$(gh release view "$GITHUB_REF_NAME" --json assets)
+          digest=$(jq -r --arg notice "$notice" '.assets[] | select(.name == $notice) | .digest' <<<"$assets")
+          if [[ -z "$digest" ]]; then
+            gh release upload "$GITHUB_REF_NAME" "$notice"
+          elif [[ "$digest" != "sha256:$(sha256sum "$notice" | cut -d ' ' -f 1)" ]]; then
+            echo "The existing source notice differs from $notice" >&2
+            exit 1
+          fi

@@ -130,6 +130,93 @@ class TestTranscodeImage:
         assert "jxl:effort=9" in args
         assert "jxl:distance=1.0" in args
 
+    def test_cjxl_args_go_before_the_input_path(self, tmp_path):
+        input_path = tmp_path / "input.jpg"
+        input_path.write_bytes(b"\xff\xd8\xff" + b"\x00" * 29)
+        output_path = tmp_path / "output.jxl"
+
+        with patch("app.services.transcode.subprocess.run") as mock_run:
+            mock_run.return_value = FakeCompletedProcess(returncode=0)
+            transcode(
+                str(input_path),
+                str(output_path),
+                "jxl",
+                1.0,
+                cjxl_args=["--faster_decoding=1", "--num_threads=2"],
+                magick_args=["-strip"],
+            )
+
+        args = mock_run.call_args_list[0][0][0]
+        assert args[-4:] == [
+            "--faster_decoding=1",
+            "--num_threads=2",
+            str(input_path),
+            str(output_path),
+        ]
+        assert "-strip" not in args
+
+    def test_magick_args_go_before_the_output_path(self, tmp_path):
+        input_path = tmp_path / "input.png"
+        input_path.write_bytes(b"\x89\x50\x4e\x47\x0d\x0a\x1a\x0a" + b"\x00" * 24)
+        output_path = tmp_path / "output.jxl"
+
+        with patch("app.services.transcode.subprocess.run") as mock_run:
+            mock_run.return_value = FakeCompletedProcess(returncode=0)
+            transcode(
+                str(input_path),
+                str(output_path),
+                "jxl",
+                1.0,
+                cjxl_args=["--faster_decoding=1"],
+                magick_args=["-strip", "-resize", "4000x4000>"],
+            )
+
+        args = mock_run.call_args_list[0][0][0]
+        assert args[-4:] == ["-strip", "-resize", "4000x4000>", str(output_path)]
+        assert "--faster_decoding=1" not in args
+
+    def test_cjxl_fallback_uses_only_magick_args(self, tmp_path):
+        input_path = tmp_path / "input.jpg"
+        input_path.write_bytes(b"\xff\xd8\xff" + b"\x00" * 29)
+        output_path = tmp_path / "output.jxl"
+
+        with patch("app.services.transcode.subprocess.run") as mock_run:
+            mock_run.side_effect = [
+                FakeCompletedProcess(returncode=1),
+                FakeCompletedProcess(returncode=0),
+                FakeCompletedProcess(returncode=0),
+            ]
+            transcode(
+                str(input_path),
+                str(output_path),
+                "jxl",
+                1.0,
+                cjxl_args=["--faster_decoding=1"],
+                magick_args=["-strip"],
+            )
+
+        magick_cmd = mock_run.call_args_list[1][0][0]
+        assert magick_cmd[0] == "magick"
+        assert magick_cmd[-2:] == ["-strip", str(output_path)]
+        assert "--faster_decoding=1" not in magick_cmd
+
+    def test_no_custom_args_leaves_commands_unchanged(self, tmp_path):
+        input_path = tmp_path / "input.png"
+        input_path.write_bytes(b"\x89\x50\x4e\x47\x0d\x0a\x1a\x0a" + b"\x00" * 24)
+        output_path = tmp_path / "output.heic"
+
+        with patch("app.services.transcode.subprocess.run") as mock_run:
+            mock_run.return_value = FakeCompletedProcess(returncode=0)
+            transcode(str(input_path), str(output_path), "heic", 80)
+
+        assert mock_run.call_args_list[0][0][0] == [
+            "magick",
+            str(input_path),
+            "-quality",
+            "80",
+            str(output_path),
+        ]
+
     def test_refuses_jxl_input(self, tmp_path):
         input_path = tmp_path / "input.jxl"
         input_path.write_bytes(b"\xff\x0a" + b"\x00" * 30)
@@ -331,6 +418,52 @@ class TestTranscodeVideo:
         assert "-vf" in args
         scale_idx = args.index("-vf") + 1
         assert "1080" in args[scale_idx]
+
+    def test_extra_args_go_before_the_output_path(self, tmp_path):
+        input_path = tmp_path / "input.mp4"
+        input_path.write_bytes(b"\x00" * 100)
+        output_path = tmp_path / "output.mp4"
+
+        with patch("app.services.transcode.subprocess.run") as mock_run:
+            mock_run.return_value = FakeCompletedProcess(stdout="h264")
+            transcode_video(
+                str(input_path),
+                str(output_path),
+                36,
+                "4",
+                0,
+                "64k",
+                extra_args=["-svtav1-params", "film-grain=8"],
+            )
+
+        args = mock_run.call_args[0][0]
+        assert args[-3:] == ["-svtav1-params", "film-grain=8", str(output_path)]
+
+    def test_extra_args_follow_hdr_params(self, tmp_path):
+        input_path = tmp_path / "input.mp4"
+        input_path.write_bytes(b"\x00" * 100)
+        output_path = tmp_path / "output.mp4"
+
+        with patch("app.services.transcode.subprocess.run") as mock_run:
+            mock_run.side_effect = [
+                FakeCompletedProcess(stdout="hevc"),
+                FakeCompletedProcess(stdout="smpte2084"),
+                FakeCompletedProcess(stdout="bt2020nc"),
+                FakeCompletedProcess(returncode=0),
+            ]
+            transcode_video(
+                str(input_path),
+                str(output_path),
+                36,
+                "4",
+                0,
+                "64k",
+                extra_args=["-svtav1-params", "film-grain=8"],
+            )
+
+        args = mock_run.call_args_list[-1][0][0]
+        assert args.count("-svtav1-params") == 2
+        assert args[-3:] == ["-svtav1-params", "film-grain=8", str(output_path)]
 
     def test_wires_retry_crf(self, tmp_path):
         input_path = tmp_path / "input.mp4"

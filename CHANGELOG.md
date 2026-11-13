@@ -5,6 +5,35 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.10.0] - 2026-11-13
+
+Takes flags the settings do not cover, converts live photo videos by default, and lays the Settings page out in three columns.
+
+### Features
+
+- Custom encoder arguments for `cjxl`, ImageMagick and `ffmpeg`, set on the Settings page. They are appended to the built-in command, apply to retry passes and live photo videos, and can be overridden per run through the API.
+- The Settings page stacks its six cards in three independent columns: a short card no longer leaves a hole beside a tall one, and the columns fall back to two and then one as the window narrows.
+- Live photo videos are converted by default, so a live photo does not end up with a converted still next to an untouched video. The original video is kept when the re-encode comes out larger, and existing installs keep their stored value.
+
+### Fixes
+
+- A settings value that fails validation shows its message next to the Save button instead of `[object Object]`.
+- A settings update that sends an explicit `null` field no longer fails with a server error; the field keeps its stored value, as an omitted field already did.
+
+### Testing
+
+- Integration tests pass against Immich v3.3.6.
+
+### Dependencies
+
+- SQLAlchemy 2.1.6 → 2.1.8, websockets 17.3 → 17.4.
+- types-requests 2.33.0.20261006 → 2.33.0.20261030.
+
+### Documentation & Links
+
+- [README](https://github.com/fabianwimberger/immich-convert-originals#readme)
+- [Full changelog](https://github.com/fabianwimberger/immich-convert-originals/compare/v2.9.0...v2.10.0)
+
 ## [v2.9.0] - 2026-11-06
 
 Explains what each target format keeps, and lets a self-signed Immich instance be reached.

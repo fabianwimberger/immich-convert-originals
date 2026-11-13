@@ -125,6 +125,20 @@ Target format decides two things: whether the pixels survive untouched, and how 
 
 Within Immich all three are served through the browser's own transcoding, so the choice only shows up when an original leaves the library. Videos are always AV1 in MP4.
 
+## Custom encoder arguments
+
+Settings → Images and Videos each have an extra-arguments field. The text is split with shell-style quoting (`-set comment 'a b'`) and appended to the command the app builds, so the built-in flags always stay. It is never run through a shell.
+
+| Setting | Tool | Placed |
+|---------|------|--------|
+| Extra cjxl arguments | `cjxl`, the lossless JPEG to JXL repack | just before the input file |
+| Extra ImageMagick arguments | `magick`/`convert`, every other image conversion and the JPEG to JXL fallback when `cjxl` is missing or fails | just before the output file |
+| Extra ffmpeg arguments | `ffmpeg`, all video conversion | just before the output file |
+
+They apply to both the first pass and the retry pass, and to live photo videos when those are converted. A run started through the API can override each one with `image_cjxl_args`, `image_magick_args` or `video_ffmpeg_args`; an empty string means none for that run.
+
+**You are responsible for what you enter.** Arguments are passed as typed, with no allowlist, and an invalid flag fails the conversion. Where a flag is given twice the tool decides which wins, and the app does not merge them: for example a custom `-svtav1-params` replaces the built-in HDR parameters, and a custom `-map` replaces the stream selection. The exact command is logged at `LOG_LEVEL=DEBUG`.
+
 ## Security & Safety
 
 **USE AT YOUR OWN RISK.** In upload mode this tool deletes originals after conversion (recoverable via Immich trash for 30 days) — always back up first and test on a small selection before converting a whole library. The web UI has no built-in authentication — it's intended for a trusted home network or behind your own reverse-proxy auth; don't expose it directly to the internet.
