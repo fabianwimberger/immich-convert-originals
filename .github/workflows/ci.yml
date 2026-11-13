@@ -10,7 +10,7 @@ on:
 
 env:
   PYTHON_VERSION: "3.14"
-  IMMICH_TEST_TAG_PINNED: "v3.3.5"
+  IMMICH_TEST_TAG_PINNED: "v3.3.6"
 
 permissions:
   contents: read
@@ -41,8 +41,19 @@ jobs:
       - name: Format check with ruff
         run: .venv/bin/python -m ruff format --check backend/
 
+      - name: Check source notice generation
+        run: python -m unittest discover -s scripts
+
       - name: Type check with mypy
         run: make typecheck
+
+      - name: Set up Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - name: Frontend checks
+        run: make frontend-test
 
   test:
     name: Test
@@ -95,8 +106,11 @@ jobs:
     name: Integration Tests
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: read
     env:
-      IMMICH_TEST_TAG: v3.3.5
+      IMMICH_TEST_TAG: v3.3.6
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
@@ -120,6 +134,15 @@ jobs:
           for tar in ~/immich-image-cache/*.tar; do
             docker load -i "$tar"
           done
+
+      # Anonymous pulls of ghcr images are rate limited per runner IP; an
+      # authenticated pull is attributed to the token instead.
+      - name: Log in to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Pull images (cache miss)
         if: steps.img-cache.outputs.cache-hit != 'true'

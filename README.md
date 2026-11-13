@@ -113,7 +113,19 @@ Everything behavioral — Immich connection, encoding defaults, filters, output 
 | `LOG_LEVEL` | Log verbosity | `INFO` |
 | `CORS_ORIGINS` | Comma-separated origins allowed to call the API | `http://localhost:8000,http://127.0.0.1:8000` |
 
-### Custom encoder arguments
+## Image formats
+
+Target format decides two things: whether the pixels survive untouched, and how easily the converted original opens outside Immich once it is downloaded or shared.
+
+| Target | Source pixels | Opens outside Immich |
+|--------|---------------|----------------------|
+| JPEG XL (JXL) | JPEG sources are repacked losslessly; every other source is re-encoded lossily | Browsers and desktop viewers handle JXL; iOS and most Android apps do not, so a downloaded original needs another app or a converter |
+| HEIC | Always re-encoded lossily | Apple devices and Windows 10+ with the HEIF codec; many Android apps and desktop viewers cannot read it |
+| AVIF | Always re-encoded lossily | Current browsers and Windows 11; older viewers and some phones cannot |
+
+Within Immich all three are served through the browser's own transcoding, so the choice only shows up when an original leaves the library. Videos are always AV1 in MP4.
+
+## Custom encoder arguments
 
 Settings → Images and Videos each have an extra-arguments field. The text is split with shell-style quoting (`-set comment 'a b'`) and appended to the command the app builds, so the built-in flags always stay. It is never run through a shell.
 
@@ -136,6 +148,7 @@ They apply to both the first pass and the retry pass, and to live photo videos w
 | Symptom | Cause / fix |
 |---------|-------------|
 | Connection test fails with a 404 | The Immich URL must point at the API root and include the `/api` suffix, e.g. `http://immich:2283/api` or `https://photos.example.com/api`. |
+| Connection fails on a self-signed certificate | Enable **Allow insecure SSL certificates (self-signed)** in Settings → Connection. This disables TLS certificate verification. Only use it for a trusted server. |
 | Connection test or uploads fail with 401/403 | The API key is missing a needed scope. Create it with asset read **and** asset upload permissions in Immich → Account Settings → API Keys; a read-only key authenticates but fails on upload. |
 | Assets shared by a partner are skipped | They belong to another account, so the API key can't replace them in upload mode; they're skipped instead of failing. Local output mode can still convert them. |
 | External library assets are skipped | An upload can't be written into an external library's folder. Use local output mode, or enable **Convert external library assets** in Settings → Output: the converted file then moves into Immich's own storage and the original is deleted from the external folder when Immich empties its trash. |

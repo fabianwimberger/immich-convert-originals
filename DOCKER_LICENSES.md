@@ -2,7 +2,7 @@
 
 This Docker image contains the following third-party software packages.
 
-**How this project uses them:** the application's own code (MIT-licensed) invokes `ffmpeg`, `magick`, `cjxl`, and `exiftool` as separate subprocesses via their command-line interfaces — it never links against any of the libraries below in-process. Copyleft obligations (LGPL, GPL) attach to those binaries as bundled in this image, not to this project's own source. What GPL/LGPL does require of anyone distributing this image is covered below: making source available and keeping license notices intact for the affected packages, which this document and Alpine's own package repositories satisfy.
+The MIT-licensed application invokes `ffmpeg`, `magick`, `cjxl`, and `exiftool` as separate processes. The image also distributes these programs and their libraries under their respective licenses.
 
 ## Core Dependencies
 
@@ -58,7 +58,7 @@ This Docker image contains the following third-party software packages.
 - **Description:** AV1 encoder, available as one of libheif's AVIF encoder plugins
 
 ### SVT-AV1
-- **License:** BSD-2-Clause-Patent
+- **License:** BSD-3-Clause-Clear, with a separate AOMedia Patent License
 - **Source:** https://gitlab.com/AOMediaCodec/SVT-AV1
 - **Description:** AV1 encoder used both for video conversion (via FFmpeg's libsvtav1) and as one of libheif's AVIF encoder plugins
 
@@ -81,21 +81,9 @@ This Docker image contains the following third-party software packages.
 
 ## Source Code Availability
 
-In compliance with open-source license requirements (particularly LGPL/GPL for FFmpeg and its codec libraries), source code for all included packages can be obtained from:
+The [2.9.0 source and notices](https://github.com/fabianwimberger/immich-convert-originals/releases/download/v2.9.0/immich-convert-originals-v2.9.0-source-notices.md) list the installed GPL and LGPL packages and their exact Alpine packaging commits for both image architectures. Each linked `APKBUILD` identifies the upstream source archives and their checksums. The Alpine packaging directory includes the patches and build files.
 
-1. **Alpine Package Repositories:** https://pkgs.alpinelinux.org/packages
-2. **Individual project websites:** Listed above for each package
-
-To extract the exact source packages used in a specific image version:
-
-```bash
-# Run this inside the container to list installed packages
-apk info -v | sort
-
-# Download specific package sources from Alpine
-# Example for libjxl version X.Y.Z:
-# https://pkgs.alpinelinux.org/package/v3.21/community/x86_64/libjxl
-```
+For new releases, the tagged image build attaches the matching notice to the [GitHub release](https://github.com/fabianwimberger/immich-convert-originals/releases). If the build creates a draft, add the release notes and publish the draft once the notice is attached.
 
 ## License Texts
 

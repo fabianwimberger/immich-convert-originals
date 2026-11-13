@@ -21,6 +21,7 @@ class Settings(Base):
 
     immich_api_base: Mapped[str] = mapped_column(default="")
     immich_api_key: Mapped[str] = mapped_column(default="")
+    immich_allow_insecure_ssl: Mapped[bool] = mapped_column(default=False)
 
     asset_types: Mapped[str] = mapped_column(default="IMAGE,VIDEO")
     include_archived: Mapped[bool] = mapped_column(default=False)

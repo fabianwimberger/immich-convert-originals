@@ -7,9 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+Adds an extra-arguments field per encoder, for flags the settings don't cover.
+
 ### Features
 
 - Custom encoder arguments for `cjxl`, ImageMagick and `ffmpeg`, set on the Settings page. They are appended to the built-in command, apply to retry passes and live photo videos, and can be overridden per run through the API.
+
+## [v2.9.0] - 2026-11-06
+
+Explains what each target format keeps, and lets a self-signed Immich instance be reached.
+
+### Features
+
+- The target-format selector carries a short note on what each format does to the pixels and which applications open the result outside Immich, with a matching README section.
+- An opt-in setting skips TLS certificate verification for the Immich API and upload connections, for instances behind a self-signed certificate. Verification stays on by default, and a run keeps the value it started with.
 
 ## [v2.8.0] - 2026-10-26
 
