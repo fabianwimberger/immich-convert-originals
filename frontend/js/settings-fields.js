@@ -95,19 +95,19 @@ const SETTINGS_FIELDS = {
   },
   image_cjxl_args: {
     description:
-      "Extra cjxl arguments, added just before the input file when a JPEG is repacked to JXL. They are passed as typed and you are responsible for them: a bad flag fails the conversion. A JPEG that falls back to ImageMagick uses the ImageMagick field instead.",
+      "Appended just before the input file on a lossless JPEG to JXL repack; a fallback to ImageMagick uses the field below. Passed as typed, so a bad flag fails the conversion.",
     default: "none",
     example: "e.g. --faster_decoding=1",
   },
   image_magick_args: {
     description:
-      "Extra ImageMagick arguments, added just before the output file for every conversion that goes through ImageMagick, including the JPEG-to-JXL fallback. They are passed as typed and you are responsible for them: a bad flag fails the conversion.",
+      "Appended just before the output file for every conversion through ImageMagick, including the JXL fallback. Passed as typed, so a bad flag fails the conversion.",
     default: "none",
     example: "e.g. -strip",
   },
   video_ffmpeg_args: {
     description:
-      "Extra ffmpeg output arguments, added just before the output file. They are passed as typed and you are responsible for them: a bad flag fails the conversion. A custom -svtav1-params or -map replaces the built-in one rather than merging with it, which can break HDR handling or stream selection.",
+      "Appended just before the output file. Passed as typed, so a bad flag fails the conversion; a custom -svtav1-params or -map replaces the built-in one instead of merging, which can break HDR handling or stream selection.",
     default: "none",
     example: "e.g. -svtav1-params film-grain=8",
   },
