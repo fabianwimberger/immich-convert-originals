@@ -76,6 +76,12 @@ async def _build_config_snapshot(data: RunCreate, db: AsyncSession) -> dict[str,
         "image_quality_avif_retry": _pick(
             data.image_quality_avif_retry, settings.image_quality_avif_retry
         ),
+        "video_target_codec": _pick(
+            data.video_target_codec, settings.video_target_codec
+        ),
+        "convert_video_codecs": _pick(
+            data.convert_video_codecs, settings.convert_video_codecs
+        ),
         "video_crf": _pick(data.video_crf, settings.video_crf),
         "video_preset": _pick(data.video_preset, settings.video_preset),
         "video_max_dimension": _pick(
@@ -85,6 +91,11 @@ async def _build_config_snapshot(data: RunCreate, db: AsyncSession) -> dict[str,
             data.video_audio_bitrate, settings.video_audio_bitrate
         ),
         "video_crf_retry": _pick(data.video_crf_retry, settings.video_crf_retry),
+        "video_crf_hevc": _pick(data.video_crf_hevc, settings.video_crf_hevc),
+        "video_crf_hevc_retry": _pick(
+            data.video_crf_hevc_retry, settings.video_crf_hevc_retry
+        ),
+        "video_preset_hevc": _pick(data.video_preset_hevc, settings.video_preset_hevc),
         "convert_live_photo_videos": _pick(
             data.convert_live_photo_videos, settings.convert_live_photo_videos
         ),

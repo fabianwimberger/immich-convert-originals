@@ -13,7 +13,7 @@ RUN uv sync --frozen --no-editable --no-cache
 FROM python:3.15-alpine
 
 LABEL org.opencontainers.image.title="Immich Library Converter"
-LABEL org.opencontainers.image.description="Web UI for batch-transcoding an Immich library to JPEG XL and AV1"
+LABEL org.opencontainers.image.description="Web UI for batch-transcoding an Immich library to JPEG XL, AV1 and HEVC"
 LABEL org.opencontainers.image.source="https://github.com/fabianwimberger/immich-convert-originals"
 LABEL org.opencontainers.image.licenses="MIT"
 

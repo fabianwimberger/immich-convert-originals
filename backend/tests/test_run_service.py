@@ -1034,7 +1034,7 @@ class TestProcessAssetSyncLivePhotoVideoConversion:
         seen = []
 
         def capturing_transcode_video(
-            inp, out, crf, preset, max_dimension, audio_bitrate, extra_args=()
+            inp, out, crf, preset, max_dimension, audio_bitrate, extra_args=(), **_
         ):
             seen.append(list(extra_args))
             with open(out, "wb") as f:
@@ -1261,7 +1261,7 @@ class TestProcessAssetSyncVideos:
         seen = []
 
         def fake_transcode_video(
-            inp, out, crf, preset, max_dimension, audio_bitrate, extra_args=()
+            inp, out, crf, preset, max_dimension, audio_bitrate, extra_args=(), **_
         ):
             seen.append(list(extra_args))
             return TranscodeResult(
@@ -1286,7 +1286,7 @@ class TestProcessAssetSyncVideos:
         seen = []
 
         def fake_transcode_video(
-            inp, out, crf, preset, max_dimension, audio_bitrate, extra_args=()
+            inp, out, crf, preset, max_dimension, audio_bitrate, extra_args=(), **_
         ):
             seen.append(list(extra_args))
             return TranscodeResult(True, inp, out, 1000, 500, "h264")
@@ -1297,6 +1297,110 @@ class TestProcessAssetSyncVideos:
         run_service._process_asset_sync(asset, client, BASE_CFG, str(tmp_path))
 
         assert seen == [[]]
+
+
+class TestProcessAssetSyncVideoCodecs:
+    HEVC_CFG = {
+        **BASE_CFG,
+        "video_target_codec": "hevc",
+        "convert_video_codecs": "h264,hevc",
+        "video_crf_hevc": 26,
+        "video_crf_hevc_retry": 30,
+        "video_preset_hevc": "slow",
+    }
+
+    def _setup(self, monkeypatch, sizes, error=None):
+        calls = []
+        sizes = iter(sizes)
+
+        def fake_transcode_video(inp, out, **kwargs):
+            calls.append(kwargs)
+            if error:
+                return TranscodeResult(False, inp, out, 1000, 1000, "vp9", error)
+            size = next(sizes)
+            with open(out, "wb") as f:
+                f.write(b"v" * size)
+            return TranscodeResult(True, inp, out, 1000, size, "h264")
+
+        monkeypatch.setattr(run_service, "transcode_video", fake_transcode_video)
+        monkeypatch.setattr(run_service, "validate_video_output", lambda path: True)
+        return calls
+
+    def _video(self):
+        return _make_asset(
+            asset_type="VIDEO", file_name="clip.mp4", mime_type="video/mp4"
+        )
+
+    def test_hevc_target_uses_hevc_quality_settings(self, tmp_path, monkeypatch):
+        calls = self._setup(monkeypatch, [500])
+
+        result = run_service._process_asset_sync(
+            self._video(), FakeClient(), self.HEVC_CFG, str(tmp_path)
+        )
+
+        assert result["status"] == "success"
+        assert calls[0]["codec"] == "hevc"
+        assert calls[0]["crf"] == 26
+        assert calls[0]["preset"] == "slow"
+        assert calls[0]["allowed_source_codecs"] == {"h264", "hevc"}
+
+    def test_retry_uses_hevc_retry_crf(self, tmp_path, monkeypatch):
+        calls = self._setup(monkeypatch, [1500, 500])
+
+        result = run_service._process_asset_sync(
+            self._video(), FakeClient(), self.HEVC_CFG, str(tmp_path)
+        )
+
+        assert result["status"] == "success"
+        assert [c["crf"] for c in calls] == [26, 30]
+        assert {c["codec"] for c in calls} == {"hevc"}
+
+    def test_config_without_codec_keys_means_av1_and_all_sources(
+        self, tmp_path, monkeypatch
+    ):
+        # A config_snapshot from before video codecs existed.
+        calls = self._setup(monkeypatch, [500])
+
+        run_service._process_asset_sync(
+            self._video(), FakeClient(), BASE_CFG, str(tmp_path)
+        )
+
+        assert calls[0]["codec"] == "av1"
+        assert calls[0]["crf"] == 36
+        assert calls[0]["preset"] == "4"
+        assert "other" in calls[0]["allowed_source_codecs"]
+        assert "vp9" in calls[0]["allowed_source_codecs"]
+
+    def test_excluded_codec_is_skipped_with_no_bytes(self, tmp_path, monkeypatch):
+        self._setup(monkeypatch, [], error="Codec excluded by settings (vp9)")
+
+        result = run_service._process_asset_sync(
+            self._video(), FakeClient(), self.HEVC_CFG, str(tmp_path)
+        )
+
+        assert result["status"] == "skipped"
+        assert result["input_bytes"] == 0
+        assert result["output_bytes"] == 0
+
+    def test_live_photo_video_uses_target_codec_and_allow_list(
+        self, tmp_path, monkeypatch
+    ):
+        calls = self._setup(monkeypatch, [500])
+        video = _make_asset("video-1", "IMG_1.MOV", asset_type="VIDEO")
+        client = FakeClient(by_id={"video-1": video})
+
+        converted = run_service._convert_live_photo_video(
+            _make_asset(live_photo_video_id="video-1"),
+            client,
+            self.HEVC_CFG,
+            str(tmp_path / "in.bin"),
+            str(tmp_path / "out.mp4"),
+        )
+
+        assert converted is not None
+        assert calls[0]["codec"] == "hevc"
+        assert calls[0]["crf"] == 26
+        assert calls[0]["allowed_source_codecs"] == {"h264", "hevc"}
 
 
 @pytest.mark.asyncio

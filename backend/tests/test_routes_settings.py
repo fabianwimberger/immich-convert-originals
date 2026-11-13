@@ -1,5 +1,6 @@
 """Tests for the settings API routes."""
 
+import pytest
 import responses
 
 
@@ -29,6 +30,14 @@ class TestReadSettings:
         assert data["local_output_dir"] == "/app/output"
         assert data["local_keep_originals"] is False
         assert data["convert_live_photo_videos"] is True
+        assert data["video_target_codec"] == "av1"
+        assert (
+            data["convert_video_codecs"]
+            == "h264,hevc,av1,vp9,vp8,mpeg4,mjpeg,prores,other"
+        )
+        assert data["video_crf_hevc"] == 26
+        assert data["video_crf_hevc_retry"] == 30
+        assert data["video_preset_hevc"] == "slow"
         assert data["upload_external_assets"] is False
         assert data["image_cjxl_args"] == ""
         assert data["image_magick_args"] == ""
@@ -272,3 +281,38 @@ class TestConnectionCheck:
         )
         resp = await client.post("/api/settings/test-connection", json={})
         assert resp.json()["ok"] is True
+
+
+class TestVideoCodecSettings:
+    async def test_hevc_fields_persist(self, client):
+        resp = await client.put(
+            "/api/settings",
+            json={
+                "video_target_codec": "hevc",
+                "convert_video_codecs": "h264,vp9",
+                "video_crf_hevc": 22,
+                "video_crf_hevc_retry": 28,
+                "video_preset_hevc": "medium",
+            },
+        )
+        assert resp.status_code == 200
+        data = (await client.get("/api/settings")).json()
+        assert data["video_target_codec"] == "hevc"
+        assert data["convert_video_codecs"] == "h264,vp9"
+        assert data["video_crf_hevc"] == 22
+        assert data["video_crf_hevc_retry"] == 28
+        assert data["video_preset_hevc"] == "medium"
+
+    @pytest.mark.parametrize(
+        "payload",
+        [
+            {"video_target_codec": "vp9"},
+            {"video_preset_hevc": "warp"},
+            {"video_crf_hevc": 52},
+            {"video_crf_hevc_retry": -1},
+            {"convert_video_codecs": "h264,divx"},
+        ],
+    )
+    async def test_invalid_values_rejected(self, client, payload):
+        resp = await client.put("/api/settings", json=payload)
+        assert resp.status_code == 422

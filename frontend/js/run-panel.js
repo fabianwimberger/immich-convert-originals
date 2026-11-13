@@ -120,7 +120,7 @@ class RunPanel {
         </div>
         <dl class="pairs pairs--narrow">
           <div class="pair"><dt>Images</dt><dd>${format}</dd></div>
-          <div class="pair"><dt>Videos</dt><dd>AV1</dd></div>
+          <div class="pair"><dt>Videos</dt><dd>${VIDEO_CODEC_LABELS[s.video_target_codec] || "AV1"}</dd></div>
           <div class="pair"><dt>Output</dt><dd>${output}</dd></div>
           <div class="pair"><dt>Retry if larger</dt><dd>${s.enable_retry ? "On" : "Off"}</dd></div>
           <div class="pair"><dt>Concurrency</dt><dd>${s.concurrency}</dd></div>
@@ -217,6 +217,15 @@ class RunPanel {
           <p class="field__hint">Lists what would change and leaves Immich untouched.</p>
         </div>
         <div class="field">
+          <label class="label" for="run-video-codec">Video codec</label>
+          <select id="run-video-codec" class="select">
+            <option value="">Use the default</option>
+            <option value="av1">AV1</option>
+            <option value="hevc">HEVC (H.265)</option>
+          </select>
+          <p class="field__hint">Overrides the Settings target for this run only.</p>
+        </div>
+        <div class="field">
           <label class="label" for="run-concurrency">Concurrency</label>
           <input id="run-concurrency" class="input" type="number" min="1" max="32" placeholder="Use the default" />
           <p class="field__hint">How many assets are downloaded, transcoded and uploaded in parallel.</p>
@@ -244,6 +253,8 @@ class RunPanel {
     };
     const concurrency = this.sideEl.querySelector("#run-concurrency").value;
     if (concurrency) body.concurrency = parseInt(concurrency, 10);
+    const videoCodec = this.sideEl.querySelector("#run-video-codec").value;
+    if (videoCodec) body.video_target_codec = videoCodec;
 
     if (this.mode === "selection") {
       const ids = assetBrowser ? [...assetBrowser.selected] : [];

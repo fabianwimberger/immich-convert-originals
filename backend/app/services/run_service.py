@@ -35,6 +35,12 @@ from app.services.transcode import (
     validate_video_output,
 )
 from app.services.websocket_manager import websocket_manager
+from app.video_codecs import (
+    DEFAULT_CONVERT_VIDEO_CODECS,
+    DEFAULT_HEVC_CRF,
+    DEFAULT_HEVC_CRF_RETRY,
+    DEFAULT_HEVC_PRESET,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -155,6 +161,42 @@ _FORMAT_EXTENSION_MAP = {
 ALL_IMAGE_FORMATS = "jpg,png,webp,heic,avif,tiff,gif,bmp"
 
 
+def _video_encode_kwargs(cfg: dict[str, Any], *, retry: bool) -> dict[str, Any]:
+    """transcode_video's codec, quality and source-codec arguments for cfg.
+
+    video_crf/video_crf_retry/video_preset are the AV1 values; the *_hevc
+    fields apply when the target is HEVC. Missing keys (a snapshot from before
+    codecs were selectable) mean AV1 with every source codec converted.
+    """
+    codec = cfg.get("video_target_codec", "av1")
+    if codec == "hevc":
+        crf = (
+            cfg.get("video_crf_hevc_retry", DEFAULT_HEVC_CRF_RETRY)
+            if retry
+            else cfg.get("video_crf_hevc", DEFAULT_HEVC_CRF)
+        )
+        preset = cfg.get("video_preset_hevc", DEFAULT_HEVC_PRESET)
+    else:
+        crf = cfg["video_crf_retry" if retry else "video_crf"]
+        preset = cfg["video_preset"]
+    return {
+        "crf": crf,
+        "preset": str(preset),
+        "max_dimension": cfg["video_max_dimension"],
+        "audio_bitrate": cfg["video_audio_bitrate"],
+        "codec": codec,
+        "allowed_source_codecs": set(
+            cfg.get("convert_video_codecs", DEFAULT_CONVERT_VIDEO_CODECS).split(",")
+        ),
+        "extra_args": _custom_args(cfg, "video_ffmpeg_args"),
+    }
+
+
+def _is_video_skip(error: str | None) -> bool:
+    """True when transcode_video declined the video rather than failing."""
+    return error is not None and error.startswith(("Already ", "Codec excluded"))
+
+
 def _detect_image_format_from_metadata(asset: Asset) -> str | None:
     mime_type = asset.original_mime_type.lower() if asset.original_mime_type else None
     if mime_type in _FORMAT_MIME_MAP:
@@ -256,9 +298,10 @@ def _convert_live_photo_video(
 ) -> _ConvertedVideo | None:
     """Re-encode a live photo's video to output_path.
 
-    Returns None when the video should stay as it is: it is already AV1, it
-    didn't get smaller, or it couldn't be fetched or converted. None of
-    these is a reason to fail the still, which then keeps the existing video.
+    Returns None when the video should stay as it is: it is already in the
+    target codec, its codec is excluded by the allow-list, it didn't get
+    smaller, or it couldn't be fetched or converted. None of these is a
+    reason to fail the still, which then keeps the existing video.
     """
     video = client.get_asset_full(asset.live_photo_video_id or "")
     if video is None:
@@ -268,21 +311,15 @@ def _convert_live_photo_video(
         logger.warning("Keeping live photo video %s: %s", video.id, error)
         return None
 
-    crfs = [cfg["video_crf"]]
-    if cfg["enable_retry"]:
-        crfs.append(cfg["video_crf_retry"])
-    for crf in crfs:
+    attempts = [False, True] if cfg["enable_retry"] else [False]
+    for retry in attempts:
         tx = transcode_video(
             input_path,
             output_path,
-            crf=crf,
-            preset=str(cfg["video_preset"]),
-            max_dimension=cfg["video_max_dimension"],
-            audio_bitrate=cfg["video_audio_bitrate"],
-            extra_args=_custom_args(cfg, "video_ffmpeg_args"),
+            **_video_encode_kwargs(cfg, retry=retry),
         )
         if not tx.success or not validate_video_output(output_path):
-            if not (tx.error or "").startswith("Already "):
+            if not _is_video_skip(tx.error):
                 logger.warning(
                     "Keeping live photo video %s: %s", video.id, (tx.error or "")[-300:]
                 )
@@ -362,11 +399,7 @@ def _process_asset_sync(
             tx = transcode_video(
                 input_path,
                 output_path,
-                crf=cfg["video_crf"],
-                preset=str(cfg["video_preset"]),
-                max_dimension=cfg["video_max_dimension"],
-                audio_bitrate=cfg["video_audio_bitrate"],
-                extra_args=_custom_args(cfg, "video_ffmpeg_args"),
+                **_video_encode_kwargs(cfg, retry=False),
             )
             is_valid = validate_video_output(output_path)
         else:
@@ -387,7 +420,7 @@ def _process_asset_sync(
             # before/after size comparison -- otherwise the UI reads
             # "output_bytes stayed 0" as "100% saved by producing nothing".
             result["input_bytes"] = 0
-            if tx.error and tx.error.startswith("Already "):
+            if _is_video_skip(tx.error):
                 result["status"] = "skipped"
                 return result
             result["status"] = "failed_transcode"
@@ -410,11 +443,7 @@ def _process_asset_sync(
                     tx = transcode_video(
                         input_path,
                         output_path,
-                        crf=cfg["video_crf_retry"],
-                        preset=str(cfg["video_preset"]),
-                        max_dimension=cfg["video_max_dimension"],
-                        audio_bitrate=cfg["video_audio_bitrate"],
-                        extra_args=_custom_args(cfg, "video_ffmpeg_args"),
+                        **_video_encode_kwargs(cfg, retry=True),
                     )
                     is_valid = validate_video_output(output_path)
                 else:

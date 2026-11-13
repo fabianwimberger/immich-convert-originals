@@ -35,7 +35,7 @@ The MIT-licensed application invokes `ffmpeg`, `magick`, `cjxl`, and `exiftool` 
 ### x265
 - **License:** GPL-2.0-or-later (commercial license also available from MulticoreWare)
 - **Source:** https://bitbucket.org/multicoreware/x265_git
-- **Description:** HEVC (H.265) encoder — the codec libheif uses to write HEIC output
+- **Description:** HEVC (H.265) encoder — used for HEIC output (via libheif) and for HEVC video conversion (via FFmpeg's libx265)
 
 ### x264
 - **License:** GPL-2.0-or-later (commercial license also available)
