@@ -28,7 +28,7 @@ class TestReadSettings:
         assert data["output_mode"] == "upload"
         assert data["local_output_dir"] == "/app/output"
         assert data["local_keep_originals"] is False
-        assert data["convert_live_photo_videos"] is False
+        assert data["convert_live_photo_videos"] is True
         assert data["upload_external_assets"] is False
         assert data["image_cjxl_args"] == ""
         assert data["image_magick_args"] == ""

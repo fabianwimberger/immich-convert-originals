@@ -145,6 +145,7 @@ async def test_converted_live_photo_keeps_its_video(
             "asset_ids": [still_id],
             "dry_run": False,
             "image_target_format": target,
+            "convert_live_photo_videos": False,
         },
     )
     assert create_resp.status_code == 200
@@ -184,7 +185,7 @@ async def test_converted_live_photo_keeps_its_video(
 
 
 @pytest.mark.parametrize("layout", ["motionphoto", "separate"])
-async def test_live_photo_video_is_converted_when_enabled(
+async def test_live_photo_video_is_converted_by_default(
     gui_client, admin_client, tmp_path, layout
 ):
     still_id, video_id = _seed_live_photo(admin_client, tmp_path, layout)
@@ -195,7 +196,6 @@ async def test_live_photo_video_is_converted_when_enabled(
         json={
             "asset_ids": [still_id],
             "dry_run": False,
-            "convert_live_photo_videos": True,
         },
     )
     assert create_resp.status_code == 200
