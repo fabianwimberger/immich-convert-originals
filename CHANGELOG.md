@@ -23,6 +23,20 @@ Takes flags the settings do not cover, converts live photo videos by default, an
 - A settings value that fails validation shows its message next to the Save button instead of `[object Object]`.
 - A settings update that sends an explicit `null` field no longer fails with a server error; the field keeps its stored value, as an omitted field already did.
 
+### Testing
+
+- Integration tests pass against Immich v3.3.6.
+
+### Dependencies
+
+- SQLAlchemy 2.1.6 → 2.1.8, websockets 17.3 → 17.4.
+- types-requests 2.33.0.20261006 → 2.33.0.20261030.
+
+### Documentation & Links
+
+- [README](https://github.com/fabianwimberger/immich-convert-originals#readme)
+- [Full changelog](https://github.com/fabianwimberger/immich-convert-originals/compare/v2.9.0...v2.10.0)
+
 ## [v2.9.0] - 2026-11-06
 
 Explains what each target format keeps, and lets a self-signed Immich instance be reached.
