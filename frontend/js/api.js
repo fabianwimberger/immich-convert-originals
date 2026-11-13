@@ -1,10 +1,23 @@
 /** Thin fetch wrapper for the backend API. */
+
+/** FastAPI answers a validation failure with a list of {loc, msg} objects, and
+ * stringifying that list into an Error yields "[object Object]". Use the
+ * messages so the status line says what is wrong. */
+function _errorMessage(body, fallback) {
+  const detail = body?.detail;
+  if (typeof detail === "string") return detail;
+  if (Array.isArray(detail)) {
+    const messages = detail.map((item) => item?.msg).filter(Boolean);
+    if (messages.length > 0) return messages.join("; ");
+  }
+  return fallback;
+}
+
 async function _handle(res, path, method) {
   if (!res.ok) {
     let detail = `${method} ${path} failed: ${res.status}`;
     try {
-      const body = await res.json();
-      if (body.detail) detail = body.detail;
+      detail = _errorMessage(await res.json(), detail);
     } catch (_) {
       // response body wasn't JSON; keep the generic message
     }
