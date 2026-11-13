@@ -139,6 +139,16 @@ class SettingsPanel {
                 ${fieldHint("image_quality_avif_retry")}
               </div>
             </div>
+            <div class="field">
+              <label class="label" for="set-image-cjxl-args">Extra cjxl arguments</label>
+              <input id="set-image-cjxl-args" class="input" type="text" placeholder="e.g. --faster_decoding=1" />
+              ${fieldHint("image_cjxl_args")}
+            </div>
+            <div class="field">
+              <label class="label" for="set-image-magick-args">Extra ImageMagick arguments</label>
+              <input id="set-image-magick-args" class="input" type="text" placeholder="e.g. -strip -resize 4000x4000&gt;" />
+              ${fieldHint("image_magick_args")}
+            </div>
             <div class="actions">
               <button id="btn-save-images" class="btn btn--quiet btn--small" type="button">Save image settings</button>
               <span id="images-status"></span>
@@ -179,6 +189,11 @@ class SettingsPanel {
             <div class="field">
               <label class="check"><input id="set-convert-live-photo-videos" type="checkbox" ${s.convert_live_photo_videos ? "checked" : ""} /> Convert live photo videos</label>
               ${fieldHint("convert_live_photo_videos")}
+            </div>
+            <div class="field">
+              <label class="label" for="set-video-ffmpeg-args">Extra ffmpeg arguments</label>
+              <input id="set-video-ffmpeg-args" class="input" type="text" placeholder="e.g. -svtav1-params film-grain=8" />
+              ${fieldHint("video_ffmpeg_args")}
             </div>
             <div class="actions">
               <button id="btn-save-videos" class="btn btn--quiet btn--small" type="button">Save video settings</button>
@@ -254,6 +269,12 @@ class SettingsPanel {
         </section>
       </div>
     `;
+
+    // Set as properties: these values routinely contain quotes, which would
+    // break out of a value="..." attribute.
+    this.root.querySelector("#set-image-cjxl-args").value = s.image_cjxl_args;
+    this.root.querySelector("#set-image-magick-args").value = s.image_magick_args;
+    this.root.querySelector("#set-video-ffmpeg-args").value = s.video_ffmpeg_args;
 
     this.root.querySelector("#btn-test-connection").addEventListener("click", () =>
       this.testConnection()
@@ -382,6 +403,10 @@ class SettingsPanel {
         this.root.querySelector("#set-image-quality-avif-retry").value,
         10
       ),
+      image_cjxl_args: this.root.querySelector("#set-image-cjxl-args").value.trim(),
+      image_magick_args: this.root
+        .querySelector("#set-image-magick-args")
+        .value.trim(),
     });
   }
 
@@ -403,6 +428,7 @@ class SettingsPanel {
       convert_live_photo_videos: this.root.querySelector(
         "#set-convert-live-photo-videos"
       ).checked,
+      video_ffmpeg_args: this.root.querySelector("#set-video-ffmpeg-args").value.trim(),
     });
   }
 

@@ -5,6 +5,18 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+Adds an extra-arguments field per encoder, for flags the settings don't cover.
+
+### Features
+
+- Custom encoder arguments for `cjxl`, ImageMagick and `ffmpeg`, set on the Settings page. They are appended to the built-in command, apply to retry passes and live photo videos, and can be overridden per run through the API.
+
+### Fixes
+
+- A settings update that sends an explicit `null` field no longer fails with a server error; the field keeps its stored value, as an omitted field already did.
+
 ## [v2.9.0] - 2026-11-06
 
 Explains what each target format keeps, and lets a self-signed Immich instance be reached.
