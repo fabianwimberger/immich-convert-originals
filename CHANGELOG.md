@@ -13,10 +13,7 @@ Takes flags the settings do not cover, converts live photo videos by default, an
 
 - Custom encoder arguments for `cjxl`, ImageMagick and `ffmpeg`, set on the Settings page. They are appended to the built-in command, apply to retry passes and live photo videos, and can be overridden per run through the API.
 - The Settings page stacks its six cards in three independent columns: a short card no longer leaves a hole beside a tall one, and the columns fall back to two and then one as the window narrows.
-
-### Changes
-
-- Live photo videos are converted by default, so a live photo does not end up with a converted still next to an untouched video. The original video is kept when the re-encode comes out larger. Existing installs keep their stored value.
+- Live photo videos are converted by default, so a live photo does not end up with a converted still next to an untouched video. The original video is kept when the re-encode comes out larger, and existing installs keep their stored value.
 
 ### Fixes
 
