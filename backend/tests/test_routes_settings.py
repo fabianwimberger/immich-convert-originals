@@ -138,7 +138,9 @@ class TestUpdateSettings:
         assert resp.status_code == 422
 
     async def test_custom_args_too_long_rejected(self, client):
-        resp = await client.put("/api/settings", json={"image_magick_args": "-a " * 1000})
+        resp = await client.put(
+            "/api/settings", json={"image_magick_args": "-a " * 1000}
+        )
         assert resp.status_code == 422
 
     async def test_custom_args_with_null_byte_rejected(self, client):

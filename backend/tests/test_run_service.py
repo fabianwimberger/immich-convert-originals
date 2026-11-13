@@ -1183,13 +1183,15 @@ class TestProcessAssetSyncVideos:
         monkeypatch.setattr(
             run_service,
             "transcode_video",
-            lambda inp, out, crf, preset, max_dimension, audio_bitrate, **_: TranscodeResult(
-                success=True,
-                input_path=inp,
-                output_path=out,
-                input_bytes=1000,
-                output_bytes=600,
-                input_format="h264",
+            lambda inp, out, crf, preset, max_dimension, audio_bitrate, **_: (
+                TranscodeResult(
+                    success=True,
+                    input_path=inp,
+                    output_path=out,
+                    input_bytes=1000,
+                    output_bytes=600,
+                    input_format="h264",
+                )
             ),
         )
         monkeypatch.setattr(run_service, "validate_video_output", lambda path: True)
@@ -1208,14 +1210,16 @@ class TestProcessAssetSyncVideos:
         monkeypatch.setattr(
             run_service,
             "transcode_video",
-            lambda inp, out, crf, preset, max_dimension, audio_bitrate, **_: TranscodeResult(
-                success=False,
-                input_path=inp,
-                output_path=out,
-                input_bytes=1000,
-                output_bytes=1000,
-                input_format="av1",
-                error="Already AV1",
+            lambda inp, out, crf, preset, max_dimension, audio_bitrate, **_: (
+                TranscodeResult(
+                    success=False,
+                    input_path=inp,
+                    output_path=out,
+                    input_bytes=1000,
+                    output_bytes=1000,
+                    input_format="av1",
+                    error="Already AV1",
+                )
             ),
         )
         cfg = {**BASE_CFG, "dry_run": True}
@@ -1231,13 +1235,15 @@ class TestProcessAssetSyncVideos:
         monkeypatch.setattr(
             run_service,
             "transcode_video",
-            lambda inp, out, crf, preset, max_dimension, audio_bitrate, **_: TranscodeResult(
-                success=True,
-                input_path=inp,
-                output_path=out,
-                input_bytes=1000,
-                output_bytes=500,
-                input_format="h264",
+            lambda inp, out, crf, preset, max_dimension, audio_bitrate, **_: (
+                TranscodeResult(
+                    success=True,
+                    input_path=inp,
+                    output_path=out,
+                    input_bytes=1000,
+                    output_bytes=500,
+                    input_format="h264",
+                )
             ),
         )
         monkeypatch.setattr(run_service, "validate_video_output", lambda path: True)
