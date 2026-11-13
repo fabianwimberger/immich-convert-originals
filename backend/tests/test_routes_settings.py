@@ -133,6 +133,21 @@ class TestUpdateSettings:
         assert resp.status_code == 200
         assert resp.json()["video_ffmpeg_args"] == ""
 
+    async def test_explicit_null_leaves_custom_args_unchanged(self, client):
+        await client.put("/api/settings", json={"image_magick_args": "-strip"})
+        resp = await client.put(
+            "/api/settings",
+            json={"image_magick_args": None, "video_ffmpeg_args": None},
+        )
+        assert resp.status_code == 200
+        assert resp.json()["image_magick_args"] == "-strip"
+        assert resp.json()["video_ffmpeg_args"] == ""
+
+    async def test_explicit_null_leaves_any_setting_unchanged(self, client):
+        resp = await client.put("/api/settings", json={"concurrency": None})
+        assert resp.status_code == 200
+        assert resp.json()["concurrency"] == 2
+
     async def test_custom_args_with_unbalanced_quote_rejected(self, client):
         resp = await client.put("/api/settings", json={"video_ffmpeg_args": "-x 'oops"})
         assert resp.status_code == 422

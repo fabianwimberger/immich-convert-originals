@@ -36,7 +36,13 @@ async def read_settings(db: AsyncSession = Depends(get_db)):
 @router.put("", response_model=SettingsResponse)
 async def update_settings(data: SettingsUpdate, db: AsyncSession = Depends(get_db)):
     row = await get_settings_row(db)
-    updates = data.model_dump(exclude_unset=True)
+    # An explicit null in the body means "leave as it is", like an omitted key:
+    # every Settings column is NOT NULL, so writing one back would fail the commit.
+    updates = {
+        key: value
+        for key, value in data.model_dump(exclude_unset=True).items()
+        if value is not None
+    }
     for key, value in updates.items():
         setattr(row, key, value)
     await db.commit()
