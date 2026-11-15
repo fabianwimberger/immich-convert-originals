@@ -520,7 +520,7 @@ docker run --rm --env-file .env -v ./work:/work \
 
 Defaults to dry run. Once happy, set `DRY_RUN=false` in `.env` and re-run. See the [README](https://github.com/fabianwimberger/immich-convert-originals#readme) for Docker Compose and local Python options.
 
-**⚠️ Use at your own risk.** This tool deletes originals after conversion (recoverable via Immich trash for 30 days). Always back up first and test on a small batch with `MAX_ASSETS`.
+**Use at your own risk.** This tool deletes originals after conversion (recoverable via Immich trash for 30 days). Always back up first and test on a small batch with `MAX_ASSETS`.
 
 ---
 
