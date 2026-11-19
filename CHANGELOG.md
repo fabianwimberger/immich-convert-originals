@@ -5,6 +5,14 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Features
+
+- Choose the video target codec on the Settings page: AV1 (default) or HEVC. HEVC is encoded with x265, tagged `hvc1` for Apple playback, and uses AAC audio (AV1 keeps Opus). Each codec has its own CRF, retry CRF and preset.
+- A new "Source codecs to convert" list, like the image formats one, lets you leave some video codecs alone, for example AV1 sources when targeting HEVC. Videos already in the target codec are always skipped.
+- Runs can override the video codec from the Convert view or the API (`video_target_codec`, `convert_video_codecs`). Live photo videos follow the same target and list.
+
 ## [v2.10.0] - 2026-11-13
 
 Takes flags the settings do not cover, converts live photo videos by default, and lays the Settings page out in three columns.

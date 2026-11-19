@@ -67,6 +67,16 @@ const SETTINGS_FIELDS = {
     description: "Quality used if the first pass came out larger than the original.",
     default: "55",
   },
+  video_target_codec: {
+    description:
+      "Output video codec, in an MP4 container. AV1 (SVT-AV1, Opus audio) gives the smallest files; HEVC (x265, AAC audio) plays on more devices and hardware decoders. Videos already in the target codec are always skipped.",
+    default: "AV1",
+  },
+  convert_video_codecs: {
+    description:
+      "Source codecs a run converts; videos in an unchecked codec are skipped after download. \"Other\" covers any codec not listed. The target codec is always skipped.",
+    default: "all of the below",
+  },
   video_crf: {
     description: "AV1 quality via SVT-AV1; lower is better quality and larger files.",
     default: "36",
@@ -82,6 +92,21 @@ const SETTINGS_FIELDS = {
     default: "4",
     example: "e.g. 6-8 for faster encodes on modest hardware",
   },
+  video_crf_hevc: {
+    description: "HEVC quality via x265; lower is better quality and larger files.",
+    default: "26",
+    example: "e.g. 22 for higher quality, 28 for smaller files",
+  },
+  video_crf_hevc_retry: {
+    description: "CRF used if the first pass came out larger than the original.",
+    default: "30",
+  },
+  video_preset_hevc: {
+    description:
+      "x265 speed/quality tradeoff; slower presets give smaller files at the same quality.",
+    default: "slow",
+    example: "e.g. medium or fast for faster encodes on modest hardware",
+  },
   video_max_dimension: {
     description:
       "Caps the shorter side (width or height) in pixels; aspect ratio is preserved. 0 disables scaling.",
@@ -89,7 +114,8 @@ const SETTINGS_FIELDS = {
     example: "e.g. 1080 to cap 4K video down to 1080p",
   },
   video_audio_bitrate: {
-    description: "Opus audio bitrate, ffmpeg format.",
+    description:
+      "Audio bitrate, ffmpeg format. Opus (AV1 target) sounds good at 64k; AAC (HEVC target) wants about 96k or more.",
     default: "64k",
     example: "e.g. 96k, 128k",
   },
@@ -113,7 +139,7 @@ const SETTINGS_FIELDS = {
   },
   convert_live_photo_videos: {
     description:
-      "On re-encodes the video of a live or motion photo to AV1 with the settings above, which is lossy, and keeps the original video only if the result isn't smaller. Off leaves that video exactly as it is when its still is converted.",
+      "On re-encodes the video of a live or motion photo to the target video codec with the settings above, which is lossy, and keeps the original video only if the result isn't smaller. Off leaves that video exactly as it is when its still is converted.",
     default: "on",
   },
   enable_retry: {
@@ -210,6 +236,41 @@ function renderFormatCheckboxes(idPrefix, selectedCsv) {
 /** Reads a format checkbox group back into a comma-separated string. */
 function readFormatCheckboxes(root, idPrefix) {
   return IMAGE_FORMAT_OPTIONS.filter(([value]) =>
+    root.querySelector(`#${idPrefix}-${value}`).checked
+  )
+    .map(([value]) => value)
+    .join(",");
+}
+
+/** Target video codec display names. */
+const VIDEO_CODEC_LABELS = { av1: "AV1", hevc: "HEVC" };
+
+/** [value, label] pairs for the video source-codec allow-list. */
+const VIDEO_CODEC_OPTIONS = [
+  ["h264", "H.264"],
+  ["hevc", "HEVC"],
+  ["av1", "AV1"],
+  ["vp9", "VP9"],
+  ["vp8", "VP8"],
+  ["mpeg4", "MPEG-4"],
+  ["mjpeg", "Motion JPEG"],
+  ["prores", "ProRes"],
+  ["other", "Other"],
+];
+
+/** Renders the source-codec allow-list. The target codec is shown checked and
+ * disabled: same-codec sources are always skipped, so it isn't a choice. */
+function renderVideoCodecCheckboxes(idPrefix, selectedCsv, targetCodec) {
+  const selected = new Set(selectedCsv.split(","));
+  return VIDEO_CODEC_OPTIONS.map(([value, label]) => {
+    const isTarget = value === targetCodec;
+    return `<label class="check"><input type="checkbox" data-codec="${value}" id="${idPrefix}-${value}" ${isTarget || selected.has(value) ? "checked" : ""} ${isTarget ? "disabled" : ""} /> ${label}${isTarget ? " (target, always skipped)" : ""}</label>`;
+  }).join("");
+}
+
+/** Reads the source-codec checkbox group back into a comma-separated string. */
+function readVideoCodecCheckboxes(root, idPrefix) {
+  return VIDEO_CODEC_OPTIONS.filter(([value]) =>
     root.querySelector(`#${idPrefix}-${value}`).checked
   )
     .map(([value]) => value)
