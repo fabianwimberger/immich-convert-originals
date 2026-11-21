@@ -8,11 +8,22 @@ updates:
     schedule:
       interval: "weekly"
       day: "monday"
+      time: "19:00"
+      timezone: "Europe/Vienna"
+    groups:
+      minor-and-patch:
+        update-types:
+          - "minor"
+          - "patch"
     commit-message:
       prefix: "ci"
     labels:
       - "dependencies"
       - "docker"
+    ignore:
+      - dependency-name: "python"
+        # The images stay on Python 3.14.
+        versions: [">= 3.15"]
 
   # Compose image dependencies (test stack and upload-fault fixture)
   - package-ecosystem: "docker-compose"
@@ -22,12 +33,22 @@ updates:
     schedule:
       interval: "weekly"
       day: "monday"
+      time: "19:00"
+      timezone: "Europe/Vienna"
+    groups:
+      minor-and-patch:
+        update-types:
+          - "minor"
+          - "patch"
     commit-message:
       prefix: "ci"
     labels:
       - "dependencies"
       - "docker"
     ignore:
+      - dependency-name: "python"
+        # The images stay on Python 3.14.
+        versions: [">= 3.15"]
       # The postgres image ships with the Immich release; it moves with the
       # server image, not on its own.
       - dependency-name: "ghcr.io/immich-app/postgres"
@@ -38,6 +59,13 @@ updates:
     schedule:
       interval: "weekly"
       day: "monday"
+      time: "19:00"
+      timezone: "Europe/Vienna"
+    groups:
+      minor-and-patch:
+        update-types:
+          - "minor"
+          - "patch"
     commit-message:
       prefix: "ci"
     labels:
@@ -50,6 +78,13 @@ updates:
     schedule:
       interval: "weekly"
       day: "monday"
+      time: "19:00"
+      timezone: "Europe/Vienna"
+    groups:
+      minor-and-patch:
+        update-types:
+          - "minor"
+          - "patch"
     commit-message:
       prefix: "deps"
     labels:
