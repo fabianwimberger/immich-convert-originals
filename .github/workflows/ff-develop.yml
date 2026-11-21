@@ -1,0 +1,43 @@
+name: Fast-forward develop
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  issues: write
+
+concurrency:
+  group: ff-develop
+  cancel-in-progress: false
+
+jobs:
+  ff-develop:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Fast-forward develop to main
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git fetch origin develop
+          if git merge-base --is-ancestor "$GITHUB_SHA" origin/develop; then
+            echo "develop already contains main"
+            exit 0
+          fi
+          if git merge-base --is-ancestor origin/develop "$GITHUB_SHA" \
+            && git push origin "$GITHUB_SHA:refs/heads/develop"; then
+            exit 0
+          fi
+          title="develop could not be fast-forwarded to main"
+          if [ -z "$(gh issue list --state open --search "$title in:title" --json number --jq '.[0].number')" ]; then
+            gh issue create --title "$title" \
+              --body "The push to main at $GITHUB_SHA could not be applied to develop as a fast-forward: develop has commits main does not, or the push was rejected. Reconcile the branches by hand."
+          fi
+          exit 1
