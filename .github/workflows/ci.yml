@@ -265,3 +265,18 @@ jobs:
           docker compose -f backend/tests/integration/upload-fault-compose.yml -p immich-convert-test-faults down -v || true
           docker compose -f backend/tests/integration/docker-compose.test.yml -p immich-convert-test down -v
           docker network rm immich-test-net || true
+
+  ci:
+    name: ci
+    if: always()
+    needs: [lint, test, docker, integration, integration-release]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require every job to pass
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          case " $RESULTS " in
+            *" failure "*|*" cancelled "*) echo "A required job did not pass: $RESULTS"; exit 1 ;;
+          esac
