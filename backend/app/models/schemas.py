@@ -2,13 +2,14 @@
 
 import shlex
 from datetime import datetime
-from typing import Annotated
+from typing import Annotated, Literal
 
 from pydantic import AfterValidator, BaseModel, ConfigDict, Field
 
 from app.models.asset_outcome import AssetOutcome as AssetOutcomeRow
 from app.models.run import Run as RunRow
 from app.models.settings import Settings as SettingsRow
+from app.video_codecs import SOURCE_VIDEO_CODECS, X265_PRESETS
 
 MAX_CUSTOM_ARGS_LENGTH = 2000
 
@@ -31,6 +32,28 @@ def _validate_custom_args(value: str | None) -> str | None:
 CustomArgs = Annotated[str | None, AfterValidator(_validate_custom_args)]
 
 
+VideoTargetCodec = Literal["av1", "hevc"]
+
+
+def _check_x265_preset(value: str) -> str:
+    if value not in X265_PRESETS:
+        raise ValueError(f"must be one of: {', '.join(X265_PRESETS)}")
+    return value
+
+
+X265Preset = Annotated[str, AfterValidator(_check_x265_preset)]
+
+
+def _check_video_codec_list(value: str) -> str:
+    unknown = {c for c in value.split(",") if c} - set(SOURCE_VIDEO_CODECS)
+    if unknown:
+        raise ValueError(f"unknown video codec(s): {', '.join(sorted(unknown))}")
+    return value
+
+
+VideoCodecList = Annotated[str, AfterValidator(_check_video_codec_list)]
+
+
 class SettingsResponse(BaseModel):
     """Settings as returned to the client. The API key is masked."""
 
@@ -51,11 +74,16 @@ class SettingsResponse(BaseModel):
     image_quality_heic_retry: int
     image_quality_avif: int
     image_quality_avif_retry: int
+    video_target_codec: str
+    convert_video_codecs: str
     video_crf: int
     video_preset: int
     video_max_dimension: int
     video_audio_bitrate: str
     video_crf_retry: int
+    video_crf_hevc: int
+    video_crf_hevc_retry: int
+    video_preset_hevc: str
     convert_live_photo_videos: bool
     enable_retry: bool
     accept_retry_output: bool
@@ -87,11 +115,16 @@ class SettingsResponse(BaseModel):
             image_quality_heic_retry=settings.image_quality_heic_retry,
             image_quality_avif=settings.image_quality_avif,
             image_quality_avif_retry=settings.image_quality_avif_retry,
+            video_target_codec=settings.video_target_codec,
+            convert_video_codecs=settings.convert_video_codecs,
             video_crf=settings.video_crf,
             video_preset=settings.video_preset,
             video_max_dimension=settings.video_max_dimension,
             video_audio_bitrate=settings.video_audio_bitrate,
             video_crf_retry=settings.video_crf_retry,
+            video_crf_hevc=settings.video_crf_hevc,
+            video_crf_hevc_retry=settings.video_crf_hevc_retry,
+            video_preset_hevc=settings.video_preset_hevc,
             convert_live_photo_videos=settings.convert_live_photo_videos,
             enable_retry=settings.enable_retry,
             accept_retry_output=settings.accept_retry_output,
@@ -130,11 +163,16 @@ class SettingsUpdate(BaseModel):
     image_quality_heic_retry: int | None = Field(default=None, ge=0, le=100)
     image_quality_avif: int | None = Field(default=None, ge=0, le=100)
     image_quality_avif_retry: int | None = Field(default=None, ge=0, le=100)
+    video_target_codec: VideoTargetCodec | None = None
+    convert_video_codecs: VideoCodecList | None = None
     video_crf: int | None = Field(default=None, ge=0, le=63)
     video_preset: int | None = Field(default=None, ge=0, le=13)
     video_max_dimension: int | None = Field(default=None, ge=0)
     video_audio_bitrate: str | None = None
     video_crf_retry: int | None = Field(default=None, ge=0, le=63)
+    video_crf_hevc: int | None = Field(default=None, ge=0, le=51)
+    video_crf_hevc_retry: int | None = Field(default=None, ge=0, le=51)
+    video_preset_hevc: X265Preset | None = None
     convert_live_photo_videos: bool | None = None
     enable_retry: bool | None = None
     accept_retry_output: bool | None = None
@@ -216,11 +254,16 @@ class RunCreate(BaseModel):
     image_quality_heic_retry: int | None = Field(default=None, ge=0, le=100)
     image_quality_avif: int | None = Field(default=None, ge=0, le=100)
     image_quality_avif_retry: int | None = Field(default=None, ge=0, le=100)
+    video_target_codec: VideoTargetCodec | None = None
+    convert_video_codecs: VideoCodecList | None = None
     video_crf: int | None = Field(default=None, ge=0, le=63)
     video_preset: int | None = Field(default=None, ge=0, le=13)
     video_max_dimension: int | None = Field(default=None, ge=0)
     video_audio_bitrate: str | None = None
     video_crf_retry: int | None = Field(default=None, ge=0, le=63)
+    video_crf_hevc: int | None = Field(default=None, ge=0, le=51)
+    video_crf_hevc_retry: int | None = Field(default=None, ge=0, le=51)
+    video_preset_hevc: X265Preset | None = None
     convert_live_photo_videos: bool | None = None
     enable_retry: bool | None = None
     accept_retry_output: bool | None = None

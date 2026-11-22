@@ -722,6 +722,129 @@ class TestTranscodeVideo:
         assert args[args.index("-colorspace") + 1] == "bt2020nc"
 
 
+class TestTranscodeVideoHevc:
+    def _run(self, tmp_path, probes, **kwargs):
+        input_path = tmp_path / "input.mp4"
+        input_path.write_bytes(b"\x00" * 100)
+        output_path = tmp_path / "output.mp4"
+        with patch("app.services.transcode.subprocess.run") as mock_run:
+            mock_run.side_effect = [FakeCompletedProcess(stdout=p) for p in probes] + [
+                FakeCompletedProcess(returncode=0)
+            ]
+            result = transcode_video(
+                str(input_path),
+                str(output_path),
+                26,
+                "slow",
+                0,
+                "96k",
+                codec="hevc",
+                **kwargs,
+            )
+        return result, mock_run.call_args[0][0]
+
+    def test_sdr_uses_x265_aac_and_hvc1_tag(self, tmp_path):
+        result, args = self._run(tmp_path, ["h264", "bt709", "bt709"])
+
+        assert result.success is True
+        assert args[args.index("-c:v") + 1] == "libx265"
+        assert args[args.index("-crf") + 1] == "26"
+        assert args[args.index("-preset") + 1] == "slow"
+        assert args[args.index("-tag:v") + 1] == "hvc1"
+        assert args[args.index("-pix_fmt") + 1] == "yuv420p"
+        assert args[args.index("-c:a") + 1] == "aac"
+        assert args[args.index("-b:a") + 1] == "96k"
+        assert "-x265-params" not in args
+        assert "-svtav1-params" not in args
+
+    def test_av1_target_keeps_opus_and_has_no_hvc1_tag(self, tmp_path):
+        input_path = tmp_path / "input.mp4"
+        input_path.write_bytes(b"\x00" * 100)
+        with patch("app.services.transcode.subprocess.run") as mock_run:
+            mock_run.side_effect = [
+                FakeCompletedProcess(stdout="h264"),
+                FakeCompletedProcess(stdout=""),
+                FakeCompletedProcess(stdout=""),
+                FakeCompletedProcess(returncode=0),
+            ]
+            transcode_video(str(input_path), str(tmp_path / "o.mp4"), 30, "4", 0, "64k")
+        args = mock_run.call_args[0][0]
+        assert args[args.index("-c:v") + 1] == "libsvtav1"
+        assert args[args.index("-c:a") + 1] == "libopus"
+        assert "-tag:v" not in args
+
+    def test_hdr_pq_uses_main10_and_hdr10_params(self, tmp_path):
+        result, args = self._run(tmp_path, ["h264", "smpte2084", ""])
+
+        assert args[args.index("-pix_fmt") + 1] == "yuv420p10le"
+        assert args[args.index("-color_primaries") + 1] == "bt2020"
+        assert args[args.index("-color_trc") + 1] == "smpte2084"
+        assert args[args.index("-colorspace") + 1] == "bt2020nc"
+        params = args[args.index("-x265-params") + 1]
+        assert "hdr10=1" in params
+        assert "colorprim=bt2020" in params
+        assert "transfer=smpte2084" in params
+        assert "colormatrix=bt2020nc" in params
+        assert "range=limited" in params
+        assert "-svtav1-params" not in args
+
+    def test_hdr_hlg_has_no_hdr10_flag(self, tmp_path):
+        result, args = self._run(tmp_path, ["h264", "arib-std-b67", ""])
+
+        params = args[args.index("-x265-params") + 1]
+        assert "transfer=arib-std-b67" in params
+        assert "hdr10=1" not in params
+        assert args[args.index("-pix_fmt") + 1] == "yuv420p10le"
+
+    def test_gbr_sdr_is_relabeled_to_bt709(self, tmp_path):
+        result, args = self._run(tmp_path, ["h264", "", "gbr"])
+
+        assert "setparams=colorspace=bt709" in args[args.index("-vf") + 1]
+
+    def test_skips_hevc_input_when_target_is_hevc(self, tmp_path):
+        result, args = self._run(tmp_path, ["hevc"])
+
+        assert result.success is False
+        assert result.error == "Already HEVC"
+
+    def test_av1_input_is_skipped_only_for_av1_target(self, tmp_path):
+        # AV1 source, HEVC target: not "already" -- it gets converted.
+        result, _ = self._run(tmp_path, ["av1", "", ""])
+        assert result.success is True
+
+    def test_excluded_source_codec_is_skipped(self, tmp_path):
+        result, _ = self._run(tmp_path, ["vp9"], allowed_source_codecs={"h264", "hevc"})
+
+        assert result.success is False
+        assert result.error == "Codec excluded by settings (vp9)"
+
+    def test_unlisted_codec_falls_in_other_bucket(self, tmp_path):
+        result, _ = self._run(tmp_path, ["theora"], allowed_source_codecs={"h264"})
+        assert result.error == "Codec excluded by settings (theora)"
+
+        result, _ = self._run(
+            tmp_path, ["theora", "", ""], allowed_source_codecs={"h264", "other"}
+        )
+        assert result.success is True
+
+    def test_av1_target_skips_av1_input(self, tmp_path):
+        input_path = tmp_path / "input.mp4"
+        input_path.write_bytes(b"\x00" * 100)
+        with patch("app.services.transcode.subprocess.run") as mock_run:
+            mock_run.return_value = FakeCompletedProcess(stdout="av1")
+            result = transcode_video(
+                str(input_path),
+                str(tmp_path / "o.mp4"),
+                30,
+                "4",
+                0,
+                "64k",
+                codec="av1",
+                allowed_source_codecs={"h264"},
+            )
+        assert result.error == "Already AV1"
+
+
 class TestDetectVideoCodec:
     def test_returns_codec_on_success(self, tmp_path):
         video = tmp_path / "video.mp4"

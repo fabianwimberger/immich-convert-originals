@@ -5,9 +5,11 @@ import logging
 import os
 import shutil
 import subprocess
-from collections.abc import Sequence
+from collections.abc import Collection, Sequence
 from dataclasses import dataclass, replace
 from typing import Any
+
+from app.video_codecs import source_codec_bucket
 
 logger = logging.getLogger(__name__)
 
@@ -709,6 +711,42 @@ def _transcode_image(
         )
 
 
+# Video targets: name -> ffprobe codec_name of a stream already in that codec.
+_TARGET_CODEC_FFPROBE_NAMES = {"av1": "av1", "hevc": "hevc"}
+
+
+def _hdr_encoder_args(codec: str, hdr_transfer: str) -> list[str]:
+    """10-bit BT.2020 encoder args carrying the HDR transfer through."""
+    common = [
+        "-pix_fmt",
+        "yuv420p10le",
+        "-color_primaries",
+        "bt2020",
+        "-color_trc",
+        hdr_transfer,
+        "-colorspace",
+        "bt2020nc",
+    ]
+    if codec == "hevc":
+        params = [
+            "colorprim=bt2020",
+            f"transfer={hdr_transfer}",
+            "colormatrix=bt2020nc",
+            "range=limited",
+        ]
+        if hdr_transfer == "smpte2084":
+            params.insert(0, "hdr10=1")
+        return [*common, "-x265-params", ":".join(params)]
+    params = [
+        "enable-hdr=1",
+        "color-primaries=9",  # BT.2020
+        f"transfer-characteristics={HDR_TRANSFER_CHARACTERISTICS[hdr_transfer]}",
+        "matrix-coefficients=9",  # BT.2020 non-constant luminance
+        "color-range=0",  # Limited/TV range
+    ]
+    return [*common, "-svtav1-params", ":".join(params)]
+
+
 def transcode_video(
     input_path: str,
     output_path: str,
@@ -718,8 +756,16 @@ def transcode_video(
     audio_bitrate: str,
     timeouts: Timeouts = DEFAULT_TIMEOUTS,
     extra_args: Sequence[str] = (),
+    codec: str = "av1",
+    allowed_source_codecs: Collection[str] | None = None,
 ) -> TranscodeResult:
-    """Transcode a video to MP4/AV1 using ffmpeg + SVT-AV1.
+    """Transcode a video to MP4 as AV1 (SVT-AV1 + Opus) or HEVC (x265 + AAC).
+
+    A source already in the target codec is skipped ("Already AV1/HEVC").
+    allowed_source_codecs, when given, is the set of source codecs to convert
+    (names from video_codecs.SOURCE_VIDEO_CODECS, where "other" covers any codec
+    not listed);
+    anything else is skipped as "Codec excluded by settings (<codec>)".
 
     HDR10/HDR10+ (PQ) and HLG sources are detected via ffprobe's
     color_transfer tag and re-encoded 10-bit with BT.2020 primaries and
@@ -730,13 +776,13 @@ def transcode_video(
     relabeled to bt709, which SVT-AV1 accepts outside 4:4:4 chroma.
 
     Args:
-        crf: Quality (0-63, lower=better)
-        preset: Speed preset (0-13, lower=slower/better)
+        crf: Quality (AV1: 0-63, HEVC: 0-51, lower=better)
+        preset: Speed preset (AV1: 0-13 lower=slower/better; HEVC: x265 preset name)
         max_dimension: Maximum dimension for the shorter side (width or height).
                        Set to 0 to disable scaling. Portrait videos will have their
                        width limited to this value, landscape videos will have their
                        height limited. Aspect ratio is always preserved.
-        audio_bitrate: Audio bitrate for Opus encoder
+        audio_bitrate: Audio bitrate for the Opus (AV1) or AAC (HEVC) encoder
     """
     input_bytes = os.path.getsize(input_path)
 
@@ -752,7 +798,14 @@ def transcode_video(
             error="Could not detect video codec",
         )
 
-    if current_codec == "av1":
+    skip_reason = None
+    if current_codec == _TARGET_CODEC_FFPROBE_NAMES[codec]:
+        skip_reason = f"Already {codec.upper()}"
+    elif allowed_source_codecs is not None:
+        bucket = source_codec_bucket(current_codec)
+        if bucket not in allowed_source_codecs:
+            skip_reason = f"Codec excluded by settings ({current_codec})"
+    if skip_reason:
         return TranscodeResult(
             success=False,
             input_path=input_path,
@@ -760,7 +813,7 @@ def transcode_video(
             input_bytes=input_bytes,
             output_bytes=input_bytes,
             input_format=current_codec,
-            error="Already AV1",
+            error=skip_reason,
         )
 
     hdr_transfer = detect_hdr_transfer(input_path, timeouts=timeouts)
@@ -779,7 +832,7 @@ def transcode_video(
         "-map",
         "0:a:0?",
         "-c:v",
-        "libsvtav1",
+        "libx265" if codec == "hevc" else "libsvtav1",
         "-crf",
         str(crf),
         "-preset",
@@ -805,34 +858,18 @@ def transcode_video(
         cmd.extend(["-vf", ",".join(filters)])
 
     if hdr_transfer:
-        svtav1_params = [
-            "enable-hdr=1",
-            "color-primaries=9",  # BT.2020
-            f"transfer-characteristics={HDR_TRANSFER_CHARACTERISTICS[hdr_transfer]}",
-            "matrix-coefficients=9",  # BT.2020 non-constant luminance
-            "color-range=0",  # Limited/TV range
-        ]
-        cmd.extend(
-            [
-                "-pix_fmt",
-                "yuv420p10le",
-                "-color_primaries",
-                "bt2020",
-                "-color_trc",
-                hdr_transfer,
-                "-colorspace",
-                "bt2020nc",
-                "-svtav1-params",
-                ":".join(svtav1_params),
-            ]
-        )
+        cmd.extend(_hdr_encoder_args(codec, hdr_transfer))
     else:
         cmd.extend(["-pix_fmt", "yuv420p"])
+
+    if codec == "hevc":
+        # Apple players only recognise HEVC in MP4 under the hvc1 tag.
+        cmd.extend(["-tag:v", "hvc1"])
 
     cmd.extend(
         [
             "-c:a",
-            "libopus",
+            "aac" if codec == "hevc" else "libopus",
             "-b:a",
             audio_bitrate,
             "-map_metadata",

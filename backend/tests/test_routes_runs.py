@@ -464,3 +464,42 @@ class TestExportFailures:
     async def test_missing_run_404(self, client):
         resp = await client.get("/api/runs/999999/export-failures")
         assert resp.status_code == 404
+
+
+class TestVideoCodecSnapshot:
+    async def _snapshot(self, client, body):
+        from sqlalchemy import select
+
+        await _configure_connection(client)
+        resp = await client.post("/api/runs", json=body)
+        assert resp.status_code == 200
+        async with AsyncSessionLocal() as db:
+            result = await db.execute(select(Run).where(Run.id == resp.json()["id"]))
+            return json.loads(result.scalar_one().config_snapshot)
+
+    async def test_defaults_come_from_settings(self, client):
+        cfg = await self._snapshot(client, {"asset_types": "VIDEO"})
+        assert cfg["video_target_codec"] == "av1"
+        assert cfg["convert_video_codecs"].split(",")[-1] == "other"
+        assert cfg["video_crf_hevc"] == 26
+        assert cfg["video_crf_hevc_retry"] == 30
+        assert cfg["video_preset_hevc"] == "slow"
+
+    async def test_overrides_stored_in_snapshot(self, client):
+        cfg = await self._snapshot(
+            client,
+            {
+                "asset_types": "VIDEO",
+                "video_target_codec": "hevc",
+                "convert_video_codecs": "h264",
+                "video_crf_hevc": 20,
+            },
+        )
+        assert cfg["video_target_codec"] == "hevc"
+        assert cfg["convert_video_codecs"] == "h264"
+        assert cfg["video_crf_hevc"] == 20
+
+    async def test_invalid_override_rejected(self, client):
+        await _configure_connection(client)
+        resp = await client.post("/api/runs", json={"video_target_codec": "vp9"})
+        assert resp.status_code == 422
