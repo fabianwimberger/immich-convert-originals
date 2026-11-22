@@ -86,7 +86,7 @@ function renderBrowseSide(side) {
       </div>
       <dl class="pairs">
         <div class="pair"><dt>Images</dt><dd>${format}</dd></div>
-        <div class="pair"><dt>Videos</dt><dd>AV1</dd></div>
+        <div class="pair"><dt>Videos</dt><dd>${(s && VIDEO_CODEC_LABELS[s.video_target_codec]) || "AV1"}</dd></div>
         <div class="pair"><dt>Selected</dt><dd>${selected}</dd></div>
         <div class="pair"><dt>Saved in recent runs</dt><dd>${fmtBytes(totalSaved())}</dd></div>
       </dl>

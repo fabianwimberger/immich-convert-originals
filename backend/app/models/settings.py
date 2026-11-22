@@ -3,6 +3,12 @@
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
+from app.video_codecs import (
+    DEFAULT_CONVERT_VIDEO_CODECS,
+    DEFAULT_HEVC_CRF,
+    DEFAULT_HEVC_CRF_RETRY,
+    DEFAULT_HEVC_PRESET,
+)
 
 SETTINGS_ROW_ID = 1
 
@@ -46,11 +52,26 @@ class Settings(Base):
     image_quality_avif: Mapped[int] = mapped_column(default=75)
     image_quality_avif_retry: Mapped[int] = mapped_column(default=55)
 
+    # Output video codec: "av1" or "hevc". A source already in this codec is
+    # always skipped.
+    video_target_codec: Mapped[str] = mapped_column(default="av1")
+    # Which source codecs a run converts; "other" covers any codec not named.
+    # Comma-separated subset of h264,hevc,av1,vp9,vp8,mpeg4,mjpeg,prores,other.
+    convert_video_codecs: Mapped[str] = mapped_column(
+        default=DEFAULT_CONVERT_VIDEO_CODECS
+    )
+
+    # video_crf, video_crf_retry and video_preset are the AV1 (SVT-AV1) values;
+    # they predate the HEVC target and keep their names to avoid a column
+    # rename. The *_hevc fields below are the x265 equivalents.
     video_crf: Mapped[int] = mapped_column(default=36)
     video_preset: Mapped[int] = mapped_column(default=4)
     video_max_dimension: Mapped[int] = mapped_column(default=0)
     video_audio_bitrate: Mapped[str] = mapped_column(default="64k")
     video_crf_retry: Mapped[int] = mapped_column(default=40)
+    video_crf_hevc: Mapped[int] = mapped_column(default=DEFAULT_HEVC_CRF)
+    video_crf_hevc_retry: Mapped[int] = mapped_column(default=DEFAULT_HEVC_CRF_RETRY)
+    video_preset_hevc: Mapped[str] = mapped_column(default=DEFAULT_HEVC_PRESET)
 
     # Extra arguments appended to each tool's command (shlex syntax); "" adds
     # nothing. Applied as typed, with no allowlist: the Settings page is trusted.

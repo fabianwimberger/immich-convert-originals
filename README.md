@@ -9,7 +9,7 @@
 
 A self-hosted, web-based tool that batch-transcodes your Immich library to modern, space-efficient formats:
 - **Images** → JPEG XL, HEIC, or AVIF (your choice)
-- **Videos** → AV1 (MP4 container)
+- **Videos** → AV1 or HEVC (MP4 container), your choice in Settings
 
 Browse your library, pick what to convert, and watch live progress in the browser — download, transcode, upload (or save locally instead), and remove the original only once the upload is verified.
 
@@ -26,10 +26,10 @@ JPEG XL shrinks photos by 20-40% and AV1 shrinks videos by 30-50% with no visibl
 - **Asset browser** — filter by type, album, archived/deleted state; thumbnails are proxied through the backend, so the API key never reaches the browser
 - **Run scoping** — whole library, one album, a date range, or a selection from Browse
 - **Image conversion** — JPEG, PNG, WebP, HEIC, AVIF, TIFF, GIF, BMP → JPEG XL, HEIC, or AVIF; JPEG → JXL is a lossless bit-exact repack; input formats can be excluded from a run
-- **Video conversion** — MP4, MOV, MKV → AV1 (MP4)
+- **Video conversion** — MP4, MOV, MKV → AV1 or HEVC (MP4); videos already in the target codec are skipped, and you can pick which source codecs to convert (e.g. leave AV1 sources alone when targeting HEVC)
 - **Local-only mode** — writes to `<year>/<month>` folders on disk instead of uploading, optionally keeping the original alongside; Immich is never touched
 - **Metadata preservation** — EXIF, GPS, favorite state, rating, and albums are copied to the replacement asset
-- **Live and motion photos** — the still is converted and stays linked to its video; motion photos with an embedded video (Google, Samsung, OnePlus) are stored as the still alone; re-encoding the video to AV1 is optional and off by default; local-only mode saves the video next to the still
+- **Live and motion photos** — the still is converted and stays linked to its video; motion photos with an embedded video (Google, Samsung, OnePlus) are stored as the still alone; re-encoding the video to the target codec is optional and off by default; local-only mode saves the video next to the still
 - **Retry and resume** — retries with more compression if the output is larger than the original; a later run skips assets already converted
 - **Run history** — per-asset outcomes for every run; retry only the failures or export them as CSV
 - **Dry-run and live progress** — preview what a run would do; progress arrives over WebSocket
@@ -85,7 +85,7 @@ flowchart LR
     B -->|download| C[Original asset]
     C --> D{Type}
     D -->|Image| E[Image encode<br/>JXL / HEIC / AVIF]
-    D -->|Video| F[AV1 encode]
+    D -->|Video| F[AV1 or HEVC encode]
     E --> K{Output mode}
     F --> K
     K -->|Upload| G[Upload new asset]

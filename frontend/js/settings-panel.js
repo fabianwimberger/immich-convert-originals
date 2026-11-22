@@ -1,3 +1,16 @@
+const X265_PRESETS = [
+  "ultrafast",
+  "superfast",
+  "veryfast",
+  "faster",
+  "fast",
+  "medium",
+  "slow",
+  "slower",
+  "veryslow",
+  "placebo",
+];
+
 /** Immich connection + default encoding settings. */
 class SettingsPanel {
   constructor(root) {
@@ -162,19 +175,56 @@ class SettingsPanel {
             </div>
             <div class="form">
               <div class="field">
-                <label class="label" for="set-video-crf">CRF (0-63, lower is better)</label>
-                <input id="set-video-crf" class="input" type="number" min="0" max="63" value="${s.video_crf}" />
-                ${fieldHint("video_crf")}
+                <label class="label" for="set-video-target-codec">Target codec</label>
+                <select id="set-video-target-codec" class="select">
+                  <option value="av1" ${s.video_target_codec === "av1" ? "selected" : ""}>AV1</option>
+                  <option value="hevc" ${s.video_target_codec === "hevc" ? "selected" : ""}>HEVC (H.265)</option>
+                </select>
+                ${fieldHint("video_target_codec")}
               </div>
               <div class="field">
-                <label class="label" for="set-video-crf-retry">CRF on retry</label>
-                <input id="set-video-crf-retry" class="input" type="number" min="0" max="63" value="${s.video_crf_retry}" />
-                ${fieldHint("video_crf_retry")}
+                <span class="label">Source codecs to convert</span>
+                <div class="checkbox-group" id="set-convert-video-codecs">
+                  ${renderVideoCodecCheckboxes("set-vcodec", s.convert_video_codecs, s.video_target_codec)}
+                </div>
+                <p id="video-codec-warning" class="field__hint" style="display:none">AV1 to HEVC usually produces larger files; consider unchecking AV1.</p>
+                ${fieldHint("convert_video_codecs")}
               </div>
-              <div class="field">
-                <label class="label" for="set-video-preset">Preset (0-13, lower is slower)</label>
-                <input id="set-video-preset" class="input" type="number" min="0" max="13" value="${s.video_preset}" />
-                ${fieldHint("video_preset")}
+              <div class="video-codec-fields form" data-codec="av1" style="${s.video_target_codec === "av1" ? "" : "display:none"}">
+                <div class="field">
+                  <label class="label" for="set-video-crf">CRF (0-63, lower is better)</label>
+                  <input id="set-video-crf" class="input" type="number" min="0" max="63" value="${s.video_crf}" />
+                  ${fieldHint("video_crf")}
+                </div>
+                <div class="field">
+                  <label class="label" for="set-video-crf-retry">CRF on retry</label>
+                  <input id="set-video-crf-retry" class="input" type="number" min="0" max="63" value="${s.video_crf_retry}" />
+                  ${fieldHint("video_crf_retry")}
+                </div>
+                <div class="field">
+                  <label class="label" for="set-video-preset">Preset (0-13, lower is slower)</label>
+                  <input id="set-video-preset" class="input" type="number" min="0" max="13" value="${s.video_preset}" />
+                  ${fieldHint("video_preset")}
+                </div>
+              </div>
+              <div class="video-codec-fields form" data-codec="hevc" style="${s.video_target_codec === "hevc" ? "" : "display:none"}">
+                <div class="field">
+                  <label class="label" for="set-video-crf-hevc">CRF (0-51, lower is better)</label>
+                  <input id="set-video-crf-hevc" class="input" type="number" min="0" max="51" value="${s.video_crf_hevc}" />
+                  ${fieldHint("video_crf_hevc")}
+                </div>
+                <div class="field">
+                  <label class="label" for="set-video-crf-hevc-retry">CRF on retry</label>
+                  <input id="set-video-crf-hevc-retry" class="input" type="number" min="0" max="51" value="${s.video_crf_hevc_retry}" />
+                  ${fieldHint("video_crf_hevc_retry")}
+                </div>
+                <div class="field">
+                  <label class="label" for="set-video-preset-hevc">Preset</label>
+                  <select id="set-video-preset-hevc" class="select">
+                    ${X265_PRESETS.map((p) => `<option value="${p}" ${s.video_preset_hevc === p ? "selected" : ""}>${p}</option>`).join("")}
+                  </select>
+                  ${fieldHint("video_preset_hevc")}
+                </div>
               </div>
               <div class="field">
                 <label class="label" for="set-video-max-dimension">Max dimension in pixels, short side (0 disables)</label>
@@ -299,6 +349,13 @@ class SettingsPanel {
           e.target.value
         );
       });
+    this.root
+      .querySelector("#set-video-target-codec")
+      .addEventListener("change", (e) => this.onVideoTargetChange(e.target.value));
+    this.root
+      .querySelector("#set-convert-video-codecs")
+      .addEventListener("change", () => this.updateVideoCodecWarning());
+    this.updateVideoCodecWarning();
     this.root.querySelector("#btn-save-videos").addEventListener("click", () =>
       this.saveVideos()
     );
@@ -314,6 +371,25 @@ class SettingsPanel {
     this.root.querySelector("#btn-save-retry").addEventListener("click", () =>
       this.saveRetry()
     );
+  }
+
+  /** Swaps the per-codec quality fields and re-renders the source-codec
+   * checkboxes so the new target is the disabled one. */
+  onVideoTargetChange(target) {
+    this.root.querySelectorAll(".video-codec-fields").forEach((el) => {
+      el.style.display = el.dataset.codec === target ? "" : "none";
+    });
+    const current = readVideoCodecCheckboxes(this.root, "set-vcodec");
+    this.root.querySelector("#set-convert-video-codecs").innerHTML =
+      renderVideoCodecCheckboxes("set-vcodec", current, target);
+    this.updateVideoCodecWarning();
+  }
+
+  updateVideoCodecWarning() {
+    const target = this.root.querySelector("#set-video-target-codec").value;
+    const av1Checked = this.root.querySelector("#set-vcodec-av1").checked;
+    this.root.querySelector("#video-codec-warning").style.display =
+      target === "hevc" && av1Checked ? "" : "none";
   }
 
   async testConnection() {
@@ -413,6 +489,14 @@ class SettingsPanel {
 
   async saveVideos() {
     await this._save("videos-status", {
+      video_target_codec: this.root.querySelector("#set-video-target-codec").value,
+      convert_video_codecs: readVideoCodecCheckboxes(this.root, "set-vcodec"),
+      video_crf_hevc: parseInt(this.root.querySelector("#set-video-crf-hevc").value, 10),
+      video_crf_hevc_retry: parseInt(
+        this.root.querySelector("#set-video-crf-hevc-retry").value,
+        10
+      ),
+      video_preset_hevc: this.root.querySelector("#set-video-preset-hevc").value,
       video_crf: parseInt(this.root.querySelector("#set-video-crf").value, 10),
       video_crf_retry: parseInt(
         this.root.querySelector("#set-video-crf-retry").value,
