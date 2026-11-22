@@ -5,13 +5,29 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [v2.11.0] - 2026-11-22
+
+Videos can be transcoded to HEVC as well as AV1, and a run converts only the source codecs you leave checked.
 
 ### Features
 
 - Choose the video target codec on the Settings page: AV1 (default) or HEVC. HEVC is encoded with x265, tagged `hvc1` for Apple playback, and uses AAC audio (AV1 keeps Opus). Each codec has its own CRF, retry CRF and preset.
 - A new "Source codecs to convert" list, like the image formats one, lets you leave some video codecs alone, for example AV1 sources when targeting HEVC. Videos already in the target codec are always skipped.
 - Runs can override the video codec from the Convert view or the API (`video_target_codec`, `convert_video_codecs`). Live photo videos follow the same target and list.
+
+### Testing
+
+- Integration tests pass against Immich v3.3.6.
+
+### Dependencies
+
+- FastAPI 0.162.0 → 0.165.0, SQLAlchemy 2.1.8 → 2.1.9.
+- pytest-asyncio 1.4.1.post1 → 1.5.0, ruff 0.17.4 → 0.17.5.
+
+### Documentation & Links
+
+- [README](https://github.com/fabianwimberger/immich-convert-originals#readme)
+- [Full changelog](https://github.com/fabianwimberger/immich-convert-originals/compare/v2.10.0...v2.11.0)
 
 ## [v2.10.0] - 2026-11-13
 
